@@ -1,0 +1,539 @@
+package com.portofino.realtrainmodunofficial.installedobject;
+
+import com.google.gson.JsonArray;
+import com.google.gson.JsonElement;
+import com.google.gson.JsonObject;
+import com.google.gson.JsonParser;
+import com.portofino.realtrainmodunofficial.BundledPackStore;
+import com.portofino.realtrainmodunofficial.RealTrainModUnofficial;
+import com.portofino.realtrainmodunofficial.rail.RailPackLoader;
+import com.portofino.realtrainmodunofficial.util.PackTextDecoder;
+import net.neoforged.fml.ModList;
+import net.neoforged.fml.loading.FMLPaths;
+import net.minecraft.world.phys.Vec3;
+
+import java.io.IOException;
+import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipInputStream;
+
+public final class InstalledObjectPackLoader {
+    private static final Pattern LIGHT_STATE_PATTERN = Pattern.compile("S\\((\\d+)\\)");
+    private static final Pattern LIGHT_PARTS_PATTERN = Pattern.compile("P\\(([^)]+)\\)");
+    private static final List<InstalledObjectDefinition> LOADED = new ArrayList<>();
+    private static boolean loaded;
+
+    private InstalledObjectPackLoader() {
+    }
+
+    public static synchronized void load() {
+        if (loaded) {
+            return;
+        }
+        loaded = true;
+        LOADED.clear();
+        try {
+            loadFromModJar();
+            loadDirectoryPacks(FMLPaths.GAMEDIR.get());
+            loadArchiveDirectory(FMLPaths.GAMEDIR.get());
+            Path modsDir = FMLPaths.GAMEDIR.get().resolve("mods");
+            if (Files.isDirectory(modsDir)) {
+                loadDirectoryPacks(modsDir);
+                loadArchiveDirectory(modsDir);
+            }
+            Path contentDir = FMLPaths.GAMEDIR.get().resolve("content");
+            if (Files.isDirectory(contentDir)) {
+                loadDirectoryPacks(contentDir);
+                loadArchiveDirectory(contentDir);
+            }
+        } catch (Exception e) {
+            RealTrainModUnofficial.LOGGER.warn("Could not scan installed object packs", e);
+        }
+        InstalledObjectRegistry.setDefinitions(LOADED);
+        RealTrainModUnofficial.LOGGER.info("Loaded {} installed object definition(s)", LOADED.size());
+    }
+
+    private static void loadFromModJar() {
+        loadFromModJarDirect();
+        try {
+            for (Path path : BundledPackStore.listBundledPacks("rail")) {
+                try (InputStream input = Files.newInputStream(path)) {
+                    loadPack(input, path.getFileName().toString());
+                }
+            }
+            for (Path path : BundledPackStore.listBundledPacks("installed_object")) {
+                try (InputStream input = Files.newInputStream(path)) {
+                    loadPack(input, path.getFileName().toString());
+                }
+            }
+        } catch (Exception e) {
+            RealTrainModUnofficial.LOGGER.warn("Could not scan bundled installed object packs", e);
+        }
+    }
+
+    private static void loadFromModJarDirect() {
+        try {
+            var modFileEntry = ModList.get().getModFileById(RealTrainModUnofficial.MODID);
+            if (modFileEntry == null) return;
+            var modFile = modFileEntry.getFile();
+            Path jsonDir = modFile.findResource("assets", "minecraft", "models", "json");
+            if (jsonDir == null || !Files.isDirectory(jsonDir)) return;
+            Path modRoot = modFile.getFilePath();
+            if (modRoot == null) return;
+            String packName = RealTrainModUnofficial.MODID;
+            RealTrainModUnofficial.LOGGER.info("Loading built-in installed object definitions from {}", jsonDir);
+            try (var stream = Files.list(jsonDir)) {
+                stream.filter(Files::isRegularFile)
+                    .filter(p -> isSupportedJson(normalize(p.getFileName().toString())))
+                    .forEach(path -> {
+                        try {
+                            parse(normalize(path.getFileName().toString()), Files.readAllBytes(path), packName);
+                        } catch (Exception e) {
+                            RealTrainModUnofficial.LOGGER.warn("Failed to load built-in installed object definition {}", path.getFileName(), e);
+                        }
+                    });
+            }
+        } catch (Exception e) {
+            RealTrainModUnofficial.LOGGER.warn("Could not load built-in installed object definitions from mod JAR", e);
+        }
+    }
+
+    public static synchronized void reload() {
+        loaded = false;
+        load();
+    }
+
+    private static void loadDirectoryPacks(Path dir) throws IOException {
+        if (!Files.isDirectory(dir)) {
+            return;
+        }
+        try (var stream = Files.list(dir)) {
+            stream.filter(Files::isDirectory)
+                .filter(InstalledObjectPackLoader::looksLikeInstalledObjectPackDirectory)
+                .forEach(path -> {
+                    try {
+                        loadPackDirectory(path, path.getFileName().toString());
+                    } catch (Exception e) {
+                        RealTrainModUnofficial.LOGGER.warn("Failed to load installed object directory pack {}", path.getFileName(), e);
+                    }
+                });
+        }
+    }
+
+    private static void loadArchiveDirectory(Path dir) throws IOException {
+        if (!Files.isDirectory(dir)) {
+            return;
+        }
+        try (var stream = Files.list(dir)) {
+            stream.filter(InstalledObjectPackLoader::isSupportedArchive)
+                .forEach(path -> {
+                    try (InputStream input = Files.newInputStream(path)) {
+                        loadPack(input, path.getFileName().toString());
+                    } catch (Exception e) {
+                        RealTrainModUnofficial.LOGGER.warn("Failed to load installed object pack {}", path.getFileName(), e);
+                    }
+                });
+        }
+    }
+
+    private static boolean isSupportedArchive(Path path) {
+        String fileName = path.getFileName().toString().toLowerCase(Locale.ROOT);
+        return fileName.endsWith(".zip") || fileName.endsWith(".jar");
+    }
+
+    private static boolean looksLikeInstalledObjectPackDirectory(Path dir) {
+        if (!Files.isDirectory(dir)) {
+            return false;
+        }
+        if (Files.exists(dir.resolve("assets")) || Files.exists(dir.resolve("models")) || Files.exists(dir.resolve("scripts"))) {
+            return true;
+        }
+        try (var stream = Files.walk(dir, 4)) {
+            return stream
+                .filter(Files::isRegularFile)
+                .map(path -> path.getFileName().toString().toLowerCase(Locale.ROOT))
+                .anyMatch(name -> name.endsWith(".json") && (
+                    name.startsWith("modelmachine_")
+                        || name.startsWith("modelsignal_")
+                        || name.startsWith("modelconnector_")
+                        || name.startsWith("modelwire_")
+                        || name.startsWith("modelcrossing_")
+                        || name.startsWith("signboard_")
+                ));
+        } catch (IOException e) {
+            return false;
+        }
+    }
+
+    private static void loadPack(InputStream zipInput, String packName) throws IOException {
+        List<EntryData> entries = new ArrayList<>();
+        try (ZipInputStream zip = new ZipInputStream(zipInput)) {
+            ZipEntry entry;
+            while ((entry = zip.getNextEntry()) != null) {
+                if (!entry.isDirectory()) {
+                    String normalized = normalize(entry.getName());
+                    if (isSupportedJson(normalized)) {
+                        entries.add(new EntryData(normalized, zip.readAllBytes()));
+                    }
+                }
+                zip.closeEntry();
+            }
+        }
+        for (EntryData entry : entries) {
+            parse(entry.path(), entry.bytes(), packName);
+        }
+    }
+
+    private static void loadPackDirectory(Path packDir, String packName) throws IOException {
+        try (var stream = Files.walk(packDir)) {
+            stream.filter(Files::isRegularFile)
+                .filter(path -> isSupportedJson(normalize(packDir.relativize(path).toString())))
+                .forEach(path -> {
+                    try {
+                        parse(normalize(packDir.relativize(path).toString()), Files.readAllBytes(path), packName);
+                    } catch (Exception e) {
+                        RealTrainModUnofficial.LOGGER.warn("Failed to parse installed object json {} in {}", path, packName, e);
+                    }
+                });
+        }
+    }
+
+    private static boolean isSupportedJson(String path) {
+        String file = leaf(path).toLowerCase(Locale.ROOT);
+        return file.endsWith(".json") && (
+            file.startsWith("modelmachine_")
+            || file.startsWith("modelsignal_")
+            || file.startsWith("modelconnector_")
+            || file.startsWith("modelwire_")
+            || file.startsWith("modelcrossing_")
+            || file.startsWith("signboard_")
+        );
+    }
+
+    private static void parse(String path, byte[] bytes, String packName) {
+        try {
+            JsonElement element = JsonParser.parseString(PackTextDecoder.decodeJson(bytes));
+            if (!element.isJsonObject()) {
+                return;
+            }
+            JsonObject obj = element.getAsJsonObject();
+            String file = leaf(path);
+            String lower = file.toLowerCase(Locale.ROOT);
+            if (lower.startsWith("signboard_")) {
+                parseSignboard(obj, packName, file);
+                return;
+            }
+
+            InstalledObjectCategory category = categoryFor(obj, lower);
+            JsonObject model = getObject(obj, "model");
+            JsonObject modelPartsBody = getObject(obj, "modelPartsBody");
+            String modelFile = firstNonBlank(model == null ? null : getString(model, "modelFile"), getString(obj, "signalModel"));
+            if (modelFile == null || modelFile.isBlank()) {
+                return;
+            }
+            String name = firstNonBlank(getString(obj, "name"), getString(obj, "signalName"), file.replace(".json", ""));
+            String id = category.name().toLowerCase(Locale.ROOT) + ":" + packName + ":" + name;
+            String scriptPath = firstNonBlank(model == null ? null : getString(model, "rendererPath"), getString(obj, "rendererPath"));
+            String runningSound = firstNonBlank(
+                model == null ? null : getString(model, "sound_Running"),
+                model == null ? null : getString(model, "soundRunning"),
+                getString(obj, "sound_Running"),
+                getString(obj, "soundRunning")
+            );
+            Vec3 offset = parseVec3(model, "offset", 1.0 / 16.0);
+            float scale = parseFloat(model, "scale", 1.0F);
+            boolean smoothing = getBoolean(obj, "smoothing", true);
+            Map<String, String> textures = new HashMap<>(parseTextures(model));
+            if (category == InstalledObjectCategory.SIGNAL) {
+                String signalTexture = getString(obj, "signalTexture");
+                if (signalTexture != null && !signalTexture.isBlank()) {
+                    textures.putIfAbsent("default", signalTexture);
+                }
+            }
+            LOADED.add(new InstalledObjectDefinition(
+                id,
+                name,
+                packName,
+                category,
+                modelFile,
+                scriptPath,
+                firstNonBlank(getString(obj, "buttonTexture"), model == null ? null : getString(model, "buttonTexture")),
+                textures,
+                offset,
+                scale,
+                smoothing,
+                1.0F,
+                1.0F,
+                0.125F,
+                "",
+                category == InstalledObjectCategory.SIGNAL ? firstNonBlank(getString(obj, "lightTexture"), getString(obj, "buttonTexture")) : "",
+                runningSound,
+                category == InstalledObjectCategory.SIGNAL ? parseSignalLights(obj) : Map.of(),
+                parseVec3(modelPartsBody, "pos", 1.0)
+            ));
+        } catch (Exception e) {
+            RealTrainModUnofficial.LOGGER.warn("Failed to parse installed object json {} in {}: {}", path, packName, e.getMessage());
+        }
+    }
+
+    private static void parseSignboard(JsonObject obj, String packName, String file) {
+        String texture = normalizeSignboardTexture(getString(obj, "texture"));
+        if (texture == null || texture.isBlank()) {
+            return;
+        }
+        String name = file.replace(".json", "");
+        String id = InstalledObjectCategory.SIGNBOARD.name().toLowerCase(Locale.ROOT) + ":" + packName + ":" + name;
+        int frame = (int) getDouble(obj, "frame", 1.0);
+        int backTexture = (int) getDouble(obj, "backTexture", 1.0);
+        LOADED.add(new InstalledObjectDefinition(
+            id,
+            name,
+            packName,
+            InstalledObjectCategory.SIGNBOARD,
+            "",
+            "",
+            texture,
+            Map.of(),
+            Vec3.ZERO,
+            1.0F,
+            false,
+            (float) getDouble(obj, "width", 1.0),
+            (float) getDouble(obj, "height", 1.0),
+            (float) getDouble(obj, "depth", 0.125),
+            texture,
+            "",
+            "",
+            Map.of(),
+            Vec3.ZERO,
+            frame,
+            backTexture
+        ));
+    }
+
+    private static String normalizeSignboardTexture(String texture) {
+        if (texture == null || texture.isBlank()) {
+            return "";
+        }
+        String normalized = normalize(texture);
+        String lower = normalized.toLowerCase(Locale.ROOT);
+        if (lower.endsWith(".png")) {
+            return normalized.contains("/") ? normalized : "textures/signboard/" + normalized;
+        }
+        if (normalized.contains("/")) {
+            return normalized + ".png";
+        }
+        return "textures/signboard/" + normalized + ".png";
+    }
+
+    private static InstalledObjectCategory categoryFor(JsonObject obj, String lowerFile) {
+        String machineType = firstNonBlank(getString(obj, "machineType"), getString(obj, "MachineType")).toLowerCase(Locale.ROOT);
+        String name = firstNonBlank(getString(obj, "name"), getString(obj, "signalName")).toLowerCase(Locale.ROOT);
+        String runningSound = firstNonBlank(
+            getString(obj, "sound_Running"),
+            getString(obj, "soundRunning"),
+            getObject(obj, "model") == null ? null : getString(getObject(obj, "model"), "sound_Running"),
+            getObject(obj, "model") == null ? null : getString(getObject(obj, "model"), "soundRunning")
+        ).toLowerCase(Locale.ROOT);
+        boolean looksLikeCrossing = lowerFile.contains("crossing")
+            || lowerFile.contains("fumikiri")
+            || name.contains("crossing")
+            || name.contains("fumikiri")
+            || runningSound.contains("crossing")
+            || runningSound.contains("fumikiri")
+            || runningSound.contains("toryanse");
+        boolean looksLikeSpeaker = lowerFile.contains("speaker")
+            || name.contains("speaker")
+            || machineType.contains("speaker");
+        if (lowerFile.startsWith("modelmachine_")) {
+            if (looksLikeCrossing) {
+                return InstalledObjectCategory.CROSSING;
+            }
+            if (looksLikeSpeaker) {
+                return InstalledObjectCategory.SPEAKER;
+            }
+            return InstalledObjectCategory.LIGHT;
+        }
+        if (lowerFile.startsWith("modelsignal_")) {
+            return InstalledObjectCategory.SIGNAL;
+        }
+        if (lowerFile.startsWith("modelcrossing_") || looksLikeCrossing) {
+            return InstalledObjectCategory.CROSSING;
+        }
+        if (lowerFile.startsWith("modelwire_")) {
+            return InstalledObjectCategory.WIRE;
+        }
+        return InstalledObjectCategory.INSULATOR;
+    }
+
+    private static String normalize(String value) {
+        return value.replace('\\', '/');
+    }
+
+    private static String leaf(String value) {
+        int idx = value.lastIndexOf('/');
+        return idx >= 0 ? value.substring(idx + 1) : value;
+    }
+
+    private static String firstNonBlank(String... values) {
+        for (String value : values) {
+            if (value != null && !value.isBlank()) {
+                return value;
+            }
+        }
+        return "";
+    }
+
+    private static JsonObject getObject(JsonObject object, String key) {
+        if (object == null || key == null || key.isBlank()) {
+            return null;
+        }
+        return object.has(key) && object.get(key).isJsonObject() ? object.getAsJsonObject(key) : null;
+    }
+
+    private static String getString(JsonObject object, String key) {
+        if (object == null || key == null || key.isBlank()) {
+            return null;
+        }
+        return object.has(key) && object.get(key).isJsonPrimitive() ? object.get(key).getAsString() : null;
+    }
+
+    private static boolean getBoolean(JsonObject object, String key, boolean fallback) {
+        if (object == null || key == null || key.isBlank()) {
+            return fallback;
+        }
+        if (!object.has(key)) {
+            return fallback;
+        }
+        try {
+            return object.get(key).getAsBoolean();
+        } catch (Exception e) {
+            return fallback;
+        }
+    }
+
+    private static double getDouble(JsonObject object, String key, double fallback) {
+        if (object == null || key == null || key.isBlank()) {
+            return fallback;
+        }
+        if (!object.has(key)) {
+            return fallback;
+        }
+        try {
+            return object.get(key).getAsDouble();
+        } catch (Exception e) {
+            return fallback;
+        }
+    }
+
+    private static float parseFloat(JsonObject object, String key, float fallback) {
+        return (float) getDouble(object, key, fallback);
+    }
+
+    private static Vec3 parseVec3(JsonObject object, String key, double scale) {
+        if (object == null || !object.has(key) || !object.get(key).isJsonArray()) {
+            return Vec3.ZERO;
+        }
+        JsonArray array = object.getAsJsonArray(key);
+        if (array.size() < 3) {
+            return Vec3.ZERO;
+        }
+        try {
+            return new Vec3(array.get(0).getAsDouble() * scale, array.get(1).getAsDouble() * scale, array.get(2).getAsDouble() * scale);
+        } catch (Exception e) {
+            return Vec3.ZERO;
+        }
+    }
+
+    private static Map<String, String> parseTextures(JsonObject modelObj) {
+        if (modelObj == null || !modelObj.has("textures") || !modelObj.get("textures").isJsonArray()) {
+            return Map.of();
+        }
+        Map<String, String> textures = new HashMap<>();
+        JsonArray array = modelObj.getAsJsonArray("textures");
+        for (JsonElement element : array) {
+            if (!element.isJsonArray()) {
+                continue;
+            }
+            JsonArray pair = element.getAsJsonArray();
+            if (pair.size() < 2) {
+                continue;
+            }
+            String material = pair.get(0).getAsString();
+            String texture = pair.get(1).getAsString();
+            if (!material.isBlank() && !texture.isBlank()) {
+                textures.put(material, encodeTextureDescriptor(pair));
+            }
+        }
+        return textures;
+    }
+
+    private static String encodeTextureDescriptor(JsonArray pair) {
+        String texture = pair.get(1).getAsString();
+        if (pair.size() < 3) {
+            return texture;
+        }
+        List<String> flags = new ArrayList<>();
+        for (int i = 2; i < pair.size(); i++) {
+            JsonElement option = pair.get(i);
+            if (option == null || !option.isJsonPrimitive()) {
+                continue;
+            }
+            String value = option.getAsString();
+            if (!value.isBlank()) {
+                flags.add(value.trim());
+            }
+        }
+        if (flags.isEmpty()) {
+            return texture;
+        }
+        return texture + "|ptmeta=" + String.join(",", flags);
+    }
+
+    private static Map<Integer, List<String>> parseSignalLights(JsonObject obj) {
+        if (!obj.has("lights") || !obj.get("lights").isJsonArray()) {
+            return Map.of();
+        }
+        Map<Integer, List<String>> lights = new HashMap<>();
+        JsonArray array = obj.getAsJsonArray("lights");
+        for (JsonElement element : array) {
+            if (!element.isJsonPrimitive()) {
+                continue;
+            }
+            String line = element.getAsString();
+            Matcher stateMatcher = LIGHT_STATE_PATTERN.matcher(line);
+            Matcher partsMatcher = LIGHT_PARTS_PATTERN.matcher(line);
+            if (!stateMatcher.find() || !partsMatcher.find()) {
+                continue;
+            }
+            int state = Integer.parseInt(stateMatcher.group(1));
+            String[] parts = partsMatcher.group(1).trim().split("\\s+");
+            List<String> groups = new ArrayList<>();
+            for (String part : parts) {
+                if (!part.isBlank()) {
+                    groups.add(part);
+                }
+            }
+            if (!groups.isEmpty()) {
+                lights.put(state, List.copyOf(groups));
+            }
+        }
+        return lights;
+    }
+
+    public static Path resolvePackPath(String packName) {
+        return RailPackLoader.resolvePackPath(packName);
+    }
+
+    private record EntryData(String path, byte[] bytes) {
+    }
+}
