@@ -797,10 +797,10 @@ public class InstalledObjectBlockEntityRenderer implements BlockEntityRenderer<I
         if (customCrossingGateRendering) {
             return true;
         }
-        String scriptPath = definition.getScriptPath() == null ? "" : definition.getScriptPath().toLowerCase(java.util.Locale.ROOT);
-        if (blockEntity.getCategory() == InstalledObjectCategory.CROSSING && !scriptPath.isBlank()) {
-            return false;
-        }
+        // 踏切の警報灯は、スクリプト付きパックでも本体描画側で発光オーバーレイを出す。
+        // 本家RTMの踏切スクリプトは pass2(全光量)で警報灯を交互描画するが、腕スクリプト等が
+        // pass2 を出さない/RTMUのpass最適化で省かれると点灯しないため、ここで確実に発光させる
+        // (resolveActiveLightGroups が getLightCount に応じて light1/light2 を交互+light3 を返す)。
         return true;
     }
 
@@ -823,10 +823,12 @@ public class InstalledObjectBlockEntityRenderer implements BlockEntityRenderer<I
                 return state == 0 ? CROSSING_LIGHT_RIGHT : CROSSING_LIGHT_LEFT;
             }
             java.util.ArrayList<String> groups = new java.util.ArrayList<>();
+            // 本家スクリプト準拠: light=0 → light2+light3、light=1 → light1+light3 を点灯。
+            // light3(common)は両状態で常時点灯させる(モデルに無ければ無視される)。
             groups.addAll(state == 0 ? CROSSING_LIGHT_RIGHT_LEGACY : CROSSING_LIGHT_LEFT_LEGACY);
-            if (scriptPath.contains("masacrossing")) {
-                groups.addAll(CROSSING_LIGHT_COMMON_LEGACY);
-            }
+            groups.addAll(CROSSING_LIGHT_COMMON_LEGACY);
+            // 近代命名(light_l/light_r)のパックにも対応。
+            groups.addAll(state == 0 ? CROSSING_LIGHT_RIGHT : CROSSING_LIGHT_LEFT);
             return groups;
         }
         // 照明(LIGHT): レッドストーンで電力が入っている間、定義された発光パーツを全て点灯する。
@@ -872,7 +874,9 @@ public class InstalledObjectBlockEntityRenderer implements BlockEntityRenderer<I
 
     private static int[] signalColorForGroup(String group) {
         String lower = group == null ? "" : group.toLowerCase();
-        if (CROSSING_LIGHT_LEFT.contains(lower) || CROSSING_LIGHT_RIGHT.contains(lower)) {
+        if (CROSSING_LIGHT_LEFT.contains(lower) || CROSSING_LIGHT_RIGHT.contains(lower)
+            || CROSSING_LIGHT_LEFT_LEGACY.contains(lower) || CROSSING_LIGHT_RIGHT_LEGACY.contains(lower)
+            || CROSSING_LIGHT_COMMON_LEGACY.contains(lower)) {
             return new int[] {255, 72, 48, 220};
         }
         if (RED_GROUPS.contains(lower)) {
