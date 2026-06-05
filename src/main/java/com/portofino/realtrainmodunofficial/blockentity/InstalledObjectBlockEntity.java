@@ -390,7 +390,15 @@ public class InstalledObjectBlockEntity extends BlockEntity {
         if (!be.shouldHandleCrossingLogic()) {
             return;
         }
+        // 踏切のレッドストーン受信を毎tick再評価する。neighborChanged の取りこぼしや
+        // ワールド再読込・ワイヤ隣接(hasNeighborSignal が拾いにくいケース)に強くするため、
+        // getBestNeighborSignal(>0)で判定して powered を常に信号と同期させる。
+        boolean redstone = level.getBestNeighborSignal(pos) > 0;
         boolean changed = false;
+        if (be.powered != redstone) {
+            be.powered = redstone;
+            changed = true;
+        }
         if (be.powered) {
             if (be.barMoveCount < 90) {
                 be.barMoveCount++;

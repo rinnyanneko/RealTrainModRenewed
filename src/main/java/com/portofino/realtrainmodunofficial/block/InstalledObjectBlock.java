@@ -210,7 +210,8 @@ public class InstalledObjectBlock extends BaseEntityBlock {
         if (cat != InstalledObjectCategory.CROSSING && !hasDefinitionRunningSound(blockEntity)) {
             return;
         }
-        boolean powered = level.hasNeighborSignal(pos);
+        // hasNeighborSignal はワイヤ隣接などで拾えないことがあるため getBestNeighborSignal(>0) で判定。
+        boolean powered = level.getBestNeighborSignal(pos) > 0;
         blockEntity.setPowered(powered);
         level.sendBlockUpdated(pos, level.getBlockState(pos), level.getBlockState(pos), 3);
     }

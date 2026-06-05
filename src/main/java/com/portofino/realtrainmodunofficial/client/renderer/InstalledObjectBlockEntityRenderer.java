@@ -86,7 +86,7 @@ public class InstalledObjectBlockEntityRenderer implements BlockEntityRenderer<I
                 // 診断: 改札の扉グループ名と barMoveCount を1回だけ記録(扉トランスフォームの対象特定用)。
                 if (blockEntity.getCategory() == InstalledObjectCategory.TICKET_GATE
                     && TICKET_GATE_LOGGED.add(definition.getId())) {
-                    com.portofino.realtrainmodunofficial.RealTrainModUnofficial.LOGGER.warn(
+                    com.portofino.realtrainmodunofficial.RealTrainModUnofficial.LOGGER.debug(
                         "[RTM-DBG] ticketGate id={} barMove={} groups={}",
                         definition.getId(), blockEntity.getBarMoveCount(), model.getAllNormalizedGroupNames());
                 }

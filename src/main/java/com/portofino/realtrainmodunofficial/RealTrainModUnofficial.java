@@ -54,16 +54,16 @@ public class RealTrainModUnofficial {
             }).build());
 
     public RealTrainModUnofficial(IEventBus modEventBus, ModContainer modContainer, Dist dist) {
-        // 本mod 全パッケージのログレベルを DEBUG に強制設定（バグ追跡用）。
-        // これで LOGGER.debug(...) が全部出力されるようになる。
+        // 軽量化: 既定のログレベルは INFO に固定する(描画には無関係)。
+        // 以前はバグ追跡のため DEBUG を強制していたが、毎tick/毎フレームの DEBUG ログが
+        // 文字列整形・I/O コストになり負荷源になるため INFO に下げる(調査時は手動で DEBUG に上げる)。
         try {
             org.apache.logging.log4j.core.config.Configurator.setLevel(
                 "com.portofino.realtrainmodunofficial",
-                org.apache.logging.log4j.Level.DEBUG
+                org.apache.logging.log4j.Level.INFO
             );
-            LOGGER.info("=== RTMU log level forced to DEBUG (all rtmu logs will be printed) ===");
         } catch (Throwable t) {
-            LOGGER.warn("Failed to set DEBUG log level for rtmu: {}", t.toString());
+            LOGGER.warn("Failed to set log level for rtmu: {}", t.toString());
         }
 
         modEventBus.addListener(this::commonSetup);
