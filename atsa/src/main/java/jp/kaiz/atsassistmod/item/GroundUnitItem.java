@@ -31,8 +31,4 @@ public class GroundUnitItem extends BlockItem {
         return state == null ? null : state.setValue(GroundUnitBlock.TYPE, type.id);
     }
 
-    @Override
-    public String getDescriptionId() {
-        return super.getDescriptionId() + "." + type.id;
-    }
 }

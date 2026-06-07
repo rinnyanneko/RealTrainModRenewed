@@ -1,0 +1,10 @@
+{
+  "variants": {
+    "powered=false": {
+      "model": "realtrainmodrenewed:block/script_block"
+    },
+    "powered=true": {
+      "model": "realtrainmodrenewed:block/script_block_on"
+    }
+  }
+}

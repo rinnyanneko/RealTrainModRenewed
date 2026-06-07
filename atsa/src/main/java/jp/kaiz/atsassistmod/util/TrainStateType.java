@@ -1,13 +1,13 @@
 package jp.kaiz.atsassistmod.util;
 
-import com.portofino.realtrainmodunofficial.entity.TrainEntity;
+import cc.mirukuneko.realtrainmodrenewed.entity.TrainEntity;
 
 /**
  * Mirror of RTM's old {@code TrainState.TrainStateType} indices used by the
  * "Train State Set" ground unit. Values below {@link #min} mean "leave unchanged"
  * (the original GUI seeds the array with sentinels so nothing changes by default).
  *
- * <p>Index → effect follows RealTrainModUnofficial's own {@code syncVehicleState}
+ * <p>Index → effect follows RealTrainModRenewed's own {@code syncVehicleState}
  * mapping. State_TrainDir has no safe public setter on the new API, so it is left
  * as a no-op (documented approximation; see PORTING_NOTES.md).</p>
  */

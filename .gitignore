@@ -37,3 +37,5 @@ vehicle_packs
 tools/convert_bbmodel_to_rtmu_pack.py
 __pycache__
 *.pyc
+/.codex-tmp/
+docs/

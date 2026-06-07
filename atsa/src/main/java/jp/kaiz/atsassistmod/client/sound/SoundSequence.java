@@ -2,7 +2,7 @@ package jp.kaiz.atsassistmod.client.sound;
 
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.resources.sounds.SoundInstance;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 import net.minecraft.sounds.SoundEvent;
 import net.minecraft.world.entity.Entity;
 
@@ -28,7 +28,7 @@ public final class SoundSequence {
                 }
                 try {
                     if (order.contains(":")) {
-                        ResourceLocation loc = ResourceLocation.parse(order);
+                        Identifier loc = Identifier.parse(order);
                         SoundEvent event = SoundEvent.createVariableRangeEvent(loc);
                         List<SoundInstance> tracks = new ArrayList<>();
                         for (int[] pos : posList) {
@@ -61,7 +61,7 @@ public final class SoundSequence {
                 }
                 try {
                     if (order.contains(":")) {
-                        ResourceLocation loc = ResourceLocation.parse(order);
+                        Identifier loc = Identifier.parse(order);
                         SoundEvent event = SoundEvent.createVariableRangeEvent(loc);
                         SoundInstance track = new EntitySoundInstance(entity, event, false, volume);
                         mc.execute(() -> mc.getSoundManager().play(track));

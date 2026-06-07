@@ -1,14 +1,14 @@
 package jp.kaiz.atsassistmod.client;
 
-import com.portofino.realtrainmodunofficial.entity.TrainEntity;
+import cc.mirukuneko.realtrainmodrenewed.entity.TrainEntity;
 import jp.kaiz.atsassistmod.client.hud.TrainHudClient;
 import jp.kaiz.atsassistmod.client.hud.TrainHudClientManager;
 import jp.kaiz.atsassistmod.controller.trainprotection.TrainProtectionType;
 import jp.kaiz.atsassistmod.rtm.RtmTrains;
 import net.minecraft.client.DeltaTracker;
 import net.minecraft.client.Minecraft;
-import net.minecraft.client.gui.GuiGraphics;
-import net.minecraft.client.gui.LayeredDraw;
+import net.minecraft.client.gui.GuiGraphicsExtractor;
+import net.neoforged.neoforge.client.gui.GuiLayer;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.entity.Entity;
 
@@ -17,13 +17,13 @@ import net.minecraft.world.entity.Entity;
  * protection state when riding a control car. The original chose a layout from the
  * cab config; RTM's new API does not expose that, so the bottom-left layout is used.
  */
-public final class ATSAModHud implements LayeredDraw.Layer {
+public final class ATSAModHud implements GuiLayer {
     public static final ATSAModHud INSTANCE = new ATSAModHud();
 
     private ATSAModHud() {}
 
     @Override
-    public void render(GuiGraphics g, DeltaTracker delta) {
+    public void render(GuiGraphicsExtractor g, DeltaTracker delta) {
         Minecraft mc = Minecraft.getInstance();
         if (mc.player == null || mc.options.getCameraType() != net.minecraft.client.CameraType.FIRST_PERSON) {
             return;
@@ -49,11 +49,11 @@ public final class ATSAModHud implements LayeredDraw.Layer {
         int manualColor = tcc.isManualDrive() ? 0xFFFF0000 : 0xFFFFFFFF;
         int fix = 50;
         if (tpType != TrainProtectionType.NONE) {
-            g.drawString(mc.font, Component.translatable(tpType.getTranslationKey()).getString() + " : " + tpSpeed,
+            g.text(mc.font, Component.translatable(tpType.getTranslationKey()).getString() + " : " + tpSpeed,
                     2, h - (fix += 10), 0xFFFFFFFF);
         }
-        g.drawString(mc.font, "Limit : " + limit, 2, h - (fix += 10), 0xFFFFFFFF);
-        g.drawString(mc.font, "TASC : " + tascSpeed, 2, h - (fix += 10), manualColor);
-        g.drawString(mc.font, "ATO : " + atoSpeed, 2, h - (fix += 10), manualColor);
+        g.text(mc.font, "Limit : " + limit, 2, h - (fix += 10), 0xFFFFFFFF);
+        g.text(mc.font, "TASC : " + tascSpeed, 2, h - (fix += 10), manualColor);
+        g.text(mc.font, "ATO : " + atoSpeed, 2, h - (fix += 10), manualColor);
     }
 }

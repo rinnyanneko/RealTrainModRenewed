@@ -1,6 +1,6 @@
 package jp.kaiz.atsassistmod.network;
 
-import com.portofino.realtrainmodunofficial.entity.TrainEntity;
+import cc.mirukuneko.realtrainmodrenewed.entity.TrainEntity;
 import jp.kaiz.atsassistmod.ATSAssistMod;
 import jp.kaiz.atsassistmod.block.GroundUnitBlock;
 import jp.kaiz.atsassistmod.block.GroundUnitType;

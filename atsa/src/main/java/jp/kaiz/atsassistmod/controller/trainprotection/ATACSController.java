@@ -1,6 +1,6 @@
 package jp.kaiz.atsassistmod.controller.trainprotection;
 
-import com.portofino.realtrainmodunofficial.entity.TrainEntity;
+import cc.mirukuneko.realtrainmodrenewed.entity.TrainEntity;
 import jp.kaiz.atsassistmod.rtm.RtmTrains;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.phys.AABB;
@@ -12,7 +12,7 @@ import java.util.List;
  * ATACS (moving block) train protection.
  *
  * <p>The original walked RTM's large-rail graph ahead of the train to measure the
- * gap to the preceding train. RealTrainModUnofficial's rail API is entirely
+ * gap to the preceding train. RealTrainModRenewed's rail API is entirely
  * different and exposes no equivalent rail-walk, so this port measures the gap by
  * directly scanning for the nearest train ahead and feeds it into the original
  * braking-pattern formulas. The deceleration curves and notch logic are unchanged,

@@ -20,8 +20,8 @@ public final class ATSAModItems {
      * variant.
      */
     public static final DeferredItem<GroundUnitItem> GROUND_UNIT =
-            ITEMS.register("groundunit_0",
-                    () -> new GroundUnitItem(ATSAModBlocks.GROUND_UNIT.get(), GroundUnitType.None, new Item.Properties()));
+            ITEMS.registerItem("groundunit_0",
+                    props -> new GroundUnitItem(ATSAModBlocks.GROUND_UNIT.get(), GroundUnitType.None, props));
 
     public static final DeferredItem<BlockItem> IFTTT =
             ITEMS.registerSimpleBlockItem("ifttt", ATSAModBlocks.IFTTT);
@@ -29,9 +29,9 @@ public final class ATSAModItems {
             ITEMS.registerSimpleBlockItem("station_announce", ATSAModBlocks.STATION_ANNOUNCE);
 
     public static final DeferredItem<TrainProtectionSelectorItem> TRAIN_PROTECTION_SELECTOR =
-            ITEMS.register("train_protection_selector", () -> new TrainProtectionSelectorItem(new Item.Properties()));
+            ITEMS.registerItem("train_protection_selector", TrainProtectionSelectorItem::new);
     public static final DeferredItem<DataMapEditorItem> DATA_MAP_EDITOR =
-            ITEMS.register("data_map_editor", () -> new DataMapEditorItem(new Item.Properties()));
+            ITEMS.registerItem("data_map_editor", DataMapEditorItem::new);
 
     private ATSAModItems() {}
 

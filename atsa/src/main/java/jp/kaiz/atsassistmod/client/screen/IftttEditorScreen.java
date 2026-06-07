@@ -6,7 +6,7 @@ import jp.kaiz.atsassistmod.ifttt.IFTTTType;
 import jp.kaiz.atsassistmod.ifttt.IFTTTUtil;
 import jp.kaiz.atsassistmod.ifttt.IftttFactory;
 import jp.kaiz.atsassistmod.network.payload.IftttPayloads;
-import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.components.Checkbox;
 import net.minecraft.client.gui.screens.Screen;
@@ -152,7 +152,7 @@ public class IftttEditorScreen extends Screen {
             byte[] b = IFTTTUtil.toBytes(c);
             if (b != null) thatData.add(b);
         }
-        PacketDistributor.sendToServer(new IftttPayloads.SaveIfttt(pos, anyMatch, thisData, thatData));
+        jp.kaiz.atsassistmod.client.ClientNetworkHelper.sendToServer(new IftttPayloads.SaveIfttt(pos, anyMatch, thisData, thatData));
         onClose();
     }
 
@@ -163,14 +163,14 @@ public class IftttEditorScreen extends Screen {
     }
 
     @Override
-    public void render(GuiGraphics g, int mouseX, int mouseY, float partial) {
-        this.renderBackground(g, mouseX, mouseY, partial);
-        super.render(g, mouseX, mouseY, partial);
+    public void extractRenderState(GuiGraphicsExtractor g, int mouseX, int mouseY, float partial) {
+        this.extractBackground(g, mouseX, mouseY, partial);
+        super.extractRenderState(g, mouseX, mouseY, partial);
         if (addingThis == null) {
-            g.drawString(font, "IF (THIS)", this.width / 2 - 160, 38, 0xFFFFFF);
-            g.drawString(font, "THEN (THAT)", this.width / 2 + 10, 38, 0xFFFFFF);
+            g.text(font, "IF (THIS)", this.width / 2 - 160, 38, 0xFFFFFF);
+            g.text(font, "THEN (THAT)", this.width / 2 + 10, 38, 0xFFFFFF);
         } else {
-            g.drawCenteredString(font, "Select type", this.width / 2, 24, 0xFFFFFF);
+            g.centeredText(font, "Select type", this.width / 2, 24, 0xFFFFFF);
         }
     }
 

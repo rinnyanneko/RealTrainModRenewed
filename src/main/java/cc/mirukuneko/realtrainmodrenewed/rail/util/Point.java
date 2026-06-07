@@ -1,0 +1,65 @@
+package cc.mirukuneko.realtrainmodrenewed.rail.util;
+
+import net.minecraft.world.level.Level;
+
+public final class Point {
+    private static final int MAX_COUNT = 80;
+
+    public final RailPosition rpRoot;
+    public final RailMapSwitch rmMain;
+    public final RailMapSwitch rmBranch;
+    public final RailDir branchDir;
+    public final boolean mainDirIsPositive;
+    public final boolean branchDirIsPositive;
+    private int moveCount;
+
+    public Point(RailPosition railPos, RailMapSwitch rms1, RailMapSwitch rms2) {
+        this.rpRoot = railPos;
+        boolean mainFirst = rms1.getLength() <= rms2.getLength();
+        this.rmMain = mainFirst ? rms1 : rms2;
+        this.rmBranch = mainFirst ? rms2 : rms1;
+        this.branchDir = getDir(this.rpRoot, this.rmMain, this.rmBranch);
+        this.mainDirIsPositive = this.rmMain.getStartRP() == this.rpRoot;
+        this.branchDirIsPositive = this.rmBranch.getStartRP() == this.rpRoot;
+    }
+
+    public Point(RailPosition railPos, RailMapSwitch rms1) {
+        this.rpRoot = railPos;
+        this.rmMain = rms1;
+        this.rmBranch = null;
+        this.branchDir = RailDir.NONE;
+        this.mainDirIsPositive = rms1.getStartRP() == railPos;
+        this.branchDirIsPositive = false;
+    }
+
+    private static RailDir getDir(RailPosition root, RailMapSwitch rms1, RailMapSwitch rms2) {
+        RailPosition rp1 = rms1.getStartRP() == root ? rms1.getEndRP() : rms1.getStartRP();
+        RailPosition rp2 = rms2.getStartRP() == root ? rms2.getEndRP() : rms2.getStartRP();
+        return root.getDir(rp1, rp2);
+    }
+
+    public void onUpdate(Level level) {
+        if (level == null) {
+            return;
+        }
+        boolean powered = this.rpRoot.checkRSInput(level);
+        if (powered) {
+            if (this.moveCount < MAX_COUNT) {
+                ++this.moveCount;
+            }
+        } else if (this.moveCount > 0) {
+            --this.moveCount;
+        }
+    }
+
+    public float getMovement() {
+        return (float) this.moveCount / (float) MAX_COUNT;
+    }
+
+    public RailMap getActiveRailMap(Level level) {
+        if (this.branchDir == RailDir.NONE || this.rmBranch == null) {
+            return this.rmMain;
+        }
+        return this.rpRoot.checkRSInput(level) ? this.rmBranch : this.rmMain;
+    }
+}

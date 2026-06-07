@@ -14,11 +14,11 @@ public final class ATSAModBlockEntities {
 
     public static final DeferredHolder<BlockEntityType<?>, BlockEntityType<GroundUnitBlockEntity>> GROUND_UNIT =
             BLOCK_ENTITIES.register("groundunit", () ->
-                    BlockEntityType.Builder.of(GroundUnitBlockEntity::new, ATSAModBlocks.GROUND_UNIT.get()).build(null));
+                    new BlockEntityType<>(GroundUnitBlockEntity::new, ATSAModBlocks.GROUND_UNIT.get()));
 
     public static final DeferredHolder<BlockEntityType<?>, BlockEntityType<IftttBlockEntity>> IFTTT =
             BLOCK_ENTITIES.register("ifttt", () ->
-                    BlockEntityType.Builder.of(IftttBlockEntity::new, ATSAModBlocks.IFTTT.get()).build(null));
+                    new BlockEntityType<>(IftttBlockEntity::new, ATSAModBlocks.IFTTT.get()));
 
     private ATSAModBlockEntities() {}
 

@@ -4,6 +4,7 @@ import com.mojang.serialization.MapCodec;
 import jp.kaiz.atsassistmod.block.entity.IftttBlockEntity;
 import jp.kaiz.atsassistmod.registry.ATSAModBlockEntities;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
 import net.minecraft.world.InteractionResult;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.Level;
@@ -25,7 +26,11 @@ public class IftttBlock extends BaseEntityBlock {
     public static final MapCodec<IftttBlock> CODEC = simpleCodec(p -> new IftttBlock());
 
     public IftttBlock() {
-        super(Properties.of().strength(1.5F, 6.0F).requiresCorrectToolForDrops());
+        this(Properties.of().strength(1.5F, 6.0F).requiresCorrectToolForDrops());
+    }
+
+    public IftttBlock(Properties properties) {
+        super(properties);
     }
 
     @Override
@@ -47,7 +52,7 @@ public class IftttBlock extends BaseEntityBlock {
     @Nullable
     @Override
     public <T extends BlockEntity> BlockEntityTicker<T> getTicker(Level level, BlockState state, BlockEntityType<T> type) {
-        if (level.isClientSide) {
+        if (level.isClientSide()) {
             return null;
         }
         return createTickerHelper(type, ATSAModBlockEntities.IFTTT.get(), IftttBlockEntity::serverTick);
@@ -55,10 +60,10 @@ public class IftttBlock extends BaseEntityBlock {
 
     @Override
     protected InteractionResult useWithoutItem(BlockState state, Level level, BlockPos pos, Player player, BlockHitResult hit) {
-        if (level.isClientSide) {
+        if (level.isClientSide()) {
             jp.kaiz.atsassistmod.client.ATSAModClientHooks.openIftttEditor(pos);
         }
-        return InteractionResult.sidedSuccess(level.isClientSide);
+        return ((level.isClientSide() ? InteractionResult.SUCCESS : InteractionResult.SUCCESS_SERVER));
     }
 
     @Override
@@ -67,7 +72,7 @@ public class IftttBlock extends BaseEntityBlock {
     }
 
     @Override
-    protected int getAnalogOutputSignal(BlockState state, Level level, BlockPos pos) {
+    protected int getAnalogOutputSignal(BlockState state, Level level, BlockPos pos, Direction direction) {
         return level.getBlockEntity(pos) instanceof IftttBlockEntity be ? be.getRedStoneOutput() : 0;
     }
 }

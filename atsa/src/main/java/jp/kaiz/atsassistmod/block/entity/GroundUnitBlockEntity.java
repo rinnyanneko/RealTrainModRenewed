@@ -1,6 +1,6 @@
 package jp.kaiz.atsassistmod.block.entity;
 
-import com.portofino.realtrainmodunofficial.entity.TrainEntity;
+import cc.mirukuneko.realtrainmodrenewed.entity.TrainEntity;
 import jp.kaiz.atsassistmod.block.GroundUnitBlock;
 import jp.kaiz.atsassistmod.block.GroundUnitType;
 import jp.kaiz.atsassistmod.controller.SpeedOrder;
@@ -9,17 +9,21 @@ import jp.kaiz.atsassistmod.controller.trainprotection.TrainProtectionType;
 import jp.kaiz.atsassistmod.registry.ATSAModBlockEntities;
 import jp.kaiz.atsassistmod.rtm.RtmTrains;
 import jp.kaiz.atsassistmod.util.TrainStateType;
+import com.mojang.serialization.Codec;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.HolderLookup;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.protocol.Packet;
 import net.minecraft.network.protocol.game.ClientGamePacketListener;
 import net.minecraft.network.protocol.game.ClientboundBlockEntityDataPacket;
+import net.minecraft.world.level.storage.ValueInput;
+import net.minecraft.world.level.storage.ValueOutput;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.AABB;
 
+import java.nio.ByteBuffer;
 import java.util.List;
 
 /**
@@ -272,15 +276,15 @@ public class GroundUnitBlockEntity extends BlockEntity {
     public void setTPType(TrainProtectionType t) { this.tpType = t.id; }
 
     private void sync() {
-        if (level != null && !level.isClientSide) {
+        if (level != null && !level.isClientSide()) {
             level.sendBlockUpdated(getBlockPos(), getBlockState(), getBlockState(), 3);
         }
     }
 
     // ---------------------------------------------------------------- NBT
     @Override
-    protected void saveAdditional(CompoundTag tag, HolderLookup.Provider registries) {
-        super.saveAdditional(tag, registries);
+    protected void saveAdditional(ValueOutput tag) {
+        super.saveAdditional(tag);
         tag.putLong("formationID", formationKey);
         tag.putBoolean("linkRedStone", linkRedStone);
         tag.putInt("redStoneOutput", redStoneOutput);
@@ -289,28 +293,29 @@ public class GroundUnitBlockEntity extends BlockEntity {
         tag.putBoolean("autoBrake", autoBrake);
         tag.putBoolean("trainDistance", useTrainDistance);
         tag.putByte("version", version);
-        tag.putByteArray("state", states);
+        tag.store("state", Codec.BYTE_BUFFER, ByteBuffer.wrap(states));
         tag.putInt("tpType", tpType);
     }
 
     @Override
-    protected void loadAdditional(CompoundTag tag, HolderLookup.Provider registries) {
-        super.loadAdditional(tag, registries);
-        formationKey = tag.getLong("formationID");
-        linkRedStone = tag.getBoolean("linkRedStone");
-        redStoneOutput = tag.getInt("redStoneOutput");
-        speedLimit = tag.getInt("speedLimit");
-        distance = tag.getDouble("distance");
-        autoBrake = tag.getBoolean("autoBrake");
-        useTrainDistance = tag.getBoolean("trainDistance");
-        version = tag.contains("version") ? tag.getByte("version") : 1;
-        if (tag.contains("state")) {
-            byte[] s = tag.getByteArray("state");
+    protected void loadAdditional(ValueInput tag) {
+        super.loadAdditional(tag);
+        formationKey = tag.getLongOr("formationID", 0L);
+        linkRedStone = tag.getBooleanOr("linkRedStone", false);
+        redStoneOutput = tag.getIntOr("redStoneOutput", 0);
+        speedLimit = tag.getIntOr("speedLimit", 0);
+        distance = tag.getDoubleOr("distance", 0.0D);
+        autoBrake = tag.getBooleanOr("autoBrake", false);
+        useTrainDistance = tag.getBooleanOr("trainDistance", false);
+        version = tag.getByteOr("version", (byte) 1);
+        tag.read("state", Codec.BYTE_BUFFER).ifPresent(buffer -> {
+            byte[] s = new byte[buffer.remaining()];
+            buffer.get(s);
             if (s.length == 12) {
                 states = s;
             }
-        }
-        tpType = tag.contains("tpType") ? tag.getInt("tpType") : TrainProtectionType.NONE.id;
+        });
+        tpType = tag.getIntOr("tpType", TrainProtectionType.NONE.id);
     }
 
     @Override

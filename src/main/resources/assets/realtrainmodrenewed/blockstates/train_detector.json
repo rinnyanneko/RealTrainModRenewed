@@ -1,0 +1,10 @@
+{
+  "variants": {
+    "powered=false": {
+      "model": "realtrainmodrenewed:block/train_detector"
+    },
+    "powered=true": {
+      "model": "realtrainmodrenewed:block/train_detector_on"
+    }
+  }
+}

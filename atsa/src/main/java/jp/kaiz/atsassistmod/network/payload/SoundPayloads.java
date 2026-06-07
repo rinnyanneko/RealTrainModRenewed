@@ -4,7 +4,7 @@ import jp.kaiz.atsassistmod.ATSAssistMod;
 import net.minecraft.network.RegistryFriendlyByteBuf;
 import net.minecraft.network.codec.StreamCodec;
 import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -13,8 +13,8 @@ import java.util.List;
 public final class SoundPayloads {
     private SoundPayloads() {}
 
-    private static ResourceLocation id(String path) {
-        return ResourceLocation.fromNamespaceAndPath(ATSAssistMod.MODID, path);
+    private static Identifier id(String path) {
+        return Identifier.fromNamespaceAndPath(ATSAssistMod.MODID, path);
     }
 
     private static void writeOrders(RegistryFriendlyByteBuf buf, List<String> orders) {

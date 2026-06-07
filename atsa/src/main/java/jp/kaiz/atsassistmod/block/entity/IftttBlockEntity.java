@@ -1,22 +1,24 @@
 package jp.kaiz.atsassistmod.block.entity;
 
-import com.portofino.realtrainmodunofficial.entity.TrainEntity;
+import cc.mirukuneko.realtrainmodrenewed.entity.TrainEntity;
+import com.mojang.serialization.Codec;
 import jp.kaiz.atsassistmod.ifttt.IFTTTContainer;
 import jp.kaiz.atsassistmod.ifttt.IFTTTUtil;
 import jp.kaiz.atsassistmod.registry.ATSAModBlockEntities;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.HolderLookup;
 import net.minecraft.nbt.CompoundTag;
-import net.minecraft.nbt.ListTag;
-import net.minecraft.nbt.Tag;
 import net.minecraft.network.protocol.Packet;
 import net.minecraft.network.protocol.game.ClientGamePacketListener;
 import net.minecraft.network.protocol.game.ClientboundBlockEntityDataPacket;
+import net.minecraft.world.level.storage.ValueInput;
+import net.minecraft.world.level.storage.ValueOutput;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.AABB;
 
+import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -41,7 +43,7 @@ public class IftttBlockEntity extends BlockEntity {
     }
 
     private void tick() {
-        if (level == null || level.isClientSide || thisList.isEmpty() || thatList.isEmpty()) {
+        if (level == null || level.isClientSide() || thisList.isEmpty() || thatList.isEmpty()) {
             return;
         }
         AABB detect = new AABB(worldPosition.getX() - 1, worldPosition.getY(), worldPosition.getZ() - 1,
@@ -122,23 +124,22 @@ public class IftttBlockEntity extends BlockEntity {
     }
 
     // ----------------------------------------------------------------- NBT
-    private static ListTag saveList(List<IFTTTContainer> list) {
-        ListTag tag = new ListTag();
+    private static void saveList(ValueOutput output, String key, List<IFTTTContainer> list) {
+        ValueOutput.TypedOutputList<ByteBuffer> tag = output.list(key, Codec.BYTE_BUFFER);
         for (IFTTTContainer c : list) {
             byte[] bytes = IFTTTUtil.toBytes(c);
             if (bytes != null) {
-                CompoundTag entry = new CompoundTag();
-                entry.putByteArray("data", bytes);
-                tag.add(entry);
+                tag.add(ByteBuffer.wrap(bytes));
             }
         }
-        return tag;
     }
 
-    private static List<IFTTTContainer> loadList(ListTag tag) {
+    private static List<IFTTTContainer> loadList(ValueInput input, String key) {
         List<IFTTTContainer> list = new ArrayList<>();
-        for (int i = 0; i < tag.size(); i++) {
-            IFTTTContainer c = IFTTTUtil.fromBytes(tag.getCompound(i).getByteArray("data"));
+        for (ByteBuffer buffer : input.listOrEmpty(key, Codec.BYTE_BUFFER)) {
+            byte[] bytes = new byte[buffer.remaining()];
+            buffer.get(bytes);
+            IFTTTContainer c = IFTTTUtil.fromBytes(bytes);
             if (c != null) {
                 list.add(c);
             }
@@ -147,23 +148,23 @@ public class IftttBlockEntity extends BlockEntity {
     }
 
     @Override
-    protected void saveAdditional(CompoundTag tag, HolderLookup.Provider registries) {
-        super.saveAdditional(tag, registries);
+    protected void saveAdditional(ValueOutput tag) {
+        super.saveAdditional(tag);
         tag.putInt("redStoneOutput", redStoneOutput);
         tag.putBoolean("notFirst", notFirst);
         tag.putBoolean("anyMatch", anyMatch);
-        tag.put("iftttThisList", saveList(thisList));
-        tag.put("iftttThatList", saveList(thatList));
+        saveList(tag, "iftttThisList", thisList);
+        saveList(tag, "iftttThatList", thatList);
     }
 
     @Override
-    protected void loadAdditional(CompoundTag tag, HolderLookup.Provider registries) {
-        super.loadAdditional(tag, registries);
-        redStoneOutput = tag.getInt("redStoneOutput");
-        notFirst = tag.getBoolean("notFirst");
-        anyMatch = tag.getBoolean("anyMatch");
-        thisList = loadList(tag.getList("iftttThisList", Tag.TAG_COMPOUND));
-        thatList = loadList(tag.getList("iftttThatList", Tag.TAG_COMPOUND));
+    protected void loadAdditional(ValueInput tag) {
+        super.loadAdditional(tag);
+        redStoneOutput = tag.getIntOr("redStoneOutput", 0);
+        notFirst = tag.getBooleanOr("notFirst", false);
+        anyMatch = tag.getBooleanOr("anyMatch", false);
+        thisList = loadList(tag, "iftttThisList");
+        thatList = loadList(tag, "iftttThatList");
     }
 
     @Override

@@ -5,7 +5,7 @@ import jp.kaiz.atsassistmod.ifttt.IftttEditView;
 import jp.kaiz.atsassistmod.util.CardinalDirection;
 import jp.kaiz.atsassistmod.util.ComparisonManager;
 import jp.kaiz.atsassistmod.util.DataType;
-import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.components.Checkbox;
 import net.minecraft.client.gui.components.EditBox;
@@ -75,13 +75,13 @@ public class IftttMaterialScreen extends Screen implements IftttEditView {
     }
 
     @Override
-    public void render(GuiGraphics g, int mouseX, int mouseY, float partial) {
-        this.renderBackground(g, mouseX, mouseY, partial);
-        super.render(g, mouseX, mouseY, partial);
-        g.drawCenteredString(font, Component.translatable(container.getTitle()), this.width / 2, 20, 0xFFFFFF);
+    public void extractRenderState(GuiGraphicsExtractor g, int mouseX, int mouseY, float partial) {
+        this.extractBackground(g, mouseX, mouseY, partial);
+        super.extractRenderState(g, mouseX, mouseY, partial);
+        g.centeredText(font, Component.translatable(container.getTitle()), this.width / 2, 20, 0xFFFFFF);
         String[] exp = container.getExplanation();
         for (int i = 0; i < exp.length; i++) {
-            g.drawString(font, exp[i], this.width / 2 - 100, 36 + i * 0, 0x888888);
+            g.text(font, exp[i], this.width / 2 - 100, 36 + i * 0, 0x888888);
         }
     }
 

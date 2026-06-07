@@ -2,7 +2,9 @@ package jp.kaiz.atsassistmod.ifttt;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonTypeInfo;
-import com.portofino.realtrainmodunofficial.entity.TrainEntity;
+import cc.mirukuneko.realtrainmodrenewed.entity.TrainBogieEntity;
+import cc.mirukuneko.realtrainmodrenewed.entity.TrainSeatEntity;
+import cc.mirukuneko.realtrainmodrenewed.entity.TrainEntity;
 import jp.kaiz.atsassistmod.block.entity.IftttBlockEntity;
 import jp.kaiz.atsassistmod.network.ATSAModNet;
 import jp.kaiz.atsassistmod.network.payload.SoundPayloads;
@@ -13,8 +15,9 @@ import jp.kaiz.atsassistmod.util.DataType;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.BuiltInRegistries;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 import net.minecraft.server.MinecraftServer;
+import net.minecraft.server.permissions.PermissionSet;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.item.ItemEntity;
 import net.minecraft.world.level.Level;
@@ -318,10 +321,10 @@ public abstract class IFTTTContainer implements Serializable {
                 public void doThat(IftttBlockEntity tile, TrainEntity train, boolean first) {
                     if (this.once && !first) return;
                     MinecraftServer server = tile.getLevel().getServer();
-                    if (server == null || !server.isCommandBlockEnabled()) return;
+                    if (server == null) return;
                     BlockPos pos = tile.getBlockPos();
                     CommandSourceStack source = server.createCommandSourceStack()
-                            .withPermission(2)
+                            .withPermission(PermissionSet.ALL_PERMISSIONS)
                             .withSuppressedOutput()
                             .withPosition(Vec3.atCenterOf(pos))
                             .withLevel((net.minecraft.server.level.ServerLevel) tile.getLevel());
@@ -353,7 +356,7 @@ public abstract class IFTTTContainer implements Serializable {
                 public void doThat(IftttBlockEntity tile, TrainEntity train, boolean first) {
                     if (this.once && !first) return;
                     Level level = tile.getLevel();
-                    Block block = BuiltInRegistries.BLOCK.get(ResourceLocation.tryParse(blockId));
+                    Block block = BuiltInRegistries.BLOCK.get(Identifier.tryParse(blockId)).map(net.minecraft.core.Holder::value).orElse(null);
                     if (block == null) return;
                     posList.forEach(p -> level.setBlock(new BlockPos(p[0], p[1], p[2]), block.defaultBlockState(), 3));
                 }
@@ -428,8 +431,8 @@ public abstract class IFTTTContainer implements Serializable {
 
     private static boolean isObstacle(Entity e) {
         if (e instanceof TrainEntity || e instanceof ItemEntity) return false;
-        if (e instanceof com.portofino.realtrainmodunofficial.entity.TrainBogieEntity) return false;
-        if (e instanceof com.portofino.realtrainmodunofficial.entity.TrainSeatEntity) return false;
+        if (e instanceof TrainBogieEntity) return false;
+        if (e instanceof TrainSeatEntity) return false;
         Entity vehicle = e.getVehicle();
         return !(vehicle instanceof TrainEntity);
     }

@@ -1,0 +1,7 @@
+{
+  "variants": {
+    "": {
+      "model": "realtrainmodrenewed:block/signal_changer"
+    }
+  }
+}

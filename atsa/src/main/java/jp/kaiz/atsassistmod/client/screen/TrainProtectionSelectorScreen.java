@@ -1,18 +1,17 @@
 package jp.kaiz.atsassistmod.client.screen;
 
-import com.portofino.realtrainmodunofficial.entity.TrainEntity;
+import cc.mirukuneko.realtrainmodrenewed.entity.TrainEntity;
 import jp.kaiz.atsassistmod.client.hud.TrainHudClient;
 import jp.kaiz.atsassistmod.client.hud.TrainHudClientManager;
 import jp.kaiz.atsassistmod.controller.trainprotection.TrainProtectionType;
 import jp.kaiz.atsassistmod.network.payload.ControlPayloads.ManualDrive;
 import jp.kaiz.atsassistmod.network.payload.ControlPayloads.TrainDriveMode;
 import jp.kaiz.atsassistmod.network.payload.ControlPayloads.TrainProtectionSetter;
-import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.components.Checkbox;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
-import net.neoforged.neoforge.network.PacketDistributor;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -68,7 +67,7 @@ public class TrainProtectionSelectorScreen extends Screen {
         addRenderableWidget(Checkbox.builder(Component.empty(), this.font)
                 .pos(widthBaseL + 3, heightBase + 28)
                 .selected(tcc != null && tcc.isManualDrive())
-                .onValueChange((cb, v) -> PacketDistributor.sendToServer(new ManualDrive(v)))
+                .onValueChange((cb, v) -> jp.kaiz.atsassistmod.client.ClientNetworkHelper.sendToServer(new ManualDrive(v)))
                 .build());
         // hide HUD checkbox
         addRenderableWidget(Checkbox.builder(Component.empty(), this.font)
@@ -107,31 +106,31 @@ public class TrainProtectionSelectorScreen extends Screen {
             case 11 -> tcc().setATO(false);
             default -> { }
         }
-        PacketDistributor.sendToServer(new TrainDriveMode(mode - 10));
+        jp.kaiz.atsassistmod.client.ClientNetworkHelper.sendToServer(new TrainDriveMode(mode - 10));
     }
 
     private void sendTP(TrainProtectionType type) {
         tcc().setTrainProtectionType(type);
-        PacketDistributor.sendToServer(new TrainProtectionSetter(type.id));
+        jp.kaiz.atsassistmod.client.ClientNetworkHelper.sendToServer(new TrainProtectionSetter(type.id));
     }
 
     @Override
-    public void render(GuiGraphics g, int mouseX, int mouseY, float partial) {
-        this.renderBackground(g, mouseX, mouseY, partial);
-        super.render(g, mouseX, mouseY, partial);
+    public void extractRenderState(GuiGraphicsExtractor g, int mouseX, int mouseY, float partial) {
+        this.extractBackground(g, mouseX, mouseY, partial);
+        super.extractRenderState(g, mouseX, mouseY, partial);
 
         int heightBase = this.height / 2 - 50;
         int widthBaseL = this.width / 2 - 135;
         int widthBaseR0 = this.width / 2 - 10;
 
-        g.drawString(font, Component.translatable("atsassistmod.gui.TrainProtectionSelector.text.0"), widthBaseL + 20, heightBase - 25, 0xFFFFFF);
+        g.text(font, Component.translatable("atsassistmod.gui.TrainProtectionSelector.text.0"), widthBaseL + 20, heightBase - 25, 0xFFFFFF);
         Component mode = Component.translatable("atsassistmod.gui.TrainProtectionSelector.text."
                 + (tcc != null ? (tcc.isATO() ? 3 : tcc.isTASC() ? 2 : 1) : 1));
-        g.drawString(font, Component.translatable("atsassistmod.gui.TrainProtectionSelector.text.7"), widthBaseL, heightBase, 0xFFFFFF);
-        g.drawString(font, mode, widthBaseL + 55, heightBase, 0xFFFFFF);
-        g.drawString(font, Component.translatable("atsassistmod.gui.TrainProtectionSelector.text.6"), widthBaseL, heightBase + 25, 0xFFFFFF);
-        g.drawString(font, Component.translatable("atsassistmod.gui.TrainProtectionSelector.text.4"), widthBaseL, heightBase + 100, 0xFFFFFF);
-        g.drawString(font, Component.translatable("atsassistmod.gui.TrainProtectionSelector.text.5"), widthBaseR0 + 50, heightBase - 25, 0xFFFFFF);
+        g.text(font, Component.translatable("atsassistmod.gui.TrainProtectionSelector.text.7"), widthBaseL, heightBase, 0xFFFFFF);
+        g.text(font, mode, widthBaseL + 55, heightBase, 0xFFFFFF);
+        g.text(font, Component.translatable("atsassistmod.gui.TrainProtectionSelector.text.6"), widthBaseL, heightBase + 25, 0xFFFFFF);
+        g.text(font, Component.translatable("atsassistmod.gui.TrainProtectionSelector.text.4"), widthBaseL, heightBase + 100, 0xFFFFFF);
+        g.text(font, Component.translatable("atsassistmod.gui.TrainProtectionSelector.text.5"), widthBaseR0 + 50, heightBase - 25, 0xFFFFFF);
     }
 
     @Override

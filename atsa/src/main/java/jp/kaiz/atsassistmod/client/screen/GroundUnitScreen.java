@@ -7,7 +7,7 @@ import jp.kaiz.atsassistmod.controller.trainprotection.TrainProtectionType;
 import jp.kaiz.atsassistmod.network.payload.ControlPayloads.SaveGroundUnit;
 import jp.kaiz.atsassistmod.network.payload.ControlPayloads.SetGroundUnitType;
 import net.minecraft.client.Minecraft;
-import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.components.Checkbox;
 import net.minecraft.client.gui.components.EditBox;
@@ -116,7 +116,7 @@ public class GroundUnitScreen extends Screen {
     }
 
     private void selectType(int id) {
-        PacketDistributor.sendToServer(new SetGroundUnitType(tile.getBlockPos(), id));
+        jp.kaiz.atsassistmod.client.ClientNetworkHelper.sendToServer(new SetGroundUnitType(tile.getBlockPos(), id));
         Minecraft mc = Minecraft.getInstance();
         if (mc.level != null) {
             var state = tile.getBlockState().setValue(GroundUnitBlock.TYPE, GroundUnitType.getType(id).id);
@@ -166,7 +166,7 @@ public class GroundUnitScreen extends Screen {
             }
         }
         int tpType = tpButton != null ? tpButton.value.id : tile.getTPType().id;
-        PacketDistributor.sendToServer(new SaveGroundUnit(tile.getBlockPos(), link, speed, distance, autoBrake, useTd, states, tpType));
+        jp.kaiz.atsassistmod.client.ClientNetworkHelper.sendToServer(new SaveGroundUnit(tile.getBlockPos(), link, speed, distance, autoBrake, useTd, states, tpType));
         onClose();
     }
 
@@ -179,9 +179,9 @@ public class GroundUnitScreen extends Screen {
     }
 
     @Override
-    public void render(GuiGraphics g, int mouseX, int mouseY, float partial) {
-        this.renderBackground(g, mouseX, mouseY, partial);
-        super.render(g, mouseX, mouseY, partial);
+    public void extractRenderState(GuiGraphicsExtractor g, int mouseX, int mouseY, float partial) {
+        this.extractBackground(g, mouseX, mouseY, partial);
+        super.extractRenderState(g, mouseX, mouseY, partial);
         GroundUnitType type = type();
         String titleKey = switch (type) {
             case None -> "atsassistmod.gui.GroundUnitMenu.0.title";
@@ -199,9 +199,9 @@ public class GroundUnitScreen extends Screen {
             case CHANGE_TP -> "atsassistmod.gui.GroundUnitMenu.14.title";
             case ATACS_Disable -> "atsassistmod.gui.GroundUnitMenu.15.title";
         };
-        g.drawString(font, Component.translatable(titleKey), this.width / 4, 20, 0xFFFFFF);
+        g.text(font, Component.translatable(titleKey), this.width / 4, 20, 0xFFFFFF);
         if (type != GroundUnitType.None && type != GroundUnitType.TrainState_Set && type != GroundUnitType.TASC_StopPotion) {
-            g.drawString(font, Component.translatable("atsassistmod.gui.GroundUnitMenu.common.text.0"),
+            g.text(font, Component.translatable("atsassistmod.gui.GroundUnitMenu.common.text.0"),
                     this.width / 2 - 100, this.height / 2 - 50, 0xFFFFFF);
         }
     }
@@ -245,7 +245,7 @@ public class GroundUnitScreen extends Screen {
         }
 
         @Override
-        public void onPress() {
+        public void onPress(net.minecraft.client.input.InputWithModifiers input) {
             int sentinel = spec.min - 1;
             value = (value >= spec.max) ? (byte) sentinel : (byte) (value + 1);
             if (value < sentinel) {
@@ -275,6 +275,12 @@ public class GroundUnitScreen extends Screen {
             }
             setMessage(Component.literal(state + ":" + data));
         }
+
+        @Override
+        protected void extractContents(GuiGraphicsExtractor g, int mouseX, int mouseY, float partial) {
+            g.centeredText(net.minecraft.client.Minecraft.getInstance().font, getMessage(),
+                    getX() + getWidth() / 2, getY() + (getHeight() - 8) / 2, 0xFFFFFF);
+        }
     }
 
     // -------- Train protection cycle button --------
@@ -288,7 +294,7 @@ public class GroundUnitScreen extends Screen {
         }
 
         @Override
-        public void onPress() {
+        public void onPress(net.minecraft.client.input.InputWithModifiers input) {
             TrainProtectionType[] all = TrainProtectionType.values();
             value = all[(value.ordinal() + 1) % all.length];
             updateMessage();
@@ -296,6 +302,12 @@ public class GroundUnitScreen extends Screen {
 
         private void updateMessage() {
             setMessage(Component.translatable(value.getTranslationKey()));
+        }
+
+        @Override
+        protected void extractContents(GuiGraphicsExtractor g, int mouseX, int mouseY, float partial) {
+            g.centeredText(net.minecraft.client.Minecraft.getInstance().font, getMessage(),
+                    getX() + getWidth() / 2, getY() + (getHeight() - 8) / 2, 0xFFFFFF);
         }
     }
 }

@@ -6,7 +6,7 @@ import net.minecraft.network.RegistryFriendlyByteBuf;
 import net.minecraft.network.codec.ByteBufCodecs;
 import net.minecraft.network.codec.StreamCodec;
 import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 
 /**
  * Client → server control payloads (driver SW / ground-unit configuration).
@@ -17,8 +17,8 @@ import net.minecraft.resources.ResourceLocation;
 public final class ControlPayloads {
     private ControlPayloads() {}
 
-    private static ResourceLocation id(String path) {
-        return ResourceLocation.fromNamespaceAndPath(ATSAssistMod.MODID, path);
+    private static Identifier id(String path) {
+        return Identifier.fromNamespaceAndPath(ATSAssistMod.MODID, path);
     }
 
     // ---- driver SW (player riding the control car) ----

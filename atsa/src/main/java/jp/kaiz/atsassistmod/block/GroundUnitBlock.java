@@ -4,6 +4,7 @@ import com.mojang.serialization.MapCodec;
 import jp.kaiz.atsassistmod.block.entity.GroundUnitBlockEntity;
 import jp.kaiz.atsassistmod.registry.ATSAModBlockEntities;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.BaseEntityBlock;
@@ -28,7 +29,11 @@ public class GroundUnitBlock extends BaseEntityBlock {
     public static final IntegerProperty TYPE = IntegerProperty.create("gu_type", 0, 15);
 
     public GroundUnitBlock() {
-        super(Properties.of().strength(1.5F, 6.0F).requiresCorrectToolForDrops());
+        this(Properties.of().strength(1.5F, 6.0F).requiresCorrectToolForDrops());
+    }
+
+    public GroundUnitBlock(Properties properties) {
+        super(properties);
         this.registerDefaultState(this.stateDefinition.any().setValue(TYPE, 0));
     }
 
@@ -56,7 +61,7 @@ public class GroundUnitBlock extends BaseEntityBlock {
     @Nullable
     @Override
     public <T extends BlockEntity> BlockEntityTicker<T> getTicker(Level level, BlockState state, BlockEntityType<T> type) {
-        if (level.isClientSide) {
+        if (level.isClientSide()) {
             return null;
         }
         return createTickerHelper(type, ATSAModBlockEntities.GROUND_UNIT.get(), GroundUnitBlockEntity::serverTick);
@@ -64,10 +69,10 @@ public class GroundUnitBlock extends BaseEntityBlock {
 
     @Override
     protected InteractionResult useWithoutItem(BlockState state, Level level, BlockPos pos, Player player, BlockHitResult hit) {
-        if (level.isClientSide) {
+        if (level.isClientSide()) {
             jp.kaiz.atsassistmod.client.ATSAModClientHooks.openGroundUnit(pos);
         }
-        return InteractionResult.sidedSuccess(level.isClientSide);
+        return ((level.isClientSide() ? InteractionResult.SUCCESS : InteractionResult.SUCCESS_SERVER));
     }
 
     @Override
@@ -76,7 +81,7 @@ public class GroundUnitBlock extends BaseEntityBlock {
     }
 
     @Override
-    protected int getAnalogOutputSignal(BlockState state, Level level, BlockPos pos) {
+    protected int getAnalogOutputSignal(BlockState state, Level level, BlockPos pos, Direction direction) {
         return level.getBlockEntity(pos) instanceof GroundUnitBlockEntity be ? be.getRedStoneOutput() : 0;
     }
 }

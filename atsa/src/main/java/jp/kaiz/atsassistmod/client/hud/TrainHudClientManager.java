@@ -1,6 +1,6 @@
 package jp.kaiz.atsassistmod.client.hud;
 
-import com.portofino.realtrainmodunofficial.entity.TrainEntity;
+import cc.mirukuneko.realtrainmodrenewed.entity.TrainEntity;
 import jp.kaiz.atsassistmod.rtm.RtmTrains;
 
 import java.util.HashMap;

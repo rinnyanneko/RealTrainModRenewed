@@ -5,7 +5,7 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.network.RegistryFriendlyByteBuf;
 import net.minecraft.network.codec.StreamCodec;
 import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -16,7 +16,7 @@ public record IftttPayloads() {
     public record SaveIfttt(BlockPos pos, boolean anyMatch, List<byte[]> thisData, List<byte[]> thatData)
             implements CustomPacketPayload {
         public static final Type<SaveIfttt> TYPE = new Type<>(
-                ResourceLocation.fromNamespaceAndPath(ATSAssistMod.MODID, "save_ifttt"));
+                Identifier.fromNamespaceAndPath(ATSAssistMod.MODID, "save_ifttt"));
 
         public static final StreamCodec<RegistryFriendlyByteBuf, SaveIfttt> CODEC = StreamCodec.of(
                 (buf, p) -> {

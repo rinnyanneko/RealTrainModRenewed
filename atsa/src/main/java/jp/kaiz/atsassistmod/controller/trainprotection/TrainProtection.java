@@ -1,6 +1,6 @@
 package jp.kaiz.atsassistmod.controller.trainprotection;
 
-import com.portofino.realtrainmodunofficial.entity.TrainEntity;
+import cc.mirukuneko.realtrainmodrenewed.entity.TrainEntity;
 
 public class TrainProtection {
     protected TrainEntity train;

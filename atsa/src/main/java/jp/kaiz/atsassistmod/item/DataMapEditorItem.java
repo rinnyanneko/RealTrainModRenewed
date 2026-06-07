@@ -15,7 +15,7 @@ public class DataMapEditorItem extends Item {
 
     @Override
     public InteractionResult useOn(UseOnContext context) {
-        if (context.getLevel().isClientSide && context.getPlayer() != null && context.getPlayer().isShiftKeyDown()) {
+        if (context.getLevel().isClientSide() && context.getPlayer() != null && context.getPlayer().isShiftKeyDown()) {
             // TODO(gui): open GUIDataMapEditor for the clicked position.
         }
         return InteractionResult.PASS;

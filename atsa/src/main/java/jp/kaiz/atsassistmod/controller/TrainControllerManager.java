@@ -1,6 +1,6 @@
 package jp.kaiz.atsassistmod.controller;
 
-import com.portofino.realtrainmodunofficial.entity.TrainEntity;
+import cc.mirukuneko.realtrainmodrenewed.entity.TrainEntity;
 import jp.kaiz.atsassistmod.network.ATSAModNet;
 import jp.kaiz.atsassistmod.network.payload.HudPayload;
 import jp.kaiz.atsassistmod.rtm.RtmTrains;

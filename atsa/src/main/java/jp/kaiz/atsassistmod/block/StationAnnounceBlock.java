@@ -9,6 +9,10 @@ import net.minecraft.world.level.block.Block;
  */
 public class StationAnnounceBlock extends Block {
     public StationAnnounceBlock() {
-        super(Properties.of().strength(1.5F, 6.0F).requiresCorrectToolForDrops());
+        this(Properties.of().strength(1.5F, 6.0F).requiresCorrectToolForDrops());
+    }
+
+    public StationAnnounceBlock(Properties properties) {
+        super(properties);
     }
 }

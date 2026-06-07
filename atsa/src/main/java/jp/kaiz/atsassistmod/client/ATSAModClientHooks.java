@@ -1,6 +1,6 @@
 package jp.kaiz.atsassistmod.client;
 
-import com.portofino.realtrainmodunofficial.entity.TrainEntity;
+import cc.mirukuneko.realtrainmodrenewed.entity.TrainEntity;
 import jp.kaiz.atsassistmod.block.entity.GroundUnitBlockEntity;
 import jp.kaiz.atsassistmod.block.entity.IftttBlockEntity;
 import jp.kaiz.atsassistmod.client.screen.GroundUnitScreen;
@@ -12,7 +12,7 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.world.entity.Entity;
 
 /**
- * Client-only screen openers. Only referenced behind {@code level.isClientSide}
+ * Client-only screen openers. Only referenced behind {@code level.isClientSide()}
  * guards so the classes never load on a dedicated server.
  */
 public final class ATSAModClientHooks {

@@ -1,6 +1,6 @@
 package jp.kaiz.atsassistmod.rtm;
 
-import com.portofino.realtrainmodunofficial.entity.TrainEntity;
+import cc.mirukuneko.realtrainmodrenewed.entity.TrainEntity;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.phys.Vec3;
 
@@ -8,7 +8,7 @@ import java.util.List;
 
 /**
  * Adapter bridging ATSAssist's old {@code EntityTrainBase} usage onto the real
- * RealTrainModUnofficial {@link TrainEntity} API.
+ * RealTrainModRenewed {@link TrainEntity} API.
  *
  * <p>RTM's own {@code getFormation()}/{@code isControlCar()} are render-script
  * stubs (formation size always 1, control-car always true), so this class uses

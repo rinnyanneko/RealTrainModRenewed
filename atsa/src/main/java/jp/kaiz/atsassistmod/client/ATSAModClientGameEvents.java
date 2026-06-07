@@ -1,6 +1,6 @@
 package jp.kaiz.atsassistmod.client;
 
-import com.portofino.realtrainmodunofficial.entity.TrainEntity;
+import cc.mirukuneko.realtrainmodrenewed.entity.TrainEntity;
 import jp.kaiz.atsassistmod.ATSAssistMod;
 import jp.kaiz.atsassistmod.network.payload.ControlPayloads.EmergencyBrake;
 import jp.kaiz.atsassistmod.rtm.RtmTrains;
@@ -10,7 +10,6 @@ import net.neoforged.api.distmarker.Dist;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.common.EventBusSubscriber;
 import net.neoforged.neoforge.client.event.ClientTickEvent;
-import net.neoforged.neoforge.network.PacketDistributor;
 
 /** Game-bus client events: emergency-brake key polling. */
 @EventBusSubscriber(modid = ATSAssistMod.MODID, value = Dist.CLIENT)
@@ -26,7 +25,7 @@ public final class ATSAModClientGameEvents {
             }
             Entity vehicle = mc.player.getVehicle();
             if (vehicle instanceof TrainEntity train && RtmTrains.isControlCar(train)) {
-                PacketDistributor.sendToServer(EmergencyBrake.INSTANCE);
+                jp.kaiz.atsassistmod.client.ClientNetworkHelper.sendToServer(EmergencyBrake.INSTANCE);
             }
         }
     }
