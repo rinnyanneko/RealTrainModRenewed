@@ -3,6 +3,7 @@ package cc.mirukuneko.realtrainmodrenewed;
 import cc.mirukuneko.realtrainmodrenewed.compat.webctc.WebCtcCompat;
 import cc.mirukuneko.realtrainmodrenewed.installedobject.InstalledObjectPackLoader;
 import cc.mirukuneko.realtrainmodrenewed.installedobject.SpeakerSoundConfig;
+import cc.mirukuneko.realtrainmodrenewed.item.CrowbarItem;
 import cc.mirukuneko.realtrainmodrenewed.network.RealTrainModRenewedNetwork;
 import cc.mirukuneko.realtrainmodrenewed.network.SyncSpeakerSoundsPayload;
 import cc.mirukuneko.realtrainmodrenewed.rail.RailPackLoader;
@@ -37,7 +38,7 @@ public class RealTrainModRenewed {
 
     public static final DeferredHolder<CreativeModeTab, CreativeModeTab> MAIN_TAB =
         CREATIVE_MODE_TABS.register("main_tab", () -> CreativeModeTab.builder()
-            .title(Component.translatable("itemGroup.realtrainmodunofficial"))
+            .title(Component.translatable("itemGroup.realtrainmodrenewed"))
             .withTabsBefore(CreativeModeTabs.COMBAT)
             .icon(() -> RealTrainModRenewedItems.RAIL_ITEM.get().getDefaultInstance())
             .displayItems((parameters, output) -> {
@@ -89,6 +90,8 @@ public class RealTrainModRenewed {
             WebCtcCompat::onServerStarted);
         net.neoforged.neoforge.common.NeoForge.EVENT_BUS.addListener(
             WebCtcCompat::onServerStopping);
+        net.neoforged.neoforge.common.NeoForge.EVENT_BUS.addListener(
+            CrowbarItem::onAttackEntity);
         // スピーカー音源マッピングをサーバー起動時にロードし、プレイヤー接続時に同期する。
         net.neoforged.neoforge.common.NeoForge.EVENT_BUS.addListener(
             (net.neoforged.neoforge.event.server.ServerStartingEvent e) ->

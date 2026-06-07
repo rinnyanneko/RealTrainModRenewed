@@ -2,6 +2,7 @@ package cc.mirukuneko.realtrainmodrenewed.block;
 
 import com.mojang.serialization.MapCodec;
 import cc.mirukuneko.realtrainmodrenewed.ClientHooks;
+import cc.mirukuneko.realtrainmodrenewed.RealTrainModRenewedItems;
 import cc.mirukuneko.realtrainmodrenewed.blockentity.SignalRemoteBlockEntity;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.InteractionResult;
@@ -79,6 +80,12 @@ public class SignalRemoteBlock extends BaseEntityBlock {
     @Override
     protected InteractionResult useItemOn(ItemStack stack, BlockState state, Level level, BlockPos pos, Player player,
                                               net.minecraft.world.InteractionHand hand, BlockHitResult hit) {
+        if (stack.is(RealTrainModRenewedItems.CROWBAR_ITEM.get())) {
+            if (!level.isClientSide()) {
+                level.destroyBlock(pos, true, player);
+            }
+            return level.isClientSide() ? InteractionResult.SUCCESS : InteractionResult.SUCCESS_SERVER;
+        }
         openScreen(level, pos);
         return (level.isClientSide() ? InteractionResult.SUCCESS : InteractionResult.SUCCESS_SERVER);
     }

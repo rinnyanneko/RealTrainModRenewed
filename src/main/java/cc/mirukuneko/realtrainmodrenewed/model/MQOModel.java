@@ -39,7 +39,7 @@ public class MQOModel {
             executeScript(poseStack, pass);
         }
 
-        RealTrainModRenewed.LOGGER.info("Rendering MQO model: {} vertices, {} faces, {} materials", vertices.size(), faces.size(), materials.size());
+        RealTrainModRenewed.LOGGER.debug("Rendering MQO model: {} vertices, {} faces, {} materials", vertices.size(), faces.size(), materials.size());
 
         for (Face face : faces) {
             Material mat = materials.get(face.materialName);

@@ -14,8 +14,6 @@ import net.minecraft.client.renderer.entity.EntityRenderer;
 import net.minecraft.client.renderer.entity.EntityRendererProvider;
 import net.minecraft.client.renderer.state.level.CameraRenderState;
 import net.minecraft.resources.Identifier;
-import net.neoforged.api.distmarker.Dist;
-import net.neoforged.api.distmarker.OnlyIn;
 import org.jetbrains.annotations.NotNull;
 
 import static cc.mirukuneko.realtrainmodrenewed.RealTrainModRenewed.MODID;
@@ -25,7 +23,6 @@ import static cc.mirukuneko.realtrainmodrenewed.RealTrainModRenewed.MODID;
  * エンティティの vehicleId が指す車両定義のモデル/テクスチャ/レンダースクリプトを描画する。
  * これにより RTM 標準車(CV33 等)や追加パックの車(SuperRailBuilder3 等)が正しく表示される。
  */
-@OnlyIn(Dist.CLIENT)
 public final class CarRenderer extends EntityRenderer<CarEntity, LegacyEntityRenderState<CarEntity>> {
     private static final Identifier FALLBACK_TEXTURE =
         Identifier.fromNamespaceAndPath(MODID, "textures/car/toyota_prius-phv.png");

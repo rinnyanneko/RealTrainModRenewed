@@ -1,8 +1,6 @@
 package cc.mirukuneko.realtrainmodrenewed.client.model.mqo;
 
 import cc.mirukuneko.realtrainmodrenewed.client.model.mqo.object.MQOObject;
-import net.neoforged.api.distmarker.Dist;
-import net.neoforged.api.distmarker.OnlyIn;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.Arrays;
@@ -14,7 +12,6 @@ import java.util.stream.Collectors;
 ///
 /// @param materials 材質
 /// @param objects   オブジェクト
-@OnlyIn(Dist.CLIENT)
 public record MQOModel(MQOMaterial[] materials, List<MQOObject> objects) {
     // materialsは読み込みの最初で個数がわかるため配列、objectsはわからないためCollectionにするしかない
 

@@ -1,12 +1,12 @@
 {
   "variants": {
-    "facing=0": { "model": "realtrainmodrenewed:block/marker_f0" },
-    "facing=1": { "model": "realtrainmodrenewed:block/marker_f1" },
-    "facing=2": { "model": "realtrainmodrenewed:block/marker_f2" },
-    "facing=3": { "model": "realtrainmodrenewed:block/marker_f3" },
-    "facing=4": { "model": "realtrainmodrenewed:block/marker_f4" },
-    "facing=5": { "model": "realtrainmodrenewed:block/marker_f5" },
-    "facing=6": { "model": "realtrainmodrenewed:block/marker_f6" },
-    "facing=7": { "model": "realtrainmodrenewed:block/marker_f7" }
+    "facing=0": { "model": "realtrainmodrenewed:block/marker_switch_f0" },
+    "facing=1": { "model": "realtrainmodrenewed:block/marker_switch_f1" },
+    "facing=2": { "model": "realtrainmodrenewed:block/marker_switch_f2" },
+    "facing=3": { "model": "realtrainmodrenewed:block/marker_switch_f3" },
+    "facing=4": { "model": "realtrainmodrenewed:block/marker_switch_f4" },
+    "facing=5": { "model": "realtrainmodrenewed:block/marker_switch_f5" },
+    "facing=6": { "model": "realtrainmodrenewed:block/marker_switch_f6" },
+    "facing=7": { "model": "realtrainmodrenewed:block/marker_switch_f7" }
   }
 }

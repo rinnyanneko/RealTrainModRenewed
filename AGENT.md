@@ -2,8 +2,8 @@
 
 ## Repository Snapshot
 
-- This is `RealTrainModRenewed`, a Minecraft 1.21.1 NeoForge rewrite/renewal of RealTrainModUnofficial.
-- The main mod id is `realtrainmodunofficial`; the main package is `com.portofino.realtrainmodunofficial`.
+- This is `RealTrainModRenewed`, a Minecraft 1.21.1 NeoForge rewrite/renewal of the original RTMU codebase.
+- The main mod id is `realtrainmodrenewed`; the main package is `cc.mirukuneko.realtrainmodrenewed`.
 - The build is Gradle Groovy DSL with Java 21 toolchains and NeoGradle userdev.
 - `atsa/` is a separate included Gradle subproject that builds the `atsassistmod` companion mod jar. It depends on the root RTMU project at compile time and should stay separated unless the user asks to merge it.
 - The repo currently has about 223 Java source files and a large resource surface: model JSON, PNG textures, OGG sounds, JavaScript render/sound scripts, MQO/MQOZ models, and pack-import tooling.
@@ -11,7 +11,7 @@
 ## Important Paths
 
 - `build.gradle`, `settings.gradle`, `gradle.properties`: root NeoForge build configuration.
-- `src/main/java/com/portofino/realtrainmodunofficial/RealTrainModUnofficial.java`: root mod entry point.
+- `src/main/java/com/portofino/realtrainmodunofficial/RealTrainModRenewed.java`: root mod entry point.
 - `src/main/java/com/portofino/realtrainmodunofficial/`: main mod code.
 - `src/main/resources/META-INF/neoforge.mods.toml`: root mod metadata.
 - `src/main/resources/assets/`: bundled Minecraft/RTM/RTMU assets and WebCTC static files.

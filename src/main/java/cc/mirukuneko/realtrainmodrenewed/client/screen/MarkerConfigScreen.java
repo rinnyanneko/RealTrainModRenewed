@@ -90,7 +90,6 @@ public class MarkerConfigScreen extends Screen {
 
     @Override
     public void extractRenderState(GuiGraphicsExtractor g, int mx, int my, float pt) {
-        extractBackground(g, mx, my, pt);
         super.extractRenderState(g, mx, my, pt);
         int x = width / 2 - 45;
         int y = height / 2 - 60;

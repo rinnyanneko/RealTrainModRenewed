@@ -137,9 +137,9 @@ public class InstalledObjectItem extends Item implements ModelSelectableItem {
         if (selectedId != null && !selectedId.isBlank()) {
             InstalledObjectDefinition def = InstalledObjectRegistry.getById(selectedId);
             String name = def != null ? def.getDisplayName() : selectedId;
-            lines.accept(Component.translatable("tooltip.realtrainmodunofficial.model.selected", name).withStyle(ChatFormatting.GRAY));
+            lines.accept(Component.translatable("tooltip.realtrainmodrenewed.model.selected", name).withStyle(ChatFormatting.GRAY));
         } else {
-            lines.accept(Component.translatable("tooltip.realtrainmodunofficial.model.none").withStyle(ChatFormatting.DARK_GRAY));
+            lines.accept(Component.translatable("tooltip.realtrainmodrenewed.model.none").withStyle(ChatFormatting.DARK_GRAY));
         }
     }
 

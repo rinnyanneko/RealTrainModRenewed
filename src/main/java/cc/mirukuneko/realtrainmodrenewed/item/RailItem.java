@@ -74,10 +74,10 @@ public class RailItem extends Item {
         if (selectedId != null && !selectedId.isBlank()) {
             RailDefinition def = RailRegistry.getById(selectedId);
             String name = def != null ? def.getDisplayName() : selectedId;
-            lines.accept(Component.translatable("tooltip.realtrainmodunofficial.model.selected", name)
+            lines.accept(Component.translatable("tooltip.realtrainmodrenewed.model.selected", name)
                 .withStyle(ChatFormatting.GRAY));
         } else {
-            lines.accept(Component.translatable("tooltip.realtrainmodunofficial.model.none")
+            lines.accept(Component.translatable("tooltip.realtrainmodrenewed.model.none")
                 .withStyle(ChatFormatting.DARK_GRAY));
         }
     }

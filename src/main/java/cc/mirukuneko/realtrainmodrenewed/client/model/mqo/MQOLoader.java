@@ -2,8 +2,6 @@ package cc.mirukuneko.realtrainmodrenewed.client.model.mqo;
 
 import net.minecraft.client.Minecraft;
 import net.minecraft.resources.Identifier;
-import net.neoforged.api.distmarker.Dist;
-import net.neoforged.api.distmarker.OnlyIn;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -16,7 +14,6 @@ import java.nio.charset.StandardCharsets;
 import static cc.mirukuneko.realtrainmodrenewed.RealTrainModRenewed.LOGGER;
 import static cc.mirukuneko.realtrainmodrenewed.RealTrainModRenewed.MODID;
 
-@OnlyIn(Dist.CLIENT)
 public class MQOLoader {
     public static @Nullable MQOModel load(@NotNull String modelFilePath) {
         final var modelLocation = Identifier.fromNamespaceAndPath(MODID, modelFilePath);

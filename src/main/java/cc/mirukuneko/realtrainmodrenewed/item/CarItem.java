@@ -83,9 +83,9 @@ public class CarItem extends Item {
         if (selectedId != null && !selectedId.isBlank()) {
             VehicleDefinition def = VehicleRegistry.getById(selectedId);
             String name = def != null ? def.getDisplayName() : selectedId;
-            tooltip.accept(Component.translatable("tooltip.realtrainmodunofficial.model.selected", name));
+            tooltip.accept(Component.translatable("tooltip.realtrainmodrenewed.model.selected", name));
         } else {
-            tooltip.accept(Component.translatable("tooltip.realtrainmodunofficial.model.none"));
+            tooltip.accept(Component.translatable("tooltip.realtrainmodrenewed.model.none"));
         }
     }
 }

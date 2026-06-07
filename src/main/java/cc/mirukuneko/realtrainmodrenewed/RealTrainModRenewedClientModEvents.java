@@ -11,7 +11,9 @@ import cc.mirukuneko.realtrainmodrenewed.client.sound.ExternalSoundPackBridge;
 import net.neoforged.api.distmarker.Dist;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.common.EventBusSubscriber;
+import net.minecraft.client.color.block.BlockTintSources;
 import net.neoforged.neoforge.client.event.EntityRenderersEvent;
+import net.neoforged.neoforge.client.event.RegisterColorHandlersEvent;
 import net.neoforged.neoforge.client.event.RegisterKeyMappingsEvent;
 import net.neoforged.neoforge.event.AddPackFindersEvent;
 
@@ -70,7 +72,16 @@ public final class RealTrainModRenewedClientModEvents {
     private static final int MARKER_COLOR = 0xFF3B30;        // 赤
     private static final int MARKER_SWITCH_COLOR = 0x0028C8; // 濃い青(本家寄り)
 
-    // TODO 26.1: marker tint registration moved away from the old RegisterColorHandlersEvent.Block/Item
-    // event types on the compile classpath. Marker models still load, but their legacy red/blue tint is pending.
+    @SubscribeEvent
+    public static void registerBlockTints(RegisterColorHandlersEvent.BlockTintSources event) {
+        event.register(
+            java.util.List.of(BlockTintSources.constant(MARKER_COLOR)),
+            RealTrainModRenewedBlocks.MARKER.get()
+        );
+        event.register(
+            java.util.List.of(BlockTintSources.constant(MARKER_SWITCH_COLOR)),
+            RealTrainModRenewedBlocks.MARKER_SWITCH.get()
+        );
+    }
 
 }

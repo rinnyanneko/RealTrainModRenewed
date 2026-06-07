@@ -97,16 +97,31 @@ public class RailCollisionBlock extends BaseEntityBlock {
 
     @Override
     protected void affectNeighborsAfterRemoval(BlockState state, net.minecraft.server.level.ServerLevel level, BlockPos pos, boolean isMoving) {
-        if (!RailMap.suppressRailRemoval) {
+        if (!RailMap.suppressRailRemoval.get()) {
             BlockEntity be = level.getBlockEntity(pos);
             if (be instanceof RailCollisionBlockEntity rbe) {
                 BlockPos corePos = rbe.getCorePos();
                 if (corePos != null && level.getBlockState(corePos).getBlock() instanceof LargeRailCoreBlock) {
-                    level.removeBlock(corePos, false);
+                    LargeRailCoreBlockEntity core = level.getBlockEntity(corePos) instanceof LargeRailCoreBlockEntity c ? c : null;
+                    LargeRailCoreBlock.removeRailNetwork(level, corePos, core);
                 }
             }
         }
         super.affectNeighborsAfterRemoval(state, level, pos, isMoving);
+    }
+
+    @Override
+    public BlockState playerWillDestroy(Level level, BlockPos pos, BlockState state, Player player) {
+        if (!level.isClientSide()
+            && !RailMap.suppressRailRemoval.get()
+            && level.getBlockEntity(pos) instanceof RailCollisionBlockEntity collision) {
+            BlockPos corePos = collision.getCorePos();
+            if (corePos != null && level.getBlockState(corePos).getBlock() instanceof LargeRailCoreBlock) {
+                LargeRailCoreBlockEntity core = level.getBlockEntity(corePos) instanceof LargeRailCoreBlockEntity c ? c : null;
+                LargeRailCoreBlock.removeRailNetwork(level, corePos, core);
+            }
+        }
+        return super.playerWillDestroy(level, pos, state, player);
     }
 
     @Nullable
@@ -126,7 +141,8 @@ public class RailCollisionBlock extends BaseEntityBlock {
         if (be instanceof RailCollisionBlockEntity collision) {
             BlockPos corePos = collision.getCorePos();
             if (corePos != null && level.getBlockState(corePos).getBlock() instanceof LargeRailCoreBlock) {
-                level.removeBlock(corePos, false);
+                LargeRailCoreBlockEntity core = level.getBlockEntity(corePos) instanceof LargeRailCoreBlockEntity c ? c : null;
+                LargeRailCoreBlock.removeRailNetwork(level, corePos, core);
                 return InteractionResult.SUCCESS;
             }
         }

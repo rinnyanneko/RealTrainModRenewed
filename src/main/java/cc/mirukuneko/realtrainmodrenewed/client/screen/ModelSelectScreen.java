@@ -23,8 +23,6 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.util.LightCoordsUtil;
 import net.minecraft.util.Mth;
 import net.minecraft.world.phys.Vec3;
-import net.neoforged.api.distmarker.Dist;
-import net.neoforged.api.distmarker.OnlyIn;
 
 import java.util.Comparator;
 import java.util.List;
@@ -34,7 +32,6 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Consumer;
 
-@OnlyIn(Dist.CLIENT)
 public class ModelSelectScreen extends Screen {
     public record SelectionResult(String modelId, String dataMapValue) {}
 
@@ -100,6 +97,18 @@ public class ModelSelectScreen extends Screen {
     private int rightLeft() { return listWidth() + 4; }
     private int rightWidth() { return Math.max(100, width - rightLeft() - 4); }
     private int previewSize() { return Math.min(rightWidth(), height - LIST_TOP - 60); }
+
+    private String fitText(String text, int maxWidth) {
+        if (text == null || text.isBlank() || font.width(text) <= maxWidth) {
+            return text == null ? "" : text;
+        }
+        String suffix = "...";
+        int suffixWidth = font.width(suffix);
+        if (maxWidth <= suffixWidth) {
+            return font.plainSubstrByWidth(text, Math.max(0, maxWidth));
+        }
+        return font.plainSubstrByWidth(text, maxWidth - suffixWidth) + suffix;
+    }
 
     /** マウス座標が3Dプレビュー領域内か。 */
     private boolean isInPreviewArea(double mx, double my) {
@@ -185,7 +194,6 @@ public class ModelSelectScreen extends Screen {
 
     @Override
     public void extractRenderState(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float partialTick) {
-        extractBackground(graphics, mouseX, mouseY, partialTick);
         super.extractRenderState(graphics, mouseX, mouseY, partialTick);
         graphics.centeredText(font, getTitle(), listWidth() / 2, 7, 0xFFFFFF);
 
@@ -196,24 +204,56 @@ public class ModelSelectScreen extends Screen {
         int previewLeft = rl;
         int previewTop = LIST_TOP;
 
-        // 背景
         graphics.fill(previewLeft, previewTop, previewLeft + rw, previewTop + ps, 0x88000000);
 
         var sel = modelList.getSelected();
         if (sel != null && !sel.header) {
-            render3DPreview(graphics, previewLeft + rw / 2, previewTop + ps / 2, ps, sel.id, sel.packName);
+            renderPreviewPanel(graphics, previewLeft, previewTop, rw, ps, sel);
         }
 
         if (models.isEmpty()) {
             graphics.centeredText(font,
-                Component.translatable("screen.realtrainmodunofficial.no_models"),
+                Component.translatable("screen.realtrainmodrenewed.no_models"),
                 previewLeft + rw / 2, previewTop + ps / 2, 0xAAAAAA);
         }
     }
 
-    /** RTM 本家と同じ: Y 軸回転する 3D モデルプレビューを GUI 空間に描画。 */
-    private void render3DPreview(GuiGraphicsExtractor graphics, int cx, int cy, int areaSize, String id, String packName) {
-        graphics.centeredText(font, Component.literal(id), cx, cy - 4, 0xFFAAAAAA);
+    private void renderPreviewPanel(GuiGraphicsExtractor graphics, int left, int top, int width, int height,
+                                    ModelList.ModelEntry entry) {
+        String name = entry.label.getString();
+        graphics.text(font, Component.literal(fitText(name, width - 12)), left + 6, top + 6, 0xFFFFFFFF, false);
+
+        int infoTop = top + height - 31;
+        graphics.fill(left, infoTop - 4, left + width, top + height, 0xAA000000);
+        graphics.text(font, Component.literal(fitText(entry.packName, width - 12)), left + 6, infoTop, 0xFFB8B8C8, false);
+        graphics.text(font, Component.literal(fitText(entry.id, width - 12)), left + 6, infoTop + 11, 0xFF8888A0, false);
+
+        int imageTop = top + 24;
+        int imageHeight = Math.max(20, infoTop - imageTop - 8);
+        if (entry.buttonTex != null) {
+            int drawW = Math.min(width - 24, BTN_W * 2);
+            int drawH = Math.max(BTN_H, Math.min(imageHeight, Math.round(drawW * (BTN_H / (float) BTN_W))));
+            int drawX = left + (width - drawW) / 2;
+            int drawY = imageTop + Math.max(0, (imageHeight - drawH) / 2);
+            graphics.fill(drawX - 2, drawY - 2, drawX + drawW + 2, drawY + drawH + 2, 0xFF101018);
+            graphics.blit(RenderPipelines.GUI_TEXTURED, entry.buttonTex.location(),
+                drawX, drawY, drawW, drawH,
+                entry.buttonTex.sourceX(), entry.buttonTex.sourceY(),
+                entry.buttonTex.sourceWidth(), entry.buttonTex.sourceHeight(),
+                entry.buttonTex.width(), entry.buttonTex.height());
+        } else {
+            int boxW = Math.min(width - 24, 220);
+            int boxH = Math.min(imageHeight, 64);
+            int boxX = left + (width - boxW) / 2;
+            int boxY = imageTop + Math.max(0, (imageHeight - boxH) / 2);
+            graphics.fill(boxX, boxY, boxX + boxW, boxY + boxH, 0xFF111118);
+            graphics.fill(boxX, boxY, boxX + boxW, boxY + 1, 0xFF5A5A70);
+            graphics.fill(boxX, boxY + boxH - 1, boxX + boxW, boxY + boxH, 0xFF5A5A70);
+            graphics.fill(boxX, boxY, boxX + 1, boxY + boxH, 0xFF5A5A70);
+            graphics.fill(boxX + boxW - 1, boxY, boxX + boxW, boxY + boxH, 0xFF5A5A70);
+            graphics.centeredText(font, Component.literal("No preview image"), left + width / 2,
+                imageTop + imageHeight / 2 - 4, 0xFFAAAAAA);
+        }
     }
 
     private static float[] computePreviewBounds(MqoModelLoader.MqoModel model, VehicleDefinition vehicleDef) {
@@ -468,30 +508,39 @@ public class ModelSelectScreen extends Screen {
                 int left = getX();
                 int top = getY();
                 if (header) {
-                    graphics.text(ModelSelectScreen.this.font, label, left + 4, top + 11, 0xFFD0D0D0, false);
+                    graphics.text(ModelSelectScreen.this.font,
+                        Component.literal(fitText(label.getString(), BTN_W - 8)),
+                        left + 4, top + 11, 0xFFD0D0D0, false);
                     return;
                 }
                 boolean selected = this == modelList.getSelected();
                 if (selected) {
-                    // 選択中は薄い白枠だけ (RTM 本家は青いオーバーレイ)
-                    graphics.fill(left, top, left + BTN_W, top + BTN_H, 0x44FFFFFF);
+                    graphics.fill(left, top, left + BTN_W, top + BTN_H, 0x663C7DFF);
                 }
                 if (buttonTex != null) {
                     // 透明ピクセルがあるテクスチャでもゲーム世界が透けないよう背景を先に塗る
                     graphics.fill(left, top, left + BTN_W, top + BTN_H, 0xFF1A1A2E);
-                    // RTM 本家の drawTexturedModalRect は UV を 1/256 固定で計算するため、
-                    // 512×512 テクスチャでは「160×32 指定」が実際には 320×64 px を読み取っていた。
-                    // MC 1.21 は実テクスチャ寸法を使うので、同じ比率で srcW/srcH を算出する。
-                    float rtmScale = Math.max(1f, buttonTex.width() / 256f);
-                    int srcW = Math.min(Math.round(160 * rtmScale), buttonTex.width());
-                    int srcH = Math.min(Math.round(32  * rtmScale), buttonTex.height());
                     graphics.blit(RenderPipelines.GUI_TEXTURED, buttonTex.location(),
                         left, top, BTN_W, BTN_H,
-                        0, 0, srcW, srcH,
+                        buttonTex.sourceX(), buttonTex.sourceY(),
+                        buttonTex.sourceWidth(), buttonTex.sourceHeight(),
                         buttonTex.width(), buttonTex.height());
-                } else {
-                    graphics.text(ModelSelectScreen.this.font, label,
-                        left + 4, top + (BTN_H - 8) / 2, 0xAAAAAA, false);
+                }
+                String visibleLabel = fitText(label.getString(), BTN_W - 8);
+                int labelY = top + BTN_H - 11;
+                graphics.fill(left, labelY - 2, left + BTN_W, top + BTN_H, 0xAA000000);
+                graphics.text(ModelSelectScreen.this.font, Component.literal(visibleLabel),
+                    left + 4, labelY, buttonTex != null ? 0xFFFFFFFF : 0xFFAAAAAA, false);
+                if (selected) {
+                    graphics.fill(left, top, left + BTN_W, top + 1, 0xFFFFFFFF);
+                    graphics.fill(left, top + BTN_H - 1, left + BTN_W, top + BTN_H, 0xFFFFFFFF);
+                    graphics.fill(left, top, left + 1, top + BTN_H, 0xFFFFFFFF);
+                    graphics.fill(left + BTN_W - 1, top, left + BTN_W, top + BTN_H, 0xFFFFFFFF);
+                    String selectedText = Component.translatable("screen.realtrainmodrenewed.selected").getString();
+                    int selectedWidth = ModelSelectScreen.this.font.width(selectedText);
+                    graphics.fill(left + BTN_W - selectedWidth - 8, top + 2, left + BTN_W - 2, top + 12, 0xCC000000);
+                    graphics.text(ModelSelectScreen.this.font, Component.literal(selectedText),
+                        left + BTN_W - selectedWidth - 5, top + 3, 0xFFFFFFFF, false);
                 }
             }
 

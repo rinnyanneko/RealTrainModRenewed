@@ -1,0 +1,4 @@
+{
+    "parent": "realtrainmodrenewed:block/marker_base",
+    "textures": { "tex": "realtrainmodrenewed:block/marker_switch_blue_diag_1", "particle": "realtrainmodrenewed:block/marker_switch_blue_diag_1" }
+}

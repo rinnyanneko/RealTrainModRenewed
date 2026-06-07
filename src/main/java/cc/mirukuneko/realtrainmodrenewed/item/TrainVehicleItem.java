@@ -143,13 +143,13 @@ public class TrainVehicleItem extends Item {
             def = VehicleRegistry.getSelected();
         }
         if (def == null) {
-            player.sendOverlayMessage(Component.translatable("message.realtrainmodunofficial.train.must_be_on_rail"));
+            player.sendOverlayMessage(Component.translatable("message.realtrainmodrenewed.train.must_be_on_rail"));
             return false;
         }
 
         RailSpawnData spawnData = findNearestRailSpawn(level, targetPos, targetPoint, player.getYRot());
         if (spawnData == null) {
-            player.sendOverlayMessage(Component.translatable("message.realtrainmodunofficial.train.must_be_on_rail"));
+            player.sendOverlayMessage(Component.translatable("message.realtrainmodrenewed.train.must_be_on_rail"));
             return false;
         }
         double spawnY = spawnData.y();
@@ -504,15 +504,15 @@ public class TrainVehicleItem extends Item {
     public void appendHoverText(ItemStack stack, Item.TooltipContext context, net.minecraft.world.item.component.TooltipDisplay display, java.util.function.Consumer<net.minecraft.network.chat.Component> tooltip, TooltipFlag flag) {
         TrainFormation formation = TrainFormationData.getFormation(stack);
         if (formation != null && !formation.isEmpty()) {
-            tooltip.accept(net.minecraft.network.chat.Component.translatable("tooltip.realtrainmodunofficial.train_formation.cars", formation.getCarCount()));
-            tooltip.accept(net.minecraft.network.chat.Component.translatable("tooltip.realtrainmodunofficial.train_formation.formation", formation.getDisplayName()));
+            tooltip.accept(net.minecraft.network.chat.Component.translatable("tooltip.realtrainmodrenewed.train_formation.cars", formation.getCarCount()));
+            tooltip.accept(net.minecraft.network.chat.Component.translatable("tooltip.realtrainmodrenewed.train_formation.formation", formation.getDisplayName()));
         } else {
-            tooltip.accept(net.minecraft.network.chat.Component.translatable("tooltip.realtrainmodunofficial.train_formation.empty"));
+            tooltip.accept(net.minecraft.network.chat.Component.translatable("tooltip.realtrainmodrenewed.train_formation.empty"));
         }
 
         String selectedModel = stack.get(RealTrainModRenewedComponents.SELECTED_MODEL_ID.get());
         if (selectedModel != null && !selectedModel.isBlank()) {
-            tooltip.accept(net.minecraft.network.chat.Component.translatable("tooltip.realtrainmodunofficial.selected_model", selectedModel)
+            tooltip.accept(net.minecraft.network.chat.Component.translatable("tooltip.realtrainmodrenewed.selected_model", selectedModel)
                 .withStyle(net.minecraft.ChatFormatting.GREEN));
         }
     }

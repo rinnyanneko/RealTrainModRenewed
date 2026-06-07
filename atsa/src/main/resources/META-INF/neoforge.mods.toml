@@ -7,7 +7,7 @@ modId="atsassistmod"
 version="1.8.0"
 displayName="ATSA"
 authors="325"
-description='''ATS assist utilities for RealTrainModUnofficial. Requires RealTrainModUnofficial.'''
+description='''ATS assist utilities for RealTrainModRenewed. Requires RealTrainModRenewed.'''
 
 [[dependencies.atsassistmod]]
     modId="neoforge"
@@ -24,7 +24,7 @@ description='''ATS assist utilities for RealTrainModUnofficial. Requires RealTra
     side="BOTH"
 
 [[dependencies.atsassistmod]]
-    modId="realtrainmodunofficial"
+    modId="realtrainmodrenewed"
     type="required"
     versionRange="[0.0.0,)"
     ordering="AFTER"

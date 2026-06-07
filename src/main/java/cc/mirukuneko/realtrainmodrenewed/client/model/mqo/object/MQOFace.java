@@ -1,7 +1,5 @@
 package cc.mirukuneko.realtrainmodrenewed.client.model.mqo.object;
 
-import net.neoforged.api.distmarker.Dist;
-import net.neoforged.api.distmarker.OnlyIn;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -12,7 +10,6 @@ import org.jetbrains.annotations.Nullable;
 /// @param material      使用するマテリアルのインデックス
 /// @param uvs           それぞれの頂点のUV座標
 /// @param normals       それぞれの頂点の法線ベクトル カスタムされていないときはnull
-@OnlyIn(Dist.CLIENT)
 public record MQOFace(
     int vertices,
     int[] vertexIndices,

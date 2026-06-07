@@ -21,7 +21,7 @@ public record SyncSpeakerSoundsPayload(List<String> sounds) implements CustomPac
     );
 
     public static final StreamCodec<ByteBuf, SyncSpeakerSoundsPayload> STREAM_CODEC = StreamCodec.composite(
-        ByteBufCodecs.STRING_UTF8.apply(ByteBufCodecs.list()),
+        ByteBufCodecs.STRING_UTF8.apply(ByteBufCodecs.list(512)),
         SyncSpeakerSoundsPayload::sounds,
         SyncSpeakerSoundsPayload::new
     );

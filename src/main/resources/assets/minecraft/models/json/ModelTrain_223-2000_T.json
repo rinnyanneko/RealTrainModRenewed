@@ -21,7 +21,7 @@
 
 	"sound_Horn": "rtm:sounds/train/rtm_223mh.ogg",
 	"sound_BrakeRelease": "rtm:sounds/train/rtm_223_release.ogg",
-	"sound_BrakeRelease2": "rtm:sounds/train/brakeR_w.ogg",
+	"sound_BrakeRelease2": "rtm:sounds/train/braker_w.ogg",
 	"soundScriptPath": "scripts/sound_223.js",
 	
 	"interiorLights": [

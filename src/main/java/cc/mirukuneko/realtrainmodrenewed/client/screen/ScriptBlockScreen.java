@@ -125,7 +125,6 @@ public class ScriptBlockScreen extends Screen {
 
     @Override
     public void extractRenderState(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float partialTick) {
-        extractBackground(graphics, mouseX, mouseY, partialTick);
         super.extractRenderState(graphics, mouseX, mouseY, partialTick);
         int x = width / 2;
         graphics.centeredText(font, title, x, 12, 0xFFFFFF);

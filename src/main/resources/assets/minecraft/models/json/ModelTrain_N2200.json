@@ -20,8 +20,8 @@
 
 	"sound_Horn": "rtm:sounds/train/rtm_223mh.ogg",
 	"sound_BrakeRelease": "rtm:sounds/train/rtm_223_release.ogg",
-	"sound_BrakeRelease2": "rtm:sounds/train/brakeR_w.ogg",
-	"sound_Announcement": [["関空快速", "rtm:sounds/train/rtm_223_kankuRapid.ogg"], ["Test", "hoge:sounds/train/test.ogg"]],
+	"sound_BrakeRelease2": "rtm:sounds/train/braker_w.ogg",
+	"sound_Announcement": [["関空快速", "rtm:sounds/train/rtm_223_kankurapid.ogg"], ["Test", "hoge:sounds/train/test.ogg"]],
 	"soundScriptPath": "scripts/sound_223.js",
 	"muteJointSound": true,
 

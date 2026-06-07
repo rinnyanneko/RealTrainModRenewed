@@ -76,24 +76,17 @@ public class LargeRailCoreBlock extends BaseEntityBlock {
     protected void affectNeighborsAfterRemoval(BlockState state, net.minecraft.server.level.ServerLevel level, BlockPos pos, boolean isMoving) {
         BlockEntity be = level.getBlockEntity(pos);
         if (be instanceof LargeRailCoreBlockEntity core) {
-            RailMap[] maps = core.getAllRailMaps();
-            if (maps.length > 0) {
-                // Prevent collision blocks from recursively trying to delete this core.
-                boolean prev = RailMap.suppressRailRemoval;
-                RailMap.suppressRailRemoval = true;
-                try {
-                    for (RailMap map : maps) {
-                        if (map != null) {
-                            map.removeRailBlocks(level);
-                        }
-                    }
-                    removeRemainingCollisionBlocks(level, pos, maps);
-                } finally {
-                    RailMap.suppressRailRemoval = prev;
-                }
-            }
+            removeRailNetwork(level, pos, core);
         }
         super.affectNeighborsAfterRemoval(state, level, pos, isMoving);
+    }
+
+    @Override
+    public BlockState playerWillDestroy(Level level, BlockPos pos, BlockState state, Player player) {
+        if (!level.isClientSide() && level.getBlockEntity(pos) instanceof LargeRailCoreBlockEntity core) {
+            removeRailNetwork(level, pos, core);
+        }
+        return super.playerWillDestroy(level, pos, state, player);
     }
 
     @Nullable
@@ -141,6 +134,28 @@ public class LargeRailCoreBlock extends BaseEntityBlock {
         return createTickerHelper(type, RealTrainModRenewedBlockEntities.LARGE_RAIL_CORE.get(), LargeRailCoreBlockEntity::tick);
     }
 
+    public static void removeRailNetwork(Level level, BlockPos corePos, @Nullable LargeRailCoreBlockEntity core) {
+        if (level == null || corePos == null) {
+            return;
+        }
+        boolean prev = RailMap.suppressRailRemoval.get();
+        RailMap.suppressRailRemoval.set(true);
+        try {
+            RailMap[] maps = core == null ? new RailMap[0] : core.getAllRailMaps();
+            for (RailMap map : maps) {
+                if (map != null) {
+                    map.removeRailBlocks(level);
+                }
+            }
+            removeRemainingCollisionBlocks(level, corePos, maps);
+            if (level.getBlockState(corePos).getBlock() instanceof LargeRailCoreBlock) {
+                level.removeBlock(corePos, false);
+            }
+        } finally {
+            RailMap.suppressRailRemoval.set(prev);
+        }
+    }
+
     private static void removeRemainingCollisionBlocks(Level level, BlockPos corePos, RailMap[] maps) {
         int minX = corePos.getX() - 2;
         int maxX = corePos.getX() + 2;
@@ -168,6 +183,14 @@ public class LargeRailCoreBlock extends BaseEntityBlock {
                 minZ = Math.min(minZ, z - 2);
                 maxZ = Math.max(maxZ, z + 2);
             }
+        }
+        if (maps == null || maps.length == 0) {
+            minX = corePos.getX() - 128;
+            maxX = corePos.getX() + 128;
+            minY = corePos.getY() - 32;
+            maxY = corePos.getY() + 32;
+            minZ = corePos.getZ() - 128;
+            maxZ = corePos.getZ() + 128;
         }
         for (int x = minX; x <= maxX; x++) {
             for (int y = minY; y <= maxY; y++) {

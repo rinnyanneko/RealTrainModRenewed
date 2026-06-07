@@ -1,6 +1,6 @@
 # RealTrainModRenewed
 
-RealTrainModRenewed is a modernization fork of [RealTrainModUnofficial](https://github.com/325-Sunnygo/RealTrainModUnofficial).
+RealTrainModRenewed is a modernization fork of [RealTrainModRenewed](https://github.com/325-Sunnygo/RealTrainModUnofficial).
 
 The goal of this project is to make RealTrainMod easier to maintain, more developer-friendly, and compatible with modern Minecraft and NeoForge versions, while preserving compatibility with the original RTM ecosystem as much as possible.
 
@@ -29,9 +29,9 @@ RealTrainModRenewed aims to bring the RTM experience to newer Minecraft versions
 
 ## Milestones
 
-- [X] **Upgrade to Minecraft Java Edition 26.1 / NeoForge 26.1**
-- [ ] Make the mod compile and run on the new target version
-- [ ] Preserve compatibility with existing RTM models, packs, and content where possible
+- [x] Upgrade to Minecraft Java Edition 26.1 / NeoForge 26.1
+- [x] Make the mod compile and run on the new target version
+- [ ] **Preserve compatibility with existing RTM models, packs, and content where possible**
 - [ ] Gradually rewrite the codebase with Kotlin
 - [ ] Improve documentation for users and developers
 - [ ] Evaluate migration to the next NeoForge LTS version when available
@@ -65,7 +65,7 @@ Before making large architectural changes, please open an issue first so the dir
 
 This project is licensed under the GNU Lesser General Public License v3.0 or later.
 
-RealTrainModRenewed is a fork of [RealTrainModUnofficial](https://github.com/325-Sunnygo/RealTrainModUnofficial) and is based on the original RealTrainMod project by NGT5479.
+RealTrainModRenewed is a fork of [RealTrainModRenewed](https://github.com/325-Sunnygo/RealTrainModUnofficial) and is based on the original RealTrainMod project by NGT5479.
 
 Original copyright notices, license files, and attribution are preserved where applicable.
 

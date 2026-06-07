@@ -1,0 +1,12 @@
+{
+  "model": {
+    "type": "minecraft:model",
+    "model": "realtrainmodrenewed:item/marker",
+    "tints": [
+      {
+        "type": "minecraft:constant",
+        "value": 16726832
+      }
+    ]
+  }
+}

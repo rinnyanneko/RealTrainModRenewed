@@ -2,7 +2,7 @@
 
 function onUpdate(su){
 
-	playComplessorSound(su, "rtm", "train.cp_A");
+	playComplessorSound(su, "rtm", "train.cp_a");
 
 	var speed = su.getSpeed();
 	var notch = su.getNotch();

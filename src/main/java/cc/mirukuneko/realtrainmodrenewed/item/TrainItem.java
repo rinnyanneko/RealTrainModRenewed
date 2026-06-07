@@ -91,11 +91,11 @@ public class TrainItem extends Item {
         Vec3 clickedPoint = context.getClickLocation();
         RailSpawnData spawnData = findNearestRailSpawn(level, context.getClickedPos(), clickedPoint, player.getYRot());
         if (spawnData == null) {
-            player.sendOverlayMessage(Component.translatable("message.realtrainmodunofficial.train.must_be_on_rail"));
+            player.sendOverlayMessage(Component.translatable("message.realtrainmodrenewed.train.must_be_on_rail"));
             return InteractionResult.FAIL;
         }
         if (isOccupiedSpawnArea(level, spawnData.x(), spawnData.y() + 0.25D, spawnData.z(), spawnData.yaw(), def, spawnData.map())) {
-            player.sendOverlayMessage(Component.translatable("message.realtrainmodunofficial.train.already_exists"));
+            player.sendOverlayMessage(Component.translatable("message.realtrainmodrenewed.train.already_exists"));
             return InteractionResult.FAIL;
         }
         TrainEntity train = TrainEntity.create(level, def.getId(), spawnData.x(), spawnData.y(), spawnData.z(), spawnData.yaw(), def.getTrainDistance());
@@ -132,9 +132,9 @@ public class TrainItem extends Item {
         if (selectedId != null && !selectedId.isBlank()) {
             VehicleDefinition def = VehicleRegistry.getById(selectedId);
             String name = def != null ? def.getDisplayName() : selectedId;
-            tooltip.accept(Component.translatable("tooltip.realtrainmodunofficial.model.selected", name));
+            tooltip.accept(Component.translatable("tooltip.realtrainmodrenewed.model.selected", name));
         } else {
-            tooltip.accept(Component.translatable("tooltip.realtrainmodunofficial.model.none"));
+            tooltip.accept(Component.translatable("tooltip.realtrainmodrenewed.model.none"));
         }
     }
 

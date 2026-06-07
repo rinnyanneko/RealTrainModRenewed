@@ -143,20 +143,20 @@
 			}
 		]
 	},
-	"train.brakeR_w": {
+	"train.braker_w": {
 		"category": "master",
 		"sounds": [
 			{
-				"name": "rtm:train/brakeR_w",
+				"name": "rtm:train/braker_w",
 				"stream": false
 			}
 		]
 	},
-	"train.cp_A": {
+	"train.cp_a": {
 		"category": "master",
 		"sounds": [
 			{
-				"name": "rtm:train/cp_A",
+				"name": "rtm:train/cp_a",
 				"stream": false
 			}
 		]
@@ -260,11 +260,11 @@
 			}
 		]
 	},
-	"train.rtm_223_kankuRapid": {
+	"train.rtm_223_kankurapid": {
 		"category": "master",
 		"sounds": [
 			{
-				"name": "rtm:train/rtm_223_kankuRapid",
+				"name": "rtm:train/rtm_223_kankurapid",
 				"stream": false
 			}
 		]
@@ -305,56 +305,56 @@
 			}
 		]
 	},
-	"train.rtm_E231sbb_go-mid": {
+	"train.rtm_e231sbb_go-mid": {
 		"category": "master",
 		"sounds": [
 			{
-				"name": "rtm:train/rtm_E231sbb_go-mid",
+				"name": "rtm:train/rtm_e231sbb_go-mid",
 				"stream": false
 			}
 		]
 	},
-	"train.rtm_E231sbb_mid-stop": {
+	"train.rtm_e231sbb_mid-stop": {
 		"category": "master",
 		"sounds": [
 			{
-				"name": "rtm:train/rtm_E231sbb_mid-stop",
+				"name": "rtm:train/rtm_e231sbb_mid-stop",
 				"stream": false
 			}
 		]
 	},
-	"train.rtm_E231sbb_mid-top": {
+	"train.rtm_e231sbb_mid-top": {
 		"category": "master",
 		"sounds": [
 			{
-				"name": "rtm:train/rtm_E231sbb_mid-top",
+				"name": "rtm:train/rtm_e231sbb_mid-top",
 				"stream": false
 			}
 		]
 	},
-	"train.rtm_E231sbb_mid": {
+	"train.rtm_e231sbb_mid": {
 		"category": "master",
 		"sounds": [
 			{
-				"name": "rtm:train/rtm_E231sbb_mid",
+				"name": "rtm:train/rtm_e231sbb_mid",
 				"stream": false
 			}
 		]
 	},
-	"train.rtm_E231sbb_top-mid": {
+	"train.rtm_e231sbb_top-mid": {
 		"category": "master",
 		"sounds": [
 			{
-				"name": "rtm:train/rtm_E231sbb_top-mid",
+				"name": "rtm:train/rtm_e231sbb_top-mid",
 				"stream": false
 			}
 		]
 	},
-	"train.rtm_E231sbb_top": {
+	"train.rtm_e231sbb_top": {
 		"category": "master",
 		"sounds": [
 			{
-				"name": "rtm:train/rtm_E231sbb_top",
+				"name": "rtm:train/rtm_e231sbb_top",
 				"stream": false
 			}
 		]

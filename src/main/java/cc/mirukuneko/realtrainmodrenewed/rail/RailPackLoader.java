@@ -35,6 +35,7 @@ public class RailPackLoader {
         LOADED.clear();
         loadFromExternalDirectories();
         loadFromGameDirectories();
+        loadFromModJar();
         RailRegistry.setDefinitions(LOADED);
         RealTrainModRenewed.LOGGER.info("Loaded {} rail definition(s)", LOADED.size());
     }
@@ -52,13 +53,15 @@ public class RailPackLoader {
     }
 
     private static void loadFromExternalDirectories() {
-        for (String dirName : new String[]{"rail_packs", "packs", ""}) {
-            try {
-                Path externalDir = FMLPaths.GAMEDIR.get().resolve("config").resolve("realtrainmodunofficial");
-                if (!dirName.isEmpty()) externalDir = externalDir.resolve(dirName);
-                if (Files.isDirectory(externalDir)) loadArchiveDirectory(externalDir);
-            } catch (Exception e) {
-                RealTrainModRenewed.LOGGER.warn("Could not scan external rail packs {}", dirName, e);
+        for (Path configRoot : configRoots()) {
+            for (String dirName : new String[]{"rail_packs", "packs", ""}) {
+                try {
+                    Path externalDir = configRoot;
+                    if (!dirName.isEmpty()) externalDir = externalDir.resolve(dirName);
+                    if (Files.isDirectory(externalDir)) loadArchiveDirectory(externalDir);
+                } catch (Exception e) {
+                    RealTrainModRenewed.LOGGER.warn("Could not scan external rail packs {}", dirName, e);
+                }
             }
         }
     }
@@ -156,9 +159,7 @@ public class RailPackLoader {
             : normalize(nestedName).substring(normalize(nestedName).lastIndexOf('/') + 1);
         String safeName = leaf.replaceAll("[^A-Za-z0-9._-]", "_");
         String hash = Integer.toHexString(Arrays.hashCode(bytes));
-        Path cacheDir = FMLPaths.GAMEDIR.get()
-            .resolve("config")
-            .resolve("realtrainmodunofficial")
+        Path cacheDir = configRoot()
             .resolve("nested_pack_cache");
         Files.createDirectories(cacheDir);
         Path cached = cacheDir.resolve(hash + "_" + safeName);
@@ -353,13 +354,15 @@ public class RailPackLoader {
             Path direct = Path.of(packName);
             if (direct.isAbsolute() && Files.exists(direct)) return direct;
         } catch (Exception ignored) {}
-        for (String dir : new String[]{"rail_packs", "packs", "vehicle_packs", ""}) {
-            try {
-                Path ext = FMLPaths.GAMEDIR.get().resolve("config").resolve("realtrainmodunofficial");
-                if (!dir.isEmpty()) ext = ext.resolve(dir);
-                ext = ext.resolve(packName);
-                if (Files.exists(ext)) return ext;
-            } catch (Exception ignored) {
+        for (Path root : configRoots()) {
+            for (String dir : new String[]{"rail_packs", "packs", "vehicle_packs", ""}) {
+                try {
+                    Path ext = root;
+                    if (!dir.isEmpty()) ext = ext.resolve(dir);
+                    ext = ext.resolve(packName);
+                    if (Files.exists(ext)) return ext;
+                } catch (Exception ignored) {
+                }
             }
         }
         Path gameDir = FMLPaths.GAMEDIR.get();
@@ -369,19 +372,21 @@ public class RailPackLoader {
         if (Files.exists(modsDir)) return modsDir;
         Path contentDir = gameDir.resolve("content").resolve(packName);
         if (Files.exists(contentDir)) return contentDir;
-        Path nestedCacheDir = gameDir.resolve("config").resolve("realtrainmodunofficial").resolve("nested_pack_cache");
-        if (Files.isDirectory(nestedCacheDir)) {
-            try (var stream = java.nio.file.Files.list(nestedCacheDir)) {
-                java.util.Optional<Path> hit = stream
-                    .filter(java.nio.file.Files::isRegularFile)
-                    .filter(p -> p.getFileName().toString().endsWith("_" + leafPackName))
-                    .findFirst();
-                if (hit.isPresent()) {
-                    VIRTUAL_PACKS.put(packName, hit.get());
-                    VIRTUAL_PACKS.put(leafPackName, hit.get());
-                    return hit.get();
-                }
-            } catch (Exception ignored) {}
+        for (Path root : configRoots()) {
+            Path nestedCacheDir = root.resolve("nested_pack_cache");
+            if (Files.isDirectory(nestedCacheDir)) {
+                try (var stream = java.nio.file.Files.list(nestedCacheDir)) {
+                    java.util.Optional<Path> hit = stream
+                        .filter(java.nio.file.Files::isRegularFile)
+                        .filter(p -> p.getFileName().toString().endsWith("_" + leafPackName))
+                        .findFirst();
+                    if (hit.isPresent()) {
+                        VIRTUAL_PACKS.put(packName, hit.get());
+                        VIRTUAL_PACKS.put(leafPackName, hit.get());
+                        return hit.get();
+                    }
+                } catch (Exception ignored) {}
+            }
         }
         Path materialized = BundledPackStore.materializeBundledPack(packName);
         if (materialized != null) return materialized;
@@ -406,6 +411,16 @@ public class RailPackLoader {
             } catch (Exception ignored) {}
         }
         return null;
+    }
+
+    private static Path configRoot() {
+        return FMLPaths.GAMEDIR.get().resolve("config").resolve(RealTrainModRenewed.MODID);
+    }
+
+    private static List<Path> configRoots() {
+        Path renewed = configRoot();
+        Path legacy = FMLPaths.GAMEDIR.get().resolve("config").resolve("realtrainmodunofficial");
+        return renewed.equals(legacy) ? List.of(renewed) : List.of(renewed, legacy);
     }
 
     public static InputStream openPackStream(RailDefinition definition) throws IOException {

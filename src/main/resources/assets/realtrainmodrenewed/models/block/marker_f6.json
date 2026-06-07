@@ -1,4 +1,4 @@
 {
     "parent": "realtrainmodrenewed:block/marker_base",
-    "textures": { "tex": "realtrainmodrenewed:block/marker2_2" }
+    "textures": { "tex": "realtrainmodrenewed:block/marker_red_diag_full_2", "particle": "realtrainmodrenewed:block/marker_red_diag_full_2" }
 }

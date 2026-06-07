@@ -252,7 +252,10 @@ public class TrainScriptSystem {
         // RailPosition は __SRB__ ブリッジ経由で RTMU の実 RailPosition を生成(new で返り値オブジェクトが採用される)。\n
         "if (typeof RailPosition === 'undefined') RailPosition = function(x,y,z,dir,type){ try{ return __SRB__.createRailPosition(x|0,y|0,z|0,dir|0,(type!=null?__srbNum(type):0),-1,0,0,0,0,0); }catch(e){ return { blockX:x,blockY:y,blockZ:z,direction:dir,switchType:type,anchorYaw:0,anchorPitch:0,anchorLengthHorizontal:-1,anchorLengthVertical:-1,cantCenter:0,cantEdge:0,height:0,setHeight:function(h){this.height=h;},init:function(){} }; } };\n" +
         // RailPosition.REVISION: 8方向の[dx,dz]オフセット(RTMU RailPosition.REVISION と同値)。render の getNearestEdgePos 等が参照。
-        "RailPosition.REVISION = [[0.0,-0.5],[-0.5,-0.5],[-0.5,0.0],[-0.5,0.499999],[0.0,0.499999],[0.499999,0.499999],[0.499999,0.0],[0.499999,-0.5]];\n";
+        "RailPosition.REVISION = [[0.0,-0.5],[-0.5,-0.5],[-0.5,0.0],[-0.5,0.499999],[0.0,0.499999],[0.499999,0.499999],[0.499999,0.0],[0.499999,-0.5]];\n" +
+        // セキュリティ: Java.type を無効化。エイリアス設定は完了済みのため、
+        // 以降のユーザースクリプトからは Java クラスへの直接アクセスを防止する。
+        "Java = undefined;\n";
     private static final String SCRIPT_MODEL_KEY = "__ptScriptModel";
     private static volatile boolean graalPolyglotUnavailable = false;
     private static TrainScriptSystem instance;

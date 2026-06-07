@@ -1,10 +1,7 @@
 package cc.mirukuneko.realtrainmodrenewed.client.model.mqo.object;
 
-import net.neoforged.api.distmarker.Dist;
-import net.neoforged.api.distmarker.OnlyIn;
 import org.jetbrains.annotations.NotNull;
 
-@OnlyIn(Dist.CLIENT)
 public record MQOObject(
     String name,
     boolean isSmoothShadingEnabled,

@@ -55,14 +55,14 @@ public class VehicleFormationItem extends Item {
         TrainFormation formation = getFormation(stack);
         
         if (formation.vehicles.isEmpty()) {
-            player.sendOverlayMessage(Component.translatable("message.realtrainmodunofficial.formation.empty"));
+            player.sendOverlayMessage(Component.translatable("message.realtrainmodrenewed.formation.empty"));
             return InteractionResult.FAIL;
         }
 
         // Find rail spawn location
         RailSpawnData spawnData = findNearestRailSpawn(level, context.getClickedPos());
         if (spawnData == null) {
-            player.sendOverlayMessage(Component.translatable("message.realtrainmodunofficial.train.must_be_on_rail"));
+            player.sendOverlayMessage(Component.translatable("message.realtrainmodrenewed.train.must_be_on_rail"));
             return InteractionResult.FAIL;
         }
 
@@ -84,11 +84,11 @@ public class VehicleFormationItem extends Item {
         TrainFormation formation = getFormation(stack);
         int size = formation.vehicles.size();
         if (size > 0) {
-            tooltip.accept(Component.translatable("tooltip.realtrainmodunofficial.formation.size", size));
-            tooltip.accept(Component.translatable("tooltip.realtrainmodunofficial.formation.vehicles", 
+            tooltip.accept(Component.translatable("tooltip.realtrainmodrenewed.formation.size", size));
+            tooltip.accept(Component.translatable("tooltip.realtrainmodrenewed.formation.vehicles", 
                 formation.vehicles.stream().map(v -> v.name).reduce((a, b) -> a + ", " + b).orElse("")));
         } else {
-            tooltip.accept(Component.translatable("tooltip.realtrainmodunofficial.formation.empty"));
+            tooltip.accept(Component.translatable("tooltip.realtrainmodrenewed.formation.empty"));
         }
     }
 

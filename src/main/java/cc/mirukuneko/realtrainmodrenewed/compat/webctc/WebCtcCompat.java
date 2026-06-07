@@ -30,7 +30,7 @@ public final class WebCtcCompat {
         minecraftServer = event.getServer();
         stop();
         try {
-            httpServer = HttpServer.create(new InetSocketAddress(PORT), 0);
+            httpServer = HttpServer.create(new InetSocketAddress("127.0.0.1", PORT), 0);
             httpServer.createContext("/", WebCtcCompat::handle);
             httpServer.setExecutor(Executors.newCachedThreadPool(r -> {
                 Thread thread = new Thread(r, "RTMU-WebCTC");

@@ -1,5 +1,6 @@
 package cc.mirukuneko.realtrainmodrenewed.client;
 
+import cc.mirukuneko.realtrainmodrenewed.RealTrainModRenewed;
 import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.input.KeyEvent;
@@ -9,7 +10,7 @@ import org.lwjgl.glfw.GLFW;
 
 public final class TrainControlKeyMappings {
     private static final KeyMapping.Category CATEGORY =
-        KeyMapping.Category.register(Identifier.fromNamespaceAndPath("realtrainmodunofficial", "controls"));
+        KeyMapping.Category.register(Identifier.fromNamespaceAndPath(RealTrainModRenewed.MODID, "controls"));
 
     public static final KeyMapping OPEN_CONTROL = key("open_control", GLFW.GLFW_KEY_E);
     public static final KeyMapping POWER_OFF = key("power_off", GLFW.GLFW_KEY_S);
@@ -39,6 +40,6 @@ public final class TrainControlKeyMappings {
     }
 
     private static KeyMapping key(String name, int defaultKey) {
-        return new KeyMapping("key.realtrainmodunofficial." + name, defaultKey, CATEGORY);
+        return new KeyMapping("key.realtrainmodrenewed." + name, defaultKey, CATEGORY);
     }
 }

@@ -80,12 +80,9 @@ public final class PackButtonTextureCache {
         );
         int width = image.getWidth();
         int height = image.getHeight();
-        // RTM 本家どおり、テクスチャは (0,0) から 160×32 をそのまま使う。
-        // 以前は余白検出クロップ+アスペクト比維持で縮小していたため余白だらけになっていた。
-        int srcW = Math.min(width, 160);
-        int srcH = Math.min(height, 32);
+        int[] bounds = detectContentBounds(image, texturePath);
         Minecraft.getInstance().getTextureManager().register(location, new DynamicTexture(() -> "realtrainmodunofficial button texture", image));
-        return new ButtonTextureInfo(location, width, height, 0, 0, srcW, srcH);
+        return new ButtonTextureInfo(location, width, height, bounds[0], bounds[1], bounds[2], bounds[3]);
     }
 
     private static NativeImage loadFromDirectory(Path packPath, String texturePath) throws Exception {

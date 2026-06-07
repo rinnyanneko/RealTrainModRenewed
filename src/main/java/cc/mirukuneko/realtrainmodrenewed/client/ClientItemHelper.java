@@ -16,14 +16,11 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
-import net.neoforged.api.distmarker.Dist;
-import net.neoforged.api.distmarker.OnlyIn;
 
 import java.util.List;
 import java.util.Comparator;
 import java.util.Locale;
 
-@OnlyIn(Dist.CLIENT)
 public final class ClientItemHelper {
     private static final String HIDDEN_TRAIN_PACK = "basic_train";
 
@@ -34,7 +31,7 @@ public final class ClientItemHelper {
             .map(d -> new ModelSelectScreen.ModelInfo(d.getId(), d.getDisplayName(), d.getPackName(), d.getButtonTexture()))
             .toList();
         Minecraft.getInstance().setScreen(new ModelSelectScreen(
-            Component.translatable("screen.realtrainmodunofficial.select_rail"),
+            Component.translatable("screen.realtrainmodrenewed.select_rail"),
             infos,
             ClientItemHelper::sendSelectedModel,
             LegacyItemStackBridge.getSelectedModelId(stack),
@@ -52,7 +49,7 @@ public final class ClientItemHelper {
             .filter(info -> TrainItem.accepts(category, VehicleRegistry.getById(info.id())))
             .toList();
         Minecraft.getInstance().setScreen(new ModelSelectScreen(
-            Component.translatable("screen.realtrainmodunofficial.select_train"),
+            Component.translatable("screen.realtrainmodrenewed.select_train"),
             infos,
             ClientItemHelper::sendSelectedModel,
             LegacyItemStackBridge.getSelectedModelId(stack),
@@ -63,7 +60,7 @@ public final class ClientItemHelper {
     public static void openTrainSelectScreen(TrainFormationScreen formationScreen) {
         List<ModelSelectScreen.ModelInfo> infos = getVisibleTrainModels();
         Minecraft.getInstance().setScreen(new ModelSelectScreen(
-            Component.translatable("screen.realtrainmodunofficial.select_train"),
+            Component.translatable("screen.realtrainmodrenewed.select_train"),
             infos,
             selection -> {
                 formationScreen.updateFormationWithVehicle(selection.modelId());
@@ -76,7 +73,7 @@ public final class ClientItemHelper {
     public static void openTrainSelectScreen() {
         List<ModelSelectScreen.ModelInfo> infos = getVisibleTrainModels();
         Minecraft.getInstance().setScreen(new ModelSelectScreen(
-            Component.translatable("screen.realtrainmodunofficial.select_train"),
+            Component.translatable("screen.realtrainmodrenewed.select_train"),
             infos,
             ClientItemHelper::sendSelectedModel,
             null,
@@ -135,7 +132,7 @@ public final class ClientItemHelper {
             .map(d -> new ModelSelectScreen.ModelInfo(d.getId(), d.getDisplayName(), d.getPackName(), d.getButtonTexture()))
             .toList();
         Minecraft.getInstance().setScreen(new ModelSelectScreen(
-            Component.translatable("screen.realtrainmodunofficial.select_car"),
+            Component.translatable("screen.realtrainmodrenewed.select_car"),
             infos,
             ClientItemHelper::sendSelectedModel,
             LegacyItemStackBridge.getSelectedModelId(stack),
@@ -162,15 +159,15 @@ public final class ClientItemHelper {
 
     private static String getInstalledObjectTitleKey(InstalledObjectCategory category) {
         return switch (category) {
-            case LIGHT -> "screen.realtrainmodunofficial.select_light";
-            case SIGNBOARD -> "screen.realtrainmodunofficial.select_signboard";
-            case INSULATOR -> "screen.realtrainmodunofficial.select_insulator";
-            case OVERHEAD_LINE_POLE -> "screen.realtrainmodunofficial.select_overhead_line_pole";
-            case WIRE -> "screen.realtrainmodunofficial.select_wire";
-            case SIGNAL -> "screen.realtrainmodunofficial.select_signal";
-            case CROSSING -> "screen.realtrainmodunofficial.select_crossing";
-            case TICKET_GATE -> "screen.realtrainmodunofficial.select_ticket_gate";
-            case SPEAKER -> "screen.realtrainmodunofficial.select_speaker";
+            case LIGHT -> "screen.realtrainmodrenewed.select_light";
+            case SIGNBOARD -> "screen.realtrainmodrenewed.select_signboard";
+            case INSULATOR -> "screen.realtrainmodrenewed.select_insulator";
+            case OVERHEAD_LINE_POLE -> "screen.realtrainmodrenewed.select_overhead_line_pole";
+            case WIRE -> "screen.realtrainmodrenewed.select_wire";
+            case SIGNAL -> "screen.realtrainmodrenewed.select_signal";
+            case CROSSING -> "screen.realtrainmodrenewed.select_crossing";
+            case TICKET_GATE -> "screen.realtrainmodrenewed.select_ticket_gate";
+            case SPEAKER -> "screen.realtrainmodrenewed.select_speaker";
         };
     }
 

@@ -20,7 +20,7 @@ import java.util.List;
  * 道床ブロックのワールド配置は行わない（軽量化のため中心線のみ検査・撤去）。
  */
 public abstract class RailMap {
-    public static boolean suppressRailRemoval = false;
+    public static final ThreadLocal<Boolean> suppressRailRemoval = ThreadLocal.withInitial(() -> false);
     protected final List<int[]> rails = new ArrayList<>();
 
     public abstract RailPosition getStartRP();
@@ -254,13 +254,15 @@ public abstract class RailMap {
             if (pos.equals(startNeighbor) || pos.equals(endNeighbor)) {
                 continue;
             }
-            Block block = level.getBlockState(pos).getBlock();
+            net.minecraft.world.level.block.state.BlockState state = level.getBlockState(pos);
+            Block block = state.getBlock();
             boolean passable = block == Blocks.AIR
                 || block == Blocks.CAVE_AIR
                 || block == Blocks.VOID_AIR
                 || block instanceof MarkerBlock
                 || block instanceof BallastBlock
-                || block instanceof RailCollisionBlock;
+                || block instanceof RailCollisionBlock
+                || state.canBeReplaced();
             if (!passable) {
                 allClear = false;
                 if (!isCreative) return false;

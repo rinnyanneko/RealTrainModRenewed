@@ -13,10 +13,7 @@ import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.input.MouseButtonEvent;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.item.ItemStack;
-import net.neoforged.api.distmarker.Dist;
-import net.neoforged.api.distmarker.OnlyIn;
 
-@OnlyIn(Dist.CLIENT)
 public class TrainFormationScreen extends Screen {
     private static final int LIST_TOP = 60;
     private static final int LIST_BOTTOM_MARGIN = 80;
@@ -31,7 +28,7 @@ public class TrainFormationScreen extends Screen {
     private Button cancelButton;
 
     public TrainFormationScreen(ItemStack stack) {
-        super(Component.translatable("screen.realtrainmodunofficial.train_formation.title"));
+        super(Component.translatable("screen.realtrainmodrenewed.train_formation.title"));
         this.stack = stack;
         this.formation = TrainFormationData.getFormation(stack);
         if (formation == null) {
@@ -117,15 +114,14 @@ public class TrainFormationScreen extends Screen {
 
     @Override
     public void extractRenderState(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float partialTick) {
-        extractBackground(graphics, mouseX, mouseY, partialTick);
         super.extractRenderState(graphics, mouseX, mouseY, partialTick);
         
         graphics.centeredText(font, getTitle(), width / 2, 10, 0xFFFFFF);
-        graphics.text(font, Component.translatable("screen.realtrainmodunofficial.train_formation.name"), width / 2 - 150, 35, 0xFFFFFF);
+        graphics.text(font, Component.translatable("screen.realtrainmodrenewed.train_formation.name"), width / 2 - 150, 35, 0xFFFFFF);
         
         if (formation.isEmpty()) {
             graphics.centeredText(font,
-                Component.translatable("screen.realtrainmodunofficial.train_formation.empty"),
+                Component.translatable("screen.realtrainmodrenewed.train_formation.empty"),
                 width / 2, height / 2, 0xAAAAAA);
         }
     }

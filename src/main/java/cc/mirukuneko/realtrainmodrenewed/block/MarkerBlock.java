@@ -66,7 +66,7 @@ public class MarkerBlock extends BaseEntityBlock {
     );
     public static final IntegerProperty FACING = IntegerProperty.create("facing", 0, 7);
     public final boolean isSwitch;
-    private static final VoxelShape SHAPE = Block.box(0, 0, 0, 16, 1, 16);
+    private static final VoxelShape SHAPE = Block.box(0, 0, 0, 16, 2, 16);
     public static final int SEARCH_DISTANCE = 50;
     public static final int SEARCH_HEIGHT = 10;
 
@@ -106,7 +106,7 @@ public class MarkerBlock extends BaseEntityBlock {
 
     @Override
     public VoxelShape getCollisionShape(BlockState state, BlockGetter level, BlockPos pos, CollisionContext context) {
-        return SHAPE;
+        return net.minecraft.world.phys.shapes.Shapes.empty();
     }
 
     @Nullable

@@ -1,0 +1,12 @@
+{
+  "model": {
+    "type": "minecraft:model",
+    "model": "realtrainmodrenewed:item/marker_switch",
+    "tints": [
+      {
+        "type": "minecraft:constant",
+        "value": 10440
+      }
+    ]
+  }
+}

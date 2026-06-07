@@ -5,11 +5,14 @@ import net.neoforged.fml.loading.FMLPaths;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.net.URI;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
+import java.util.LinkedHashSet;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 
 /**
  * Resolves pack archives bundled inside the mod jar and materializes them into a private cache
@@ -22,31 +25,74 @@ public final class BundledPackStore {
     }
 
     public static List<Path> listBundledPacks(String category) {
-        List<Path> result = new ArrayList<>();
+        Set<Path> result = new LinkedHashSet<>();
         addBundledPacks(category, result);
         if (!"official".equals(category)) {
             addBundledPacks("official", result);
         }
-        return result;
+        return new ArrayList<>(result);
     }
 
-    private static void addBundledPacks(String category, List<Path> result) {
+    private static void addBundledPacks(String category, Set<Path> result) {
+        String resourcePath = "assets/" + RealTrainModRenewed.MODID + "/" + ROOT + "/" + category;
         try {
-            Path dir = ModList.get().getModFileById(RealTrainModRenewed.MODID).getFile().getFilePath()
-                .resolve("assets")
-                .resolve(RealTrainModRenewed.MODID)
-                .resolve(ROOT)
-                .resolve(category);
-            if (dir == null || !Files.isDirectory(dir)) {
-                return;
-            }
-            try (var stream = Files.list(dir)) {
-                stream.filter(Files::isRegularFile)
-                    .filter(BundledPackStore::isArchive)
-                    .forEach(result::add);
-            }
+            Path modPath = ModList.get().getModFileById(RealTrainModRenewed.MODID).getFile().getFilePath();
+            addBundledPacksFromDirectory(modPath.resolve(resourcePath), result);
+            addDevResourceDirectories(modPath, resourcePath, result);
         } catch (Exception e) {
             RealTrainModRenewed.LOGGER.warn("Could not list bundled {} packs", category, e);
+        }
+        try {
+            var url = BundledPackStore.class.getClassLoader().getResource(resourcePath);
+            if (url != null && "file".equalsIgnoreCase(url.getProtocol())) {
+                addBundledPacksFromDirectory(Path.of(URI.create(url.toString())), result);
+            }
+        } catch (Exception e) {
+            RealTrainModRenewed.LOGGER.warn("Could not list classpath bundled {} packs", category, e);
+        }
+        try {
+            addBundledPacksFromDirectory(Path.of("build", "resources", "main").resolve(resourcePath), result);
+        } catch (Exception e) {
+            RealTrainModRenewed.LOGGER.warn("Could not list build bundled {} packs", category, e);
+        }
+        try {
+            addBundledPacksFromDirectory(Path.of("src", "main", "resources").resolve(resourcePath), result);
+        } catch (Exception e) {
+            RealTrainModRenewed.LOGGER.warn("Could not list source bundled {} packs", category, e);
+        }
+    }
+
+    private static void addDevResourceDirectories(Path modPath, String resourcePath, Set<Path> result) throws IOException {
+        if (modPath == null) {
+            return;
+        }
+        Path normalized = modPath.toAbsolutePath().normalize();
+        Path name = normalized.getFileName();
+        if (name == null || !"main".equals(name.toString())) {
+            return;
+        }
+        Path javaDir = normalized.getParent();
+        Path classesDir = javaDir == null ? null : javaDir.getParent();
+        Path buildDir = classesDir == null ? null : classesDir.getParent();
+        if (buildDir == null || !"build".equals(buildDir.getFileName().toString())) {
+            return;
+        }
+        addBundledPacksFromDirectory(buildDir.resolve("resources").resolve("main").resolve(resourcePath), result);
+        Path projectDir = buildDir.getParent();
+        if (projectDir != null) {
+            addBundledPacksFromDirectory(projectDir.resolve("src").resolve("main").resolve("resources").resolve(resourcePath), result);
+        }
+    }
+
+    private static void addBundledPacksFromDirectory(Path dir, Set<Path> result) throws IOException {
+        if (dir == null || !Files.isDirectory(dir)) {
+            return;
+        }
+        try (var stream = Files.list(dir)) {
+            stream.filter(Files::isRegularFile)
+                .filter(BundledPackStore::isArchive)
+                .map(path -> path.toAbsolutePath().normalize())
+                .forEach(result::add);
         }
     }
 

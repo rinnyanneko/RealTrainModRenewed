@@ -60,16 +60,16 @@ public final class TrainHudOverlay {
         int x = Math.round((screenW - CAB_W * scale) * 0.5F);
         int y = Math.round(screenH - CAB_H * scale);
         graphics.blit(RenderPipelines.GUI_TEXTURED, CAB_TEXTURE, x, y, 0.0F, 0.0F, Math.round(CAB_W * scale), Math.round(CAB_H * scale), TEX_SIZE, TEX_SIZE);
-        drawMeter(graphics, 32, 19, 32, 32, 48, 240.0F * getBrakeRatio(train));
-        drawMeter(graphics, 32, 19, 32, 0, 48, 240.0F * getBrakeCommandRatio(train));
-        drawMeter(graphics, 72, 19, 32, 64, 48, getSpeedNeedleRotation(train, def));
-        drawLever(graphics, 104, 29, train);
-        drawWatch(graphics, train);
-        graphics.text(font, Integer.toString(getSpeedKmh(train)), x + 70, y + 37, 0x00FF00, false);
+        drawMeter(graphics, x, y, scale, 32, 19, 32, 32, 48, 240.0F * getBrakeRatio(train));
+        drawMeter(graphics, x, y, scale, 32, 19, 32, 0, 48, 240.0F * getBrakeCommandRatio(train));
+        drawMeter(graphics, x, y, scale, 72, 19, 32, 64, 48, getSpeedNeedleRotation(train, def));
+        drawLever(graphics, x, y, scale, train);
+        drawWatch(graphics, x, y, scale, train);
+        graphics.text(font, Integer.toString(getSpeedKmh(train)), scaledX(x, scale, 70), scaledY(y, scale, 37), 0x00FF00, false);
         // ブレーキ段数表示 (B1-B8)。本家同様ノッチ番号をそのまま出す。
-        graphics.text(font, Integer.toString(Math.max(0, -train.getNotch())), x + 30, y + 37, 0x00FF00, false);
-        graphics.text(font, Integer.toString(getWorldTime()), x + 338, y + 8, 0x00FF00, false);
-        graphics.text(font, getClockText(), x + 338, y + 18, 0x00FF00, false);
+        graphics.text(font, Integer.toString(Math.max(0, -train.getNotch())), scaledX(x, scale, 30), scaledY(y, scale, 37), 0x00FF00, false);
+        graphics.text(font, Integer.toString(getWorldTime()), scaledX(x, scale, 338), scaledY(y, scale, 8), 0x00FF00, false);
+        graphics.text(font, getClockText(), scaledX(x, scale, 338), scaledY(y, scale, 18), 0x00FF00, false);
     }
 
     private static TrainEntity getControlledTrain(Minecraft mc) {
@@ -85,33 +85,48 @@ public final class TrainHudOverlay {
         return null;
     }
 
-    private static void drawLever(GuiGraphicsExtractor graphics, int x, int y, TrainEntity train) {
+    private static void drawLever(GuiGraphicsExtractor graphics, int x, int y, float scale, TrainEntity train) {
         int notch = train.getNotch();
         // rtm_cab.png のマスコン目盛りは中立(y28)から 3px 等間隔で並ぶ(実測):
         //   EB(-8)=y4(赤), B7=y7 ... B1=y25, N=y28, P1=y31 ... P5=y43。
         // よって針位置は notch に対して線形 y = 28 + 3*notch。本家RTMと同じ等間隔の針送りになる。
         float offset = 3.0F * notch;
-        graphics.blit(RenderPipelines.GUI_TEXTURED, CAB_TEXTURE, x - 4, Math.round(y + offset - 2), 0.0F, 80.0F, 8, 3, TEX_SIZE, TEX_SIZE);
+        var pose = graphics.pose();
+        pose.pushMatrix();
+        pose.translate(x, y);
+        pose.scale(scale, scale);
+        graphics.blit(RenderPipelines.GUI_TEXTURED, CAB_TEXTURE, 100, Math.round(27 + offset), 0.0F, 80.0F, 8, 3, TEX_SIZE, TEX_SIZE);
+        pose.popMatrix();
     }
 
-    private static void drawWatch(GuiGraphicsExtractor graphics, TrainEntity train) {
+    private static void drawWatch(GuiGraphicsExtractor graphics, int x, int y, float scale, TrainEntity train) {
         int startX = 320;
         int startY = 32;
         int t0 = getWorldTime(train);
         int hour12 = (t0 / 1000 + 6) % 12;
-        drawMeter(graphics, startX, startY, 32, 96, 48, 360.0F * hour12 / 12.0F + 135.0F);
+        drawMeter(graphics, x, y, scale, startX, startY, 32, 96, 48, 360.0F * hour12 / 12.0F + 135.0F);
         int minute = (int) ((t0 % 1000) * 0.06F);
-        drawMeter(graphics, startX, startY, 32, 128, 48, 360.0F * minute / 60.0F + 135.0F);
+        drawMeter(graphics, x, y, scale, startX, startY, 32, 128, 48, 360.0F * minute / 60.0F + 135.0F);
     }
 
-    private static void drawWatch(GuiGraphicsExtractor graphics) {
-        drawMeter(graphics, 320, 32, 32, 96, 48, 135.0F);
-        drawMeter(graphics, 320, 32, 32, 128, 48, 135.0F);
-    }
-
-    private static void drawMeter(GuiGraphicsExtractor graphics, int x, int y, int size, int u, int v, float rotation) {
+    private static void drawMeter(GuiGraphicsExtractor graphics, int x, int y, float scale,
+                                  int localX, int localY, int size, int u, int v, float rotation) {
+        var pose = graphics.pose();
+        pose.pushMatrix();
+        pose.translate(x + localX * scale, y + localY * scale);
+        pose.rotate((float) Math.toRadians(rotation));
+        pose.scale(scale, scale);
         int offset = -(size / 2);
-        graphics.blit(RenderPipelines.GUI_TEXTURED, CAB_TEXTURE, x + offset, y + offset, u, v, size, size, TEX_SIZE, TEX_SIZE);
+        graphics.blit(RenderPipelines.GUI_TEXTURED, CAB_TEXTURE, offset, offset, u, v, size, size, TEX_SIZE, TEX_SIZE);
+        pose.popMatrix();
+    }
+
+    private static int scaledX(int x, float scale, int localX) {
+        return Math.round(x + localX * scale);
+    }
+
+    private static int scaledY(int y, float scale, int localY) {
+        return Math.round(y + localY * scale);
     }
 
     private static int getSpeedKmh(TrainEntity train) {

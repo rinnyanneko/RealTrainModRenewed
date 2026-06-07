@@ -69,7 +69,7 @@ public class BallastBlock extends BaseEntityBlock {
     public void affectNeighborsAfterRemoval(BlockState state, net.minecraft.server.level.ServerLevel level, BlockPos pos, boolean isMoving) {
         // 道床を壊したら対応するレールコアも撤去する (ユーザー要望)。
         // RailMap.suppressRailRemoval 中(レール自身の撤去処理)は連鎖させない。
-        if (!RailMap.suppressRailRemoval) {
+        if (!RailMap.suppressRailRemoval.get()) {
             BlockEntity be = level.getBlockEntity(pos);
             if (be instanceof BallastBlockEntity bbe) {
                 BlockPos corePos = bbe.getCorePos();

@@ -63,19 +63,19 @@ public final class TrainControlKeyHandler {
             return;
         }
         if (TrainControlKeyMappings.POWER_OFF.matches(keyEvent)) {
-            ClientNetworkHelper.sendToServer(new TrainControlPayload(train.getId(), "mascon_power", 0), new CustomPacketPayload[0]);
+            sendControl(train, "mascon_power");
             powerHoldTicks = 0;
             brakeHoldTicks = -1;
             return;
         }
         if (TrainControlKeyMappings.BRAKE_OFF.matches(keyEvent)) {
-            ClientNetworkHelper.sendToServer(new TrainControlPayload(train.getId(), "mascon_brake", 0), new CustomPacketPayload[0]);
+            sendControl(train, "mascon_brake");
             brakeHoldTicks = 0;
             powerHoldTicks = -1;
             return;
         }
         if (TrainControlKeyMappings.NEUTRAL.matches(keyEvent)) {
-            ClientNetworkHelper.sendToServer(new TrainControlPayload(train.getId(), "mascon_neutral", 0), new CustomPacketPayload[0]);
+            sendControl(train, "mascon_neutral");
         }
 
         boolean jumpDown = mc.options.keyJump.isDown();
@@ -144,7 +144,7 @@ public final class TrainControlKeyHandler {
             ClientNetworkHelper.sendToServer(new TrainControlPayload(train.getId(), "play_horn", 0));
         }
         if (TrainControlKeyMappings.NEUTRAL.consumeClick()) {
-            ClientNetworkHelper.sendToServer(new TrainControlPayload(train.getId(), "mascon_neutral", 0), new CustomPacketPayload[0]);
+            sendControl(train, "mascon_neutral");
         }
 
         boolean jumpDown = mc.options.keyJump.isDown();
@@ -173,13 +173,13 @@ public final class TrainControlKeyHandler {
             powerHoldTicks = Math.max(0, powerHoldTicks + 1);
             brakeHoldTicks = -1;
             if (shouldSendRepeat(powerHoldTicks)) {
-                ClientNetworkHelper.sendToServer(new TrainControlPayload(train.getId(), "mascon_power", 0), new CustomPacketPayload[0]);
+                sendControl(train, "mascon_power");
             }
         } else if (brakeHeld && !powerHeld) {
             brakeHoldTicks = Math.max(0, brakeHoldTicks + 1);
             powerHoldTicks = -1;
             if (shouldSendRepeat(brakeHoldTicks)) {
-                ClientNetworkHelper.sendToServer(new TrainControlPayload(train.getId(), "mascon_brake", 0), new CustomPacketPayload[0]);
+                sendControl(train, "mascon_brake");
             }
         } else {
             resetHoldState();
@@ -213,6 +213,25 @@ public final class TrainControlKeyHandler {
             return false;
         }
         return (heldTicks - HOLD_REPEAT_INITIAL_DELAY_TICKS) % HOLD_REPEAT_INTERVAL_TICKS == 0;
+    }
+
+    private static void sendControl(TrainEntity train, String action) {
+        applyLocalControl(train, action);
+        ClientNetworkHelper.sendToServer(new TrainControlPayload(train.getId(), action, 0), new CustomPacketPayload[0]);
+    }
+
+    private static void applyLocalControl(TrainEntity train, String action) {
+        Minecraft mc = Minecraft.getInstance();
+        if (mc.player != null) {
+            train.ensureDriverReady(mc.player);
+        }
+        switch (action) {
+            case "mascon_power" -> train.stepMascon(1);
+            case "mascon_brake" -> train.stepMascon(-1);
+            case "mascon_neutral" -> train.setNotch(0);
+            default -> {
+            }
+        }
     }
 
     private static TrainEntity getControlledTrain(Minecraft mc) {

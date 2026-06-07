@@ -4,8 +4,6 @@ import cc.mirukuneko.realtrainmodrenewed.client.model.mqo.object.MQOFace;
 import cc.mirukuneko.realtrainmodrenewed.client.model.mqo.object.MQOObject;
 import cc.mirukuneko.realtrainmodrenewed.client.model.mqo.object.MQOVector;
 import cc.mirukuneko.realtrainmodrenewed.client.model.mqo.object.MQOVertex;
-import net.neoforged.api.distmarker.Dist;
-import net.neoforged.api.distmarker.OnlyIn;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -15,7 +13,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 
 /// MQOファイルのパーサー
-@OnlyIn(Dist.CLIENT)
 public final class MQOParser {
 
     ///  ファイルをパースする

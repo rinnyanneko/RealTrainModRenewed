@@ -19,7 +19,7 @@ import java.util.zip.ZipFile;
 import java.util.zip.ZipInputStream;
 
 public class ModelLoader {
-    private static final Map<String, MQOModel> MODEL_CACHE = new HashMap<>();
+    private static final Map<String, MQOModel> MODEL_CACHE = new java.util.concurrent.ConcurrentHashMap<>();
 
     public static MQOModel loadModel(VehicleDefinition definition) {
         String cacheKey = definition.getPackName() + ":" + definition.getModelFile();

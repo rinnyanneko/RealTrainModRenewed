@@ -1,5 +1,6 @@
 package cc.mirukuneko.realtrainmodrenewed.network;
 
+import cc.mirukuneko.realtrainmodrenewed.RealTrainModRenewed;
 import cc.mirukuneko.realtrainmodrenewed.formation.TrainFormation;
 import cc.mirukuneko.realtrainmodrenewed.formation.TrainFormationData;
 import cc.mirukuneko.realtrainmodrenewed.item.TrainVehicleItem;
@@ -17,7 +18,7 @@ import net.minecraft.world.item.ItemStack;
 import net.neoforged.neoforge.network.handling.IPayloadContext;
 
 public record SaveFormationPayload(String name, List<String> vehicleIds, List<Boolean> reversedFlags) implements CustomPacketPayload {
-   public static final CustomPacketPayload.Type<SaveFormationPayload> TYPE = new CustomPacketPayload.Type(Identifier.fromNamespaceAndPath("realtrainmodunofficial", "save_formation"));
+   public static final CustomPacketPayload.Type<SaveFormationPayload> TYPE = new CustomPacketPayload.Type(Identifier.fromNamespaceAndPath(RealTrainModRenewed.MODID, "save_formation"));
    public static final StreamCodec<ByteBuf, SaveFormationPayload> STREAM_CODEC;
 
    public CustomPacketPayload.Type<? extends CustomPacketPayload> type() {
@@ -49,6 +50,6 @@ public record SaveFormationPayload(String name, List<String> vehicleIds, List<Bo
    }
 
    static {
-      STREAM_CODEC = StreamCodec.composite(ByteBufCodecs.STRING_UTF8, SaveFormationPayload::name, ByteBufCodecs.collection(ArrayList::new, ByteBufCodecs.STRING_UTF8), SaveFormationPayload::vehicleIds, ByteBufCodecs.collection(ArrayList::new, ByteBufCodecs.BOOL), SaveFormationPayload::reversedFlags, SaveFormationPayload::new);
+      STREAM_CODEC = StreamCodec.composite(ByteBufCodecs.STRING_UTF8, SaveFormationPayload::name, ByteBufCodecs.collection(ArrayList::new, ByteBufCodecs.STRING_UTF8, 256), SaveFormationPayload::vehicleIds, ByteBufCodecs.collection(ArrayList::new, ByteBufCodecs.BOOL, 256), SaveFormationPayload::reversedFlags, SaveFormationPayload::new);
    }
 }

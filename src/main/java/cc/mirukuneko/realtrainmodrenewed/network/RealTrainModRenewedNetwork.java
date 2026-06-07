@@ -30,5 +30,7 @@ public final class RealTrainModRenewedNetwork {
         registrar.playToClient(SpeakerStopPayload.TYPE, SpeakerStopPayload.STREAM_CODEC, SpeakerStopPayload::handleOnClient);
         registrar.playToServer(ConfigureSpeakerPayload.TYPE, ConfigureSpeakerPayload.STREAM_CODEC, ConfigureSpeakerPayload::handleOnServer);
         registrar.playToClient(SyncSpeakerSoundsPayload.TYPE, SyncSpeakerSoundsPayload.STREAM_CODEC, SyncSpeakerSoundsPayload::handleOnClient);
+        registrar.playToServer(CopyRailPayload.TYPE, CopyRailPayload.STREAM_CODEC, CopyRailPayload::handleOnServer);
+        registrar.playToServer(SaveFormationPayload.TYPE, SaveFormationPayload.STREAM_CODEC, SaveFormationPayload::handleOnServer);
     }
 }
