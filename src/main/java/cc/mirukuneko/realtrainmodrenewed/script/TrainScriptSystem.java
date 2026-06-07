@@ -263,7 +263,9 @@ public class TrainScriptSystem {
     private final Map<UUID, EntityScriptContext> entityContexts = new HashMap<>();
     private static final String SCRIPT_CORE_VERSION = "2.4.24";
     private static final Set<Integer> DISABLED_SCRIPT_ENGINES = ConcurrentHashMap.newKeySet();
+    private static final Map<Integer, Integer> SCRIPT_FAILURE_COUNTS = new ConcurrentHashMap<>();
     private static final Set<String> REPORTED_SCRIPT_ERRORS = ConcurrentHashMap.newKeySet();
+    private static volatile boolean reportedScriptEngineFactories;
 
     public static final class ScriptCoreCompat {
         @SuppressWarnings("unused")
@@ -502,15 +504,39 @@ public class TrainScriptSystem {
             }
         }
 
+        for (ScriptEngineFactory factory : manager.getEngineFactories()) {
+            String engineName = factory.getEngineName();
+            String names = String.join(",", factory.getNames());
+            String mimeTypes = String.join(",", factory.getMimeTypes());
+            String probe = (engineName + "," + names + "," + mimeTypes).toLowerCase(Locale.ROOT);
+            if (probe.contains("graal") || probe.contains("javascript") || probe.contains("ecmascript")) {
+                try {
+                    ScriptEngine scriptEngine = factory.getScriptEngine();
+                    if (scriptEngine != null) {
+                        RealTrainModRenewed.LOGGER.info("Using JavaScript engine factory '{}' (aliases: {}).", engineName, names);
+                        return scriptEngine;
+                    }
+                } catch (RuntimeException e) {
+                    RealTrainModRenewed.LOGGER.debug("JavaScript engine factory '{}' failed: {}", engineName, e.getMessage());
+                }
+            }
+        }
+
         if (!manager.getEngineFactories().isEmpty()) {
-            RealTrainModRenewed.LOGGER.warn(
-                "Available script engines: {}",
-                manager.getEngineFactories().stream()
-                    .map(ScriptEngineFactory::getEngineName)
-                    .collect(Collectors.joining(", "))
-            );
+            if (!reportedScriptEngineFactories) {
+                reportedScriptEngineFactories = true;
+                RealTrainModRenewed.LOGGER.warn(
+                    "Available script engines: {}",
+                    manager.getEngineFactories().stream()
+                        .map(factory -> factory.getEngineName() + " aliases=" + factory.getNames())
+                        .collect(Collectors.joining(", "))
+                );
+            }
         } else {
-            RealTrainModRenewed.LOGGER.warn("No script engine providers found on the classpath.");
+            if (!reportedScriptEngineFactories) {
+                reportedScriptEngineFactories = true;
+                RealTrainModRenewed.LOGGER.warn("No script engine providers found on the classpath.");
+            }
         }
 
         try {
@@ -1189,13 +1215,19 @@ public class TrainScriptSystem {
         return scriptEngine != null && DISABLED_SCRIPT_ENGINES.contains(System.identityHashCode(scriptEngine));
     }
 
+    public static boolean isLegacyScriptDisabled(ScriptEngine scriptEngine) {
+        return isScriptDisabled(scriptEngine);
+    }
+
     private static void disableBrokenScript(ScriptEngine scriptEngine, String phase, Throwable error) {
         if (scriptEngine == null) {
             return;
         }
-        reportScriptError(scriptEngine, phase, error);
-        if (DISABLED_SCRIPT_ENGINES.add(System.identityHashCode(scriptEngine))) {
-            RealTrainModRenewed.LOGGER.warn("Disabling legacy train script after {} failed", phase, error);
+        int key = System.identityHashCode(scriptEngine);
+        int failures = SCRIPT_FAILURE_COUNTS.merge(key, 1, Integer::sum);
+        reportScriptError(scriptEngine, phase + " (" + failures + "/8)", error);
+        if (failures >= 8 && DISABLED_SCRIPT_ENGINES.add(key)) {
+            RealTrainModRenewed.LOGGER.warn("Disabling legacy train script after repeated {} failures", phase, error);
         }
     }
 

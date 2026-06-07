@@ -165,7 +165,15 @@ public final class LegacyScriptSoundManager {
             return;
         }
         VehicleDefinition definition = VehicleRegistry.getById(train.getVehicleId());
-        if (definition == null || definition.hasSoundScript() || !definition.hasJsonRunningSounds()) {
+        if (definition == null) {
+            stopAutoRunningSound(train);
+            return;
+        }
+        if (definition.hasSoundScript() && !definition.hasJsonRunningSounds()) {
+            tickScriptFallbackRunningSound(train, definition);
+            return;
+        }
+        if (definition.hasSoundScript() || !definition.hasJsonRunningSounds()) {
             stopAutoRunningSound(train);
             return;
         }
@@ -239,6 +247,102 @@ public final class LegacyScriptSoundManager {
             }
         }
         return "";
+    }
+
+    private static void tickScriptFallbackRunningSound(TrainEntity train, VehicleDefinition definition) {
+        String scriptPath = definition.getSoundScriptPath().toLowerCase(java.util.Locale.ROOT).replace('\\', '/');
+        if (scriptPath.contains("sound_223")) {
+            tickFallback223Sound(train);
+        } else if (scriptPath.contains("sound_o220")) {
+            tickFallbackTsurikakeSound(train);
+        } else if (scriptPath.contains("sound_trailer")) {
+            tickFallbackTrailerSound(train);
+        } else {
+            stopAutoRunningSound(train);
+        }
+    }
+
+    private static void tickFallback223Sound(TrainEntity train) {
+        float speedKmh = Math.abs(train.getSpeed()) * 72.0F;
+        boolean powering = train.getNotch() != 0;
+        if (!powering) {
+            stop(train, "rtm", "train.223_air");
+            stop(train, "rtm", "train.223_s0");
+            stop(train, "rtm", "train.223_s1");
+            stop(train, "rtm", "train.223_s2");
+            stop(train, "rtm", "train.223_run");
+            stop(train, "rtm", "train.223_run_tunnel");
+            return;
+        }
+        if (speedKmh <= 0.1F) {
+            stop(train, "rtm", "train.223_s0");
+            stop(train, "rtm", "train.223_s1");
+            stop(train, "rtm", "train.223_s2");
+            stop(train, "rtm", "train.223_run");
+            play(train, "rtm", "train.223_air", 1.0F, 1.0F, true);
+            return;
+        }
+        stop(train, "rtm", "train.223_air");
+        if (speedKmh < 20.0F) {
+            float volume = speedKmh < 5.0F ? speedKmh / 5.0F : (speedKmh > 10.0F ? (20.0F - speedKmh) / 10.0F : 1.0F);
+            play(train, "rtm", "train.223_s0", Mth.clamp(volume, 0.0F, 1.0F), 1.0F, true);
+        } else {
+            stop(train, "rtm", "train.223_s0");
+        }
+        if (speedKmh >= 8.0F) {
+            float volume = speedKmh < 12.0F ? (speedKmh - 8.0F) / 4.0F : 1.0F;
+            float pitch = (speedKmh - 8.0F) / (120.0F - 8.0F) + 0.8F;
+            play(train, "rtm", "train.223_s1", Mth.clamp(volume, 0.0F, 1.0F), pitch, true);
+        } else {
+            stop(train, "rtm", "train.223_s1");
+        }
+        if (speedKmh >= 12.0F) {
+            float pitch = (speedKmh - 12.0F) / (120.0F - 12.0F) + 0.9F;
+            float runVolume = Mth.clamp((speedKmh - 12.0F) / (120.0F - 12.0F), 0.0F, 1.0F);
+            play(train, "rtm", "train.223_s2", 2.0F, pitch, true);
+            play(train, "rtm", "train.223_run", runVolume, 1.0F, true);
+        } else {
+            stop(train, "rtm", "train.223_s2");
+            stop(train, "rtm", "train.223_run");
+        }
+        stop(train, "rtm", "train.223_run_tunnel");
+    }
+
+    private static void tickFallbackTsurikakeSound(TrainEntity train) {
+        float speedKmh = Math.abs(train.getSpeed()) * 72.0F;
+        boolean powering = train.getNotch() != 0;
+        if (speedKmh <= 0.1F) {
+            play(train, "rtm", "train.223_air", 1.0F, 1.0F, true);
+            stop(train, "rtm", "train.tsurikake");
+            stop(train, "rtm", "train.tsurikake_x2");
+            stop(train, "rtm", "train.tsurikake_n");
+            return;
+        }
+        stop(train, "rtm", "train.223_air");
+        float neutralVolume = speedKmh > 10.0F ? (speedKmh / 62.0F) * 0.5F + 0.5F : (speedKmh / 10.0F) * 0.5F;
+        play(train, "rtm", "train.tsurikake_n", Mth.clamp(neutralVolume, 0.0F, 1.25F), (speedKmh / 72.0F) * 0.25F + 1.0F, true);
+        if (!powering) {
+            stop(train, "rtm", "train.tsurikake");
+            stop(train, "rtm", "train.tsurikake_x2");
+            return;
+        }
+        float volume = speedKmh < 10.0F ? speedKmh / 10.0F : 1.0F;
+        if (speedKmh >= 36.0F) {
+            stop(train, "rtm", "train.tsurikake");
+            play(train, "rtm", "train.tsurikake_x2", Mth.clamp(volume, 0.0F, 1.0F), speedKmh / 36.0F, true);
+        } else {
+            stop(train, "rtm", "train.tsurikake_x2");
+            play(train, "rtm", "train.tsurikake", Mth.clamp(volume, 0.0F, 1.0F), speedKmh / 36.0F + 1.0F, true);
+        }
+    }
+
+    private static void tickFallbackTrailerSound(TrainEntity train) {
+        float speedKmh = Math.abs(train.getSpeed()) * 72.0F;
+        if (speedKmh <= 1.0F) {
+            stop(train, "rtm", "train.run_trailer");
+            return;
+        }
+        play(train, "rtm", "train.run_trailer", Mth.clamp(speedKmh / 80.0F, 0.15F, 1.0F), Mth.clamp(0.8F + speedKmh / 120.0F, 0.8F, 1.6F), true);
     }
 
     public static void stop(TrainEntity train, String namespace, String soundName) {

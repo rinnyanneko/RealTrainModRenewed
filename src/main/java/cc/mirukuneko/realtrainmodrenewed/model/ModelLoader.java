@@ -3,6 +3,7 @@ package cc.mirukuneko.realtrainmodrenewed.model;
 import cc.mirukuneko.realtrainmodrenewed.RealTrainModRenewed;
 import cc.mirukuneko.realtrainmodrenewed.script.TrainScriptSystem;
 import cc.mirukuneko.realtrainmodrenewed.modelpack.VehicleModelPackManager;
+import cc.mirukuneko.realtrainmodrenewed.util.PackZipReader;
 import cc.mirukuneko.realtrainmodrenewed.vehicle.VehicleDefinition;
 import net.minecraft.resources.Identifier;
 
@@ -16,7 +17,6 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
-import java.util.zip.ZipInputStream;
 
 public class ModelLoader {
     private static final Map<String, MQOModel> MODEL_CACHE = new java.util.concurrent.ConcurrentHashMap<>();
@@ -108,7 +108,7 @@ public class ModelLoader {
                     }
                 }
             } else {
-                try (ZipFile zf = new ZipFile(packPath.toFile())) {
+                try (ZipFile zf = PackZipReader.openZipFile(packPath)) {
                     ZipEntry entry = findEntry(zf, normalized);
                     if (entry != null) {
                         try (InputStream in = zf.getInputStream(entry)) {
@@ -251,26 +251,20 @@ public class ModelLoader {
     }
 
     private static MQOModel loadFromZip(Path zipPath, String modelFile) throws IOException {
-        try (ZipInputStream zip = new ZipInputStream(Files.newInputStream(zipPath))) {
-            ZipEntry entry;
-            while ((entry = zip.getNextEntry()) != null) {
+        final MQOModel[] result = {null};
+        try (InputStream input = Files.newInputStream(zipPath)) {
+            PackZipReader.read(input, (entry, entryInput) -> {
+                if (result[0] != null || entry.isDirectory()) {
+                    return;
+                }
                 String name = entry.getName().replace('\\', '/');
                 if (name.equalsIgnoreCase(modelFile) || name.endsWith("/" + modelFile)) {
                     boolean compressed = modelFile.toLowerCase().endsWith(".mqoz");
-                    
-                    // Read entire entry into byte array to avoid stream closure issues
-                    // Use ByteArrayOutputStream to handle unknown entry sizes
-                    java.io.ByteArrayOutputStream baos = new java.io.ByteArrayOutputStream();
-                    byte[] buffer = new byte[8192];
-                    int bytesRead;
-                    while ((bytesRead = zip.read(buffer)) != -1) {
-                        baos.write(buffer, 0, bytesRead);
-                    }
-                    
-                    java.io.ByteArrayInputStream bais = new java.io.ByteArrayInputStream(baos.toByteArray());
-                    return MQOParser.parse(bais, compressed);
+                    result[0] = MQOParser.parse(entryInput, compressed);
                 }
-                zip.closeEntry();
+            });
+            if (result[0] != null) {
+                return result[0];
             }
         }
         return null;

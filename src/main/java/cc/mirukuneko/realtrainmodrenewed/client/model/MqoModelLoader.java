@@ -14,6 +14,7 @@ import cc.mirukuneko.realtrainmodrenewed.rail.RailPackLoader;
 import cc.mirukuneko.realtrainmodrenewed.modelpack.VehicleModelPackManager;
 import cc.mirukuneko.realtrainmodrenewed.script.TrainScriptSystem;
 import cc.mirukuneko.realtrainmodrenewed.util.PackTextDecoder;
+import cc.mirukuneko.realtrainmodrenewed.util.PackZipReader;
 import cc.mirukuneko.realtrainmodrenewed.vehicle.VehicleDefinition;
 import cc.mirukuneko.realtrainmodrenewed.vehicle.VehicleRegistry;
 import net.minecraft.client.Minecraft;
@@ -31,7 +32,6 @@ import org.joml.Vector3f;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.ByteArrayInputStream;
-import java.io.BufferedInputStream;
 import java.awt.image.BufferedImage;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -225,7 +225,7 @@ public final class MqoModelLoader {
                         return candidate;
                     }
                 } else {
-                    try (ZipFile zip = new ZipFile(packPath.toFile())) {
+                    try (ZipFile zip = PackZipReader.openZipFile(packPath)) {
                         if (findEntry(zip, candidate) != null) {
                             return candidate;
                         }
@@ -410,7 +410,7 @@ public final class MqoModelLoader {
                     : readText(modelResource);
                 return bake(text, opener, textureOverrides, smoothing);
             }
-            try (ZipFile zf = new ZipFile(packPath.toFile())) {
+            try (ZipFile zf = PackZipReader.openZipFile(packPath)) {
                 ResourceSearchResult modelResource = findResource(modelFile, packPath);
                 if (modelResource == null) {
                     RealTrainModRenewed.LOGGER.warn("MQO not found in pack {}: {}", packPath.getFileName(), modelFile);
@@ -457,7 +457,7 @@ public final class MqoModelLoader {
                 return Files.newInputStream(file);
             }
         } else {
-            ZipFile zip = new ZipFile(packPath.toFile());
+            ZipFile zip = PackZipReader.openZipFile(packPath);
             ZipEntry entry = findEntry(zip, relative);
             if (entry != null) {
                 InputStream raw = zip.getInputStream(entry);
@@ -479,7 +479,7 @@ public final class MqoModelLoader {
     }
 
     private static String readCompressedMqo(Path path) throws java.io.IOException {
-        try (ZipFile zf = new ZipFile(path.toFile())) {
+        try (ZipFile zf = PackZipReader.openZipFile(path)) {
             for (ZipEntry entry : java.util.Collections.list(zf.entries())) {
                 if (!entry.isDirectory() && entry.getName().toLowerCase(Locale.ROOT).endsWith(".mqo")) {
                     try (InputStream in = zf.getInputStream(entry)) {
@@ -492,13 +492,14 @@ public final class MqoModelLoader {
     }
 
     private static String readCompressedMqo(InputStream input) throws java.io.IOException {
-        try (java.util.zip.ZipInputStream zis = new java.util.zip.ZipInputStream(new BufferedInputStream(input))) {
-            java.util.zip.ZipEntry entry;
-            while ((entry = zis.getNextEntry()) != null) {
-                if (!entry.isDirectory() && entry.getName().toLowerCase(Locale.ROOT).endsWith(".mqo")) {
-                    return PackTextDecoder.readText(zis);
-                }
+        final String[] result = {null};
+        PackZipReader.read(input, (entry, entryInput) -> {
+            if (result[0] == null && !entry.isDirectory() && entry.getName().toLowerCase(Locale.ROOT).endsWith(".mqo")) {
+                result[0] = PackTextDecoder.readText(entryInput);
             }
+        });
+        if (result[0] != null) {
+            return result[0];
         }
         throw new java.io.IOException("No .mqo entry found inside compressed MQO stream");
     }
@@ -680,7 +681,7 @@ public final class MqoModelLoader {
             Path file = resolveFilePathInPack(packPath, relative);
             return file != null ? new ResourceSearchResult(packPath, file, null) : null;
         }
-        try (ZipFile zip = new ZipFile(packPath.toFile())) {
+        try (ZipFile zip = PackZipReader.openZipFile(packPath)) {
             ZipEntry entry = findEntry(zip, relative);
             return entry != null ? new ResourceSearchResult(packPath, null, entry.getName()) : null;
         } catch (IOException e) {
@@ -750,7 +751,7 @@ public final class MqoModelLoader {
         if (resource.filePath() != null) {
             return PackTextDecoder.readText(resource.filePath());
         }
-        try (ZipFile zip = new ZipFile(resource.packPath().toFile())) {
+        try (ZipFile zip = PackZipReader.openZipFile(resource.packPath())) {
             ZipEntry entry = zip.getEntry(resource.zipEntryName());
             if (entry == null) {
                 throw new IOException("Missing zip entry: " + resource.zipEntryName());
@@ -765,7 +766,7 @@ public final class MqoModelLoader {
         if (resource.filePath() != null) {
             return readCompressedMqo(resource.filePath());
         }
-        try (ZipFile zip = new ZipFile(resource.packPath().toFile())) {
+        try (ZipFile zip = PackZipReader.openZipFile(resource.packPath())) {
             ZipEntry entry = zip.getEntry(resource.zipEntryName());
             if (entry == null) {
                 throw new IOException("Missing zip entry: " + resource.zipEntryName());
@@ -783,7 +784,7 @@ public final class MqoModelLoader {
         if (resource.filePath() != null) {
             return Files.newInputStream(resource.filePath());
         }
-        ZipFile zip = new ZipFile(resource.packPath().toFile());
+        ZipFile zip = PackZipReader.openZipFile(resource.packPath());
         ZipEntry entry = zip.getEntry(resource.zipEntryName());
         if (entry == null) {
             zip.close();
@@ -1596,7 +1597,7 @@ public final class MqoModelLoader {
                     }
                 }
             } else {
-                try (ZipFile zf = new ZipFile(packPath.toFile())) {
+                try (ZipFile zf = PackZipReader.openZipFile(packPath)) {
                     ZipEntry entry = null;
                     if (hasExplicitPath) {
                         entry = findEntry(zf, normalized);
@@ -1693,7 +1694,7 @@ public final class MqoModelLoader {
                     }
                 }
             } else {
-                try (ZipFile zf = new ZipFile(packPath.toFile())) {
+                try (ZipFile zf = PackZipReader.openZipFile(packPath)) {
                     ZipEntry entry = null;
                     if (hasExplicitPath) {
                         entry = findEntry(zf, normalized);
@@ -1730,7 +1731,7 @@ public final class MqoModelLoader {
             TrainScriptSystem.loadScript(scriptPath, script, model, modelName);
             return;
         }
-        try (ZipFile zip = new ZipFile(resource.packPath().toFile())) {
+        try (ZipFile zip = PackZipReader.openZipFile(resource.packPath())) {
             ZipEntry entry = zip.getEntry(resource.zipEntryName());
             if (entry == null) {
                 return;
@@ -2346,7 +2347,7 @@ public final class MqoModelLoader {
                 if (!name.endsWith(".zip") && !name.endsWith(".jar")) {
                     continue;
                 }
-                ZipFile zip = new ZipFile(file.toFile());
+                ZipFile zip = PackZipReader.openZipFile(file);
                 ZipEntry entry = findEntry(zip, entryName);
                 if (entry == null) {
                     zip.close();

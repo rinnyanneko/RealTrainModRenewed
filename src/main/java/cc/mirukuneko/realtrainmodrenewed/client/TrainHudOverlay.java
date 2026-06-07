@@ -15,6 +15,10 @@ import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.common.EventBusSubscriber;
 import net.neoforged.neoforge.client.event.RenderGuiEvent;
 
+import java.util.Map;
+import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
+
 @EventBusSubscriber(modid = RealTrainModRenewed.MODID, value = Dist.CLIENT)
 public final class TrainHudOverlay {
     private static final Identifier CAB_TEXTURE =
@@ -22,6 +26,8 @@ public final class TrainHudOverlay {
     private static final int TEX_SIZE = 512;
     private static final int CAB_W = 416;
     private static final int CAB_H = 48;
+    private static final int HUD_GREEN = 0xFF00FF00;
+    private static final Map<UUID, Float> BRAKE_PRESSURE = new ConcurrentHashMap<>();
     private static boolean cabHidden;
 
     private TrainHudOverlay() {
@@ -60,16 +66,16 @@ public final class TrainHudOverlay {
         int x = Math.round((screenW - CAB_W * scale) * 0.5F);
         int y = Math.round(screenH - CAB_H * scale);
         graphics.blit(RenderPipelines.GUI_TEXTURED, CAB_TEXTURE, x, y, 0.0F, 0.0F, Math.round(CAB_W * scale), Math.round(CAB_H * scale), TEX_SIZE, TEX_SIZE);
-        drawMeter(graphics, x, y, scale, 32, 19, 32, 32, 48, 240.0F * getBrakeRatio(train));
-        drawMeter(graphics, x, y, scale, 32, 19, 32, 0, 48, 240.0F * getBrakeCommandRatio(train));
-        drawMeter(graphics, x, y, scale, 72, 19, 32, 64, 48, getSpeedNeedleRotation(train, def));
+        drawGaugeNeedle(graphics, x, y, scale, 32, 19, 14.0F, getGaugeAngle(240.0F * getBrakeRatio(train)), 0xFFFFFFFF);
+        drawGaugeNeedle(graphics, x, y, scale, 32, 19, 11.0F, getGaugeAngle(240.0F * getBrakeCommandRatio(train)), 0xFFFF4040);
+        drawGaugeNeedle(graphics, x, y, scale, 72, 19, 14.0F, getGaugeAngle(getSpeedNeedleRotation(train, def)), 0xFFFFFFFF);
         drawLever(graphics, x, y, scale, train);
         drawWatch(graphics, x, y, scale, train);
-        graphics.text(font, Integer.toString(getSpeedKmh(train)), scaledX(x, scale, 70), scaledY(y, scale, 37), 0x00FF00, false);
+        drawCenteredText(graphics, font, Integer.toString(getSpeedKmh(train)), x, y, scale, 72, 37);
         // ブレーキ段数表示 (B1-B8)。本家同様ノッチ番号をそのまま出す。
-        graphics.text(font, Integer.toString(Math.max(0, -train.getNotch())), scaledX(x, scale, 30), scaledY(y, scale, 37), 0x00FF00, false);
-        graphics.text(font, Integer.toString(getWorldTime()), scaledX(x, scale, 338), scaledY(y, scale, 8), 0x00FF00, false);
-        graphics.text(font, getClockText(), scaledX(x, scale, 338), scaledY(y, scale, 18), 0x00FF00, false);
+        drawCenteredText(graphics, font, Integer.toString(Math.max(0, -train.getNotch())), x, y, scale, 32, 37);
+        graphics.text(font, Integer.toString(getWorldTime()), scaledX(x, scale, 338), scaledY(y, scale, 8), HUD_GREEN, false);
+        graphics.text(font, getClockText(), scaledX(x, scale, 338), scaledY(y, scale, 18), HUD_GREEN, false);
     }
 
     private static TrainEntity getControlledTrain(Minecraft mc) {
@@ -121,12 +127,40 @@ public final class TrainHudOverlay {
         pose.popMatrix();
     }
 
+    private static void drawGaugeNeedle(GuiGraphicsExtractor graphics, int x, int y, float scale,
+                                        int localX, int localY, float length, float angleDegrees, int color) {
+        int cx = scaledX(x, scale, localX);
+        int cy = scaledY(y, scale, localY);
+        double radians = Math.toRadians(angleDegrees);
+        double dx = Math.cos(radians);
+        double dy = Math.sin(radians);
+        int steps = Math.max(1, Math.round(length * scale));
+        int halfWidth = scale >= 0.85F ? 1 : 0;
+        for (int i = 0; i <= steps; i++) {
+            double t = i / (double) steps;
+            int px = (int) Math.round(cx + dx * length * scale * t);
+            int py = (int) Math.round(cy + dy * length * scale * t);
+            graphics.fill(px - halfWidth, py - halfWidth, px + halfWidth + 1, py + halfWidth + 1, color);
+        }
+        graphics.fill(cx - 1, cy - 1, cx + 2, cy + 2, 0xFFFFFFFF);
+    }
+
+    private static float getGaugeAngle(float rotation) {
+        return 150.0F + rotation;
+    }
+
     private static int scaledX(int x, float scale, int localX) {
         return Math.round(x + localX * scale);
     }
 
     private static int scaledY(int y, float scale, int localY) {
         return Math.round(y + localY * scale);
+    }
+
+    private static void drawCenteredText(GuiGraphicsExtractor graphics, Font font, String text,
+                                         int x, int y, float scale, int localX, int localY) {
+        int textX = scaledX(x, scale, localX) - font.width(text) / 2;
+        graphics.text(font, text, textX, scaledY(y, scale, localY), HUD_GREEN, false);
     }
 
     private static int getSpeedKmh(TrainEntity train) {
@@ -146,11 +180,21 @@ public final class TrainHudOverlay {
     }
 
     private static float getBrakeRatio(TrainEntity train) {
-        // 実際の最大ブレーキ段数で割る(段数とメーターのズレを防ぐ)。
-        return Math.min(1.0F, Math.max(0.0F, -train.getNotch()) / (float) Math.max(1, train.getMaxBrakeNotch()));
+        float target = getBrakeCommandRatio(train);
+        UUID id = train.getUUID();
+        float current = BRAKE_PRESSURE.getOrDefault(id, target);
+        float step = target > current ? 0.028F : 0.045F;
+        if (current < target) {
+            current = Math.min(target, current + step);
+        } else if (current > target) {
+            current = Math.max(target, current - step);
+        }
+        BRAKE_PRESSURE.put(id, current);
+        return current;
     }
 
     private static float getBrakeCommandRatio(TrainEntity train) {
+        // 実際の最大ブレーキ段数で割る(段数とメーターのズレを防ぐ)。
         return Math.min(1.0F, Math.max(0.0F, -train.getNotch()) / (float) Math.max(1, train.getMaxBrakeNotch()));
     }
 

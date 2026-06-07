@@ -3,6 +3,7 @@ package cc.mirukuneko.realtrainmodrenewed.client;
 import cc.mirukuneko.realtrainmodrenewed.RealTrainModRenewed;
 import cc.mirukuneko.realtrainmodrenewed.BundledPackStore;
 import cc.mirukuneko.realtrainmodrenewed.rail.RailPackLoader;
+import cc.mirukuneko.realtrainmodrenewed.util.PackZipReader;
 import com.mojang.blaze3d.platform.NativeImage;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.texture.DynamicTexture;
@@ -35,11 +36,22 @@ public final class PackButtonTextureCache {
     }
 
     public static ButtonTextureInfo get(String packName, String texturePath) {
+        return get(packName, texturePath, "", "");
+    }
+
+    public static ButtonTextureInfo get(String packName, String texturePath, String modelId, String displayName) {
         if (packName == null || packName.isBlank() || texturePath == null || texturePath.isBlank()) {
-            return null;
+            if (packName == null || packName.isBlank()) {
+                return null;
+            }
+            String fallbackKey = packName + "|fallback|" + safe(modelId) + "|" + safe(displayName);
+            return CACHE.computeIfAbsent(fallbackKey, ignored -> loadFallbackForModel(packName, modelId, displayName));
         }
-        String key = packName + "|" + texturePath;
-        return CACHE.computeIfAbsent(key, ignored -> load(packName, texturePath));
+        String key = packName + "|" + texturePath + "|" + safe(modelId) + "|" + safe(displayName);
+        return CACHE.computeIfAbsent(key, ignored -> {
+            ButtonTextureInfo direct = load(packName, texturePath);
+            return direct != null ? direct : loadFallbackForModel(packName, modelId, displayName);
+        });
     }
 
     private static ButtonTextureInfo load(String packName, String texturePath) {
@@ -81,8 +93,34 @@ public final class PackButtonTextureCache {
         int width = image.getWidth();
         int height = image.getHeight();
         int[] bounds = detectContentBounds(image, texturePath);
-        Minecraft.getInstance().getTextureManager().register(location, new DynamicTexture(() -> "realtrainmodunofficial button texture", image));
+        Minecraft.getInstance().getTextureManager().register(location, new DynamicTexture(() -> "realtrainmodrenewed button texture", image));
         return new ButtonTextureInfo(location, width, height, bounds[0], bounds[1], bounds[2], bounds[3]);
+    }
+
+    private static ButtonTextureInfo loadFallbackForModel(String packName, String modelId, String displayName) {
+        try {
+            NativeImage image = null;
+            Path packPath = RailPackLoader.resolvePackPath(packName);
+            if (packPath != null) {
+                image = Files.isDirectory(packPath)
+                    ? loadBestButtonFromDirectory(packPath, modelId, displayName)
+                    : loadBestButtonFromArchive(packPath, modelId, displayName);
+            }
+            if (image == null) {
+                for (Path candidate : listAllPackCandidates()) {
+                    image = Files.isDirectory(candidate)
+                        ? loadBestButtonFromDirectory(candidate, modelId, displayName)
+                        : loadBestButtonFromArchive(candidate, modelId, displayName);
+                    if (image != null) {
+                        break;
+                    }
+                }
+            }
+            return image == null ? null : registerDynamicTexture(packName, "fallback/" + safe(modelId), image);
+        } catch (Exception e) {
+            RealTrainModRenewed.LOGGER.debug("Could not resolve fallback buttonTexture for {} in {}", modelId, packName, e);
+            return null;
+        }
     }
 
     private static NativeImage loadFromDirectory(Path packPath, String texturePath) throws Exception {
@@ -96,7 +134,7 @@ public final class PackButtonTextureCache {
     }
 
     private static NativeImage loadFromArchive(Path packPath, String texturePath) throws Exception {
-        try (ZipFile zipFile = new ZipFile(packPath.toFile())) {
+        try (ZipFile zipFile = PackZipReader.openZipFile(packPath)) {
             ZipEntry entry = findEntry(zipFile, texturePath);
             if (entry == null) {
                 return null;
@@ -142,6 +180,53 @@ public final class PackButtonTextureCache {
         return null;
     }
 
+    private static NativeImage loadBestButtonFromDirectory(Path root, String modelId, String displayName) throws Exception {
+        ButtonCandidate best = null;
+        try (var stream = Files.walk(root)) {
+            for (Path path : (Iterable<Path>) stream::iterator) {
+                if (!Files.isRegularFile(path) || !isPng(path.getFileName().toString())) {
+                    continue;
+                }
+                String relative = normalize(root.relativize(path).toString());
+                int score = scoreButtonCandidate(relative, modelId, displayName);
+                if (score <= 0 || (best != null && score <= best.score())) {
+                    continue;
+                }
+                best = new ButtonCandidate(score, path, null);
+            }
+        }
+        if (best == null || best.path() == null) {
+            return null;
+        }
+        try (InputStream input = Files.newInputStream(best.path())) {
+            return NativeImage.read(input);
+        }
+    }
+
+    private static NativeImage loadBestButtonFromArchive(Path archive, String modelId, String displayName) throws Exception {
+        try (ZipFile zipFile = PackZipReader.openZipFile(archive)) {
+            ButtonCandidate best = null;
+            var entries = zipFile.entries();
+            while (entries.hasMoreElements()) {
+                ZipEntry entry = entries.nextElement();
+                if (entry.isDirectory() || !isPng(entry.getName())) {
+                    continue;
+                }
+                int score = scoreButtonCandidate(entry.getName(), modelId, displayName);
+                if (score <= 0 || (best != null && score <= best.score())) {
+                    continue;
+                }
+                best = new ButtonCandidate(score, null, entry);
+            }
+            if (best == null || best.entry() == null) {
+                return null;
+            }
+            try (InputStream input = zipFile.getInputStream(best.entry())) {
+                return NativeImage.read(input);
+            }
+        }
+    }
+
     private static ZipEntry findEntry(ZipFile zipFile, String texturePath) {
         String normalized = normalize(texturePath).toLowerCase(Locale.ROOT);
         String leaf = normalized.substring(normalized.lastIndexOf('/') + 1);
@@ -162,11 +247,62 @@ public final class PackButtonTextureCache {
         return raw.replace('\\', '/').replaceFirst("^/+", "");
     }
 
+    private static String safe(String raw) {
+        return raw == null ? "" : raw;
+    }
+
     private static String sanitize(String raw) {
         return raw.replace('\\', '/').toLowerCase(Locale.ROOT)
                   .replaceAll("[^a-z0-9/._-]", "_")
                   .replaceFirst("^[/_]+", "");
     }
+
+    private static boolean isPng(String path) {
+        return path != null && path.toLowerCase(Locale.ROOT).endsWith(".png");
+    }
+
+    private static int scoreButtonCandidate(String path, String modelId, String displayName) {
+        String normalizedPath = normalize(path).toLowerCase(Locale.ROOT);
+        String compactPath = compact(normalizedPath);
+        boolean looksLikeButton = normalizedPath.contains("button") || normalizedPath.contains("/btn") || normalizedPath.contains("_btn");
+        int score = looksLikeButton ? 20 : -20;
+        for (String token : modelTokens(modelId, displayName)) {
+            if (token.length() < 3) {
+                continue;
+            }
+            if (compactPath.contains(token)) {
+                score += token.length() >= 6 ? 80 : 35;
+            }
+        }
+        if (looksLikeButton && (normalizedPath.contains("/textures/") || normalizedPath.contains("/texture/"))) {
+            score += 10;
+        }
+        return score;
+    }
+
+    private static List<String> modelTokens(String modelId, String displayName) {
+        List<String> tokens = new ArrayList<>();
+        addToken(tokens, compact(modelId));
+        addToken(tokens, compact(displayName));
+        for (String source : new String[]{safe(modelId), safe(displayName)}) {
+            for (String part : source.split("[^A-Za-z0-9]+")) {
+                addToken(tokens, compact(part));
+            }
+        }
+        return tokens;
+    }
+
+    private static void addToken(List<String> tokens, String token) {
+        if (token != null && token.length() >= 3 && !tokens.contains(token)) {
+            tokens.add(token);
+        }
+    }
+
+    private static String compact(String raw) {
+        return safe(raw).toLowerCase(Locale.ROOT).replaceAll("[^a-z0-9]", "");
+    }
+
+    private record ButtonCandidate(int score, Path path, ZipEntry entry) {}
 
     private static List<Path> listAllPackCandidates() {
         Set<Path> seen = new LinkedHashSet<>();
@@ -180,6 +316,8 @@ public final class PackButtonTextureCache {
         addArchiveChildren(gameDir.resolve("content"), seen, result);
         addDirectoryChildren(gameDir.resolve("vehicle_packs"), seen, result);
         addArchiveChildren(gameDir.resolve("vehicle_packs"), seen, result);
+        addDirectoryChildren(gameDir.resolve("config").resolve("realtrainmodrenewed"), seen, result);
+        addArchiveChildren(gameDir.resolve("config").resolve("realtrainmodrenewed"), seen, result);
         addDirectoryChildren(gameDir.resolve("config").resolve("realtrainmodunofficial"), seen, result);
         addArchiveChildren(gameDir.resolve("config").resolve("realtrainmodunofficial"), seen, result);
         for (String category : new String[]{"vehicle", "rail", "installed_object", "official"}) {

@@ -266,7 +266,7 @@ public class TrainEntityRenderer extends EntityRenderer<TrainEntity, LegacyEntit
                     .debug("Inline bogie render failed for {}: {}", entity.getVehicleId(), t.toString());
             }
             // 台車の当たり判定は TrainBogieEntity、見た目は車体レンダー内で描画する。
-            if (renderRollsigns && !modelHasScript) {
+            if (renderRollsigns) {
                 renderConfiguredRollsigns(entity, def, poseStack, buffer, trainPackedLight);
             }
             if (renderLights) {

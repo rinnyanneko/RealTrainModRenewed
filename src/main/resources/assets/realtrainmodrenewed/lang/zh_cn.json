@@ -67,8 +67,8 @@
 
   "key.categories.realtrainmodrenewed": "RealTrainMod Renewed",
   "key.realtrainmodrenewed.open_control": "打开驾驶控制界面",
-  "key.realtrainmodrenewed.power_off": "增加动力P",
-  "key.realtrainmodrenewed.brake_off": "增加制动B",
+  "key.realtrainmodrenewed.power_off": "增加动力P(S)",
+  "key.realtrainmodrenewed.brake_off": "增加制动B(W)",
   "key.realtrainmodrenewed.neutral": "切换滑行N",
   "key.realtrainmodrenewed.toggle_cab": "切换驾驶台UI",
   "key.realtrainmodrenewed.play_announcement": "播放选择的车内广播",

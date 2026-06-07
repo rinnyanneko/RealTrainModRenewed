@@ -499,7 +499,7 @@ public class ModelSelectScreen extends Screen {
             ModelEntry(String id, String displayName, String packName, String buttonTexturePath) {
                 this.id = id; this.packName = packName;
                 this.label = Component.literal(safe(displayName).isBlank() ? id : displayName);
-                this.buttonTex = PackButtonTextureCache.get(packName, buttonTexturePath);
+                this.buttonTex = PackButtonTextureCache.get(packName, buttonTexturePath, id, displayName);
                 this.header = false;
             }
 

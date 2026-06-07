@@ -1,6 +1,6 @@
 # RealTrainModRenewed
 
-RealTrainModRenewed is a modernization fork of [RealTrainModRenewed](https://github.com/325-Sunnygo/RealTrainModUnofficial).
+RealTrainModRenewed is a modernization fork of [RealTrainModUnofficial](https://github.com/325-Sunnygo/RealTrainModUnofficial).
 
 The goal of this project is to make RealTrainMod easier to maintain, more developer-friendly, and compatible with modern Minecraft and NeoForge versions, while preserving compatibility with the original RTM ecosystem as much as possible.
 
@@ -31,8 +31,9 @@ RealTrainModRenewed aims to bring the RTM experience to newer Minecraft versions
 
 - [x] Upgrade to Minecraft Java Edition 26.1 / NeoForge 26.1
 - [x] Make the mod compile and run on the new target version
-- [ ] **Preserve compatibility with existing RTM models, packs, and content where possible**
-- [ ] Gradually rewrite the codebase with Kotlin
+- [x] Preserve compatibility with existing RTM models, packs, and content where possible
+- [ ] **Gradually rewrite the codebase with Kotlin**
+- [ ] FIX BUUUUUUGS
 - [ ] Improve documentation for users and developers
 - [ ] Evaluate migration to the next NeoForge LTS version when available
 - [ ] Add new features where appropriate
@@ -50,6 +51,27 @@ Minecraft 26.1 is used as the initial modernization target.
 When the next NeoForge LTS version becomes available, this project may migrate to it as the new long-term target.
 
 Breaking changes may happen during this stage.
+
+## Current Port Notes
+
+The active target is Minecraft Java Edition `26.1.2` with NeoForge `26.1.2.73`
+on Java `25`. Keep the Java port stable before starting broad Kotlin work.
+
+Recent compatibility work focuses on preserving legacy RTM add-on behavior:
+
+- Legacy rail, vehicle, installed-object, model, texture, and sound packs can be
+  read with common old ZIP entry-name encodings such as MS932 and Shift_JIS.
+- The model-selection UI, add-on `buttonTexture` icons, train cab HUD readouts,
+  train acceleration/braking, coupling distance, and Graal.js script-engine
+  fallback have active 26.1 compatibility fixes.
+- Some old RTM/ATSA APIs are still compatibility stubs and need runtime
+  verification with representative add-on packs before release.
+
+Safe Kotlin candidates after runtime verification are small utility or pure data
+areas such as `UnitConverter`, `PackTextDecoder`, `PackZipReader`, immutable
+definition records, and isolated rail math helpers. Avoid converting entry
+points, registries, packets, entities, block entities, renderers, and ATSA
+integration until the 26.1 runtime path is stable.
 
 ## Contributing
 

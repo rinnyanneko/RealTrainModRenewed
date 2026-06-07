@@ -75,8 +75,8 @@
 
   "key.categories.realtrainmodrenewed": "RealTrainMod Renewed",
   "key.realtrainmodrenewed.open_control": "Open train controls",
-  "key.realtrainmodrenewed.power_off": "Increase power",
-  "key.realtrainmodrenewed.brake_off": "Apply brake",
+  "key.realtrainmodrenewed.power_off": "Increase power (S)",
+  "key.realtrainmodrenewed.brake_off": "Apply brake (W)",
   "key.realtrainmodrenewed.neutral": "Set neutral",
   "key.realtrainmodrenewed.toggle_cab": "Toggle cab UI",
   "key.realtrainmodrenewed.play_announcement": "Play selected announcement",

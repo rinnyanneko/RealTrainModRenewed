@@ -662,9 +662,9 @@ public class TrainEntity extends Entity {
         }
         boolean runScriptTick = !level().isClientSide() || shouldRunClientVisualScriptThisTick();
         if (level().isClientSide() && soundScriptEngine != null) {
-            LegacyScriptSoundManager.stopAutoRunningSound(this);
             TrainScriptSystem.invokeScriptTick(soundScriptEngine, this);
             TrainScriptSystem.invokeScriptUpdate(soundScriptEngine, this, 1.0F);
+            LegacyScriptSoundManager.tickJsonRunningSound(this);
         } else {
             if (level().isClientSide()) {
                 LegacyScriptSoundManager.tickJsonRunningSound(this);
@@ -811,11 +811,7 @@ public class TrainEntity extends Entity {
         clientLerpZ = z;
         clientLerpYRot = yRot;
         clientLerpXRot = xRot;
-        // Trains send a position update every tick (hasImpulse=true while moving), so
-        // using steps=1 (snap to server position each tick) gives smooth rendering AND
-        // keeps the lerped body position aligned with the rail-anchor-based bogie positions.
-        // Multi-step lerp would lag the body behind the bogies by several ticks at speed.
-        clientLerpSteps = 1;
+        clientLerpSteps = isLocalPlayerOnThisTrain() ? 3 : Math.max(2, Math.min(4, steps));
         setDeltaMovement(Vec3.ZERO);
     }
 
@@ -875,14 +871,14 @@ public class TrainEntity extends Entity {
             launchRamp = launchRamp * launchRamp * (3.0F - 2.0F * launchRamp);
             // 高速減衰は緩やか(speedRatio^3)。中速までは加速度を保ち「どんどん速くなる」感を出し、
             // 最高速付近でだけ頭打ちにする(実車の定出力域→特性域に近い)。
-            float tractionCurve = (0.30F + launchRamp * 0.70F) * (1.0F - (float) Math.pow(speedRatio, 3.0));
+            float tractionCurve = (0.52F + launchRamp * 0.48F) * (1.0F - (float) Math.pow(speedRatio, 3.0));
             float accelCurve = accelBase * (0.55F + notchFactor * 0.70F) * tractionCurve;
-            float next = speed + Math.max(0.00008F, accelCurve);
+            float next = speed + Math.max(0.00016F, accelCurve);
             return Math.abs(next) > maxSpeed ? Math.copySign(maxSpeed, next) : next;
         }
 
         if (notch < 0) {
-            // 本家RTM(EnumNotch)準拠のブレーキ。B1=-0.0005 ... B7=-0.0035、非常EB(-8)=-0.01。
+            // RTM EnumNotch に近い常用ブレーキ。B1..B7 は段ごと、EB は強め。
             int b = -notch; // 1..8
             float decel = (b >= MAX_BRAKE_NOTCH) ? 0.01F : 0.0005F * b;
             return approachZero(speed, decel);
@@ -909,11 +905,9 @@ public class TrainEntity extends Entity {
 
     private float getConfiguredAcceleration(VehicleDefinition def) {
         if (def != null && def.getAcceleration() > 0.0F) {
-            // 実車に近い穏やかな加速にするため倍率と上限を下げる
-            // (旧: *1.75 / 上限0.0062 は急加速ぎみだった)。
-            return Mth.clamp(def.getAcceleration() * 1.30F, 0.0006F, 0.0042F);
+            return Mth.clamp(def.getAcceleration() * 1.75F, 0.0010F, 0.0060F);
         }
-        return 0.0022F;
+        return 0.0030F;
     }
 
     private boolean shouldRunClientVisualScriptThisTick() {
@@ -3392,7 +3386,7 @@ public class TrainEntity extends Entity {
     }
 
     private Vec3 getCouplerPoint(boolean front) {
-        double z = front ? getTrainHalfLength() : -getTrainHalfLength();
+        double z = front ? getCouplingHalfLength() : -getCouplingHalfLength();
         return localToWorld(new Vec3(0.0D, 0.0D, z));
     }
 
@@ -6507,8 +6501,7 @@ public class TrainEntity extends Entity {
     }
 
     public double getDefaultDistanceToConnectedTrain(TrainEntity other) {
-        return Math.max((getConfiguredTrainDistance() + (other != null ? other.getConfiguredTrainDistance() : getConfiguredTrainDistance())) + 0.5,
-            getTrainHalfLength() + (other != null ? other.getTrainHalfLength() : getTrainHalfLength()) + 1.5);
+        return getCoupledGap(this, other == null ? this : other);
     }
 
     private void ensureDriverReadyForFormation(Entity driver) {

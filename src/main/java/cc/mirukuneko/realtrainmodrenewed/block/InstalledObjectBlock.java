@@ -102,12 +102,6 @@ public class InstalledObjectBlock extends BaseEntityBlock {
     @Override
     protected InteractionResult useItemOn(ItemStack stack, BlockState state, Level level, BlockPos pos,
                                               Player player, InteractionHand hand, BlockHitResult hit) {
-        if (stack.is(RealTrainModRenewedItems.CROWBAR_ITEM.get())) {
-            if (!level.isClientSide()) {
-                level.destroyBlock(pos, true, player);
-            }
-            return level.isClientSide() ? InteractionResult.SUCCESS : InteractionResult.SUCCESS_SERVER;
-        }
         if (stack.is(RealTrainModRenewedItems.IC_CARD_ITEM.get())
             && level.getBlockEntity(pos) instanceof InstalledObjectBlockEntity be
             && be.getCategory() == InstalledObjectCategory.TICKET_GATE) {
