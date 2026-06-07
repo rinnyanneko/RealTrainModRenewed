@@ -1,6 +1,7 @@
 package cc.mirukuneko.realtrainmodrenewed.client.sound;
 
 import cc.mirukuneko.realtrainmodrenewed.RealTrainModRenewed;
+import cc.mirukuneko.realtrainmodrenewed.util.PackZipReader;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
@@ -191,7 +192,7 @@ public final class ExternalSoundPackBridge {
     private static boolean collectFromArchive(Path archive, Map<String, JsonObject> mergedSoundDefs) throws IOException {
         boolean copiedAny = false;
         String rootNamespace = namespaceFromPackName(archive.getFileName().toString());
-        try (ZipFile zipFile = new ZipFile(archive.toFile())) {
+        try (ZipFile zipFile = PackZipReader.openZipFile(archive)) {
             var entries = zipFile.entries();
             while (entries.hasMoreElements()) {
                 ZipEntry entry = entries.nextElement();

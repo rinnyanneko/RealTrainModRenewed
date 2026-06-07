@@ -811,7 +811,7 @@ public class TrainEntity extends Entity {
         clientLerpZ = z;
         clientLerpYRot = yRot;
         clientLerpXRot = xRot;
-        clientLerpSteps = isLocalPlayerOnThisTrain() ? 1 : Math.max(2, Math.min(3, steps));
+        clientLerpSteps = isLocalPlayerOnThisTrain() ? 3 : Math.max(2, Math.min(4, steps));
         setDeltaMovement(Vec3.ZERO);
     }
 
@@ -871,9 +871,9 @@ public class TrainEntity extends Entity {
             launchRamp = launchRamp * launchRamp * (3.0F - 2.0F * launchRamp);
             // 高速減衰は緩やか(speedRatio^3)。中速までは加速度を保ち「どんどん速くなる」感を出し、
             // 最高速付近でだけ頭打ちにする(実車の定出力域→特性域に近い)。
-            float tractionCurve = (0.30F + launchRamp * 0.70F) * (1.0F - (float) Math.pow(speedRatio, 3.0));
+            float tractionCurve = (0.52F + launchRamp * 0.48F) * (1.0F - (float) Math.pow(speedRatio, 3.0));
             float accelCurve = accelBase * (0.55F + notchFactor * 0.70F) * tractionCurve;
-            float next = speed + Math.max(0.00008F, accelCurve);
+            float next = speed + Math.max(0.00016F, accelCurve);
             return Math.abs(next) > maxSpeed ? Math.copySign(maxSpeed, next) : next;
         }
 
@@ -905,9 +905,9 @@ public class TrainEntity extends Entity {
 
     private float getConfiguredAcceleration(VehicleDefinition def) {
         if (def != null && def.getAcceleration() > 0.0F) {
-            return Mth.clamp(def.getAcceleration() * 1.25F, 0.0006F, 0.0040F);
+            return Mth.clamp(def.getAcceleration() * 1.75F, 0.0010F, 0.0060F);
         }
-        return 0.0022F;
+        return 0.0030F;
     }
 
     private boolean shouldRunClientVisualScriptThisTick() {
@@ -3386,7 +3386,7 @@ public class TrainEntity extends Entity {
     }
 
     private Vec3 getCouplerPoint(boolean front) {
-        double z = front ? getTrainHalfLength() : -getTrainHalfLength();
+        double z = front ? getCouplingHalfLength() : -getCouplingHalfLength();
         return localToWorld(new Vec3(0.0D, 0.0D, z));
     }
 

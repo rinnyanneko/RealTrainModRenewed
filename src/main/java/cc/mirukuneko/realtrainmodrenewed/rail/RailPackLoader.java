@@ -7,6 +7,7 @@ import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import cc.mirukuneko.realtrainmodrenewed.BundledPackStore;
 import cc.mirukuneko.realtrainmodrenewed.util.PackTextDecoder;
+import cc.mirukuneko.realtrainmodrenewed.util.PackZipReader;
 import net.minecraft.world.phys.Vec3;
 import net.neoforged.fml.loading.FMLPaths;
 
@@ -22,7 +23,6 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.zip.ZipEntry;
-import java.util.zip.ZipInputStream;
 
 public class RailPackLoader {
     private static final List<RailDefinition> LOADED = new ArrayList<>();
@@ -124,20 +124,16 @@ public class RailPackLoader {
     private static void loadRailPack(InputStream zipInput, String packName, int depth) throws IOException {
         List<byte[]> jsonBytes = new ArrayList<>();
         List<NestedArchive> nestedArchives = new ArrayList<>();
-        try (ZipInputStream zip = new ZipInputStream(zipInput)) {
-            ZipEntry entry;
-            while ((entry = zip.getNextEntry()) != null) {
-                if (!entry.isDirectory()) {
-                    String name = normalize(entry.getName());
-                    if (isRailJson(name)) {
-                        jsonBytes.add(zip.readAllBytes());
-                    } else if (depth < 2 && isArchiveName(name)) {
-                        nestedArchives.add(new NestedArchive(name, zip.readAllBytes()));
-                    }
+        PackZipReader.read(zipInput, (entry, zip) -> {
+            if (!entry.isDirectory()) {
+                String name = normalize(entry.getName());
+                if (isRailJson(name)) {
+                    jsonBytes.add(zip.readAllBytes());
+                } else if (depth < 2 && isArchiveName(name)) {
+                    nestedArchives.add(new NestedArchive(name, zip.readAllBytes()));
                 }
-                zip.closeEntry();
             }
-        }
+        });
         for (byte[] bytes : jsonBytes) {
             parseRailJson(bytes, packName);
         }
@@ -443,15 +439,18 @@ public class RailPackLoader {
         String scriptFileName = scriptPath.contains("/")
             ? scriptPath.substring(scriptPath.lastIndexOf('/') + 1).toLowerCase()
             : scriptPath.toLowerCase();
-        try (java.util.zip.ZipInputStream zip = new java.util.zip.ZipInputStream(Files.newInputStream(packPath))) {
-            ZipEntry entry;
-            while ((entry = zip.getNextEntry()) != null) {
+        try (InputStream input = Files.newInputStream(packPath)) {
+            final String[] result = {null};
+            PackZipReader.read(input, (entry, zip) -> {
                 String name = normalize(entry.getName());
-                if (name.equalsIgnoreCase(scriptPath) || name.toLowerCase().endsWith("/" + scriptFileName)
-                        || name.toLowerCase().equals(scriptFileName)) {
-                    return PackTextDecoder.readText(zip);
+                if (result[0] == null
+                    && (name.equalsIgnoreCase(scriptPath) || name.toLowerCase().endsWith("/" + scriptFileName)
+                    || name.toLowerCase().equals(scriptFileName))) {
+                    result[0] = PackTextDecoder.readText(zip);
                 }
-                zip.closeEntry();
+            });
+            if (result[0] != null) {
+                return result[0];
             }
         } catch (Exception e) {
             RealTrainModRenewed.LOGGER.warn("Failed to read script {} from pack {}", definition.getScriptPath(), definition.getPackName(), e);

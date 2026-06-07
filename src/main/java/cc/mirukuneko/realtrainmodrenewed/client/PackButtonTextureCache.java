@@ -3,6 +3,7 @@ package cc.mirukuneko.realtrainmodrenewed.client;
 import cc.mirukuneko.realtrainmodrenewed.RealTrainModRenewed;
 import cc.mirukuneko.realtrainmodrenewed.BundledPackStore;
 import cc.mirukuneko.realtrainmodrenewed.rail.RailPackLoader;
+import cc.mirukuneko.realtrainmodrenewed.util.PackZipReader;
 import com.mojang.blaze3d.platform.NativeImage;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.texture.DynamicTexture;
@@ -133,7 +134,7 @@ public final class PackButtonTextureCache {
     }
 
     private static NativeImage loadFromArchive(Path packPath, String texturePath) throws Exception {
-        try (ZipFile zipFile = new ZipFile(packPath.toFile())) {
+        try (ZipFile zipFile = PackZipReader.openZipFile(packPath)) {
             ZipEntry entry = findEntry(zipFile, texturePath);
             if (entry == null) {
                 return null;
@@ -203,7 +204,7 @@ public final class PackButtonTextureCache {
     }
 
     private static NativeImage loadBestButtonFromArchive(Path archive, String modelId, String displayName) throws Exception {
-        try (ZipFile zipFile = new ZipFile(archive.toFile())) {
+        try (ZipFile zipFile = PackZipReader.openZipFile(archive)) {
             ButtonCandidate best = null;
             var entries = zipFile.entries();
             while (entries.hasMoreElements()) {

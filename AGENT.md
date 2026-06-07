@@ -2,17 +2,17 @@
 
 ## Repository Snapshot
 
-- This is `RealTrainModRenewed`, a Minecraft 1.21.1 NeoForge rewrite/renewal of the original RTMU codebase.
+- This is `RealTrainModRenewed`, a Minecraft 26.1 / NeoForge 26.1 modernization fork of the original RTMU codebase.
 - The main mod id is `realtrainmodrenewed`; the main package is `cc.mirukuneko.realtrainmodrenewed`.
-- The build is Gradle Groovy DSL with Java 21 toolchains and NeoGradle userdev.
+- The build is Gradle Groovy DSL with Java 25 toolchains and NeoForge ModDevGradle.
 - `atsa/` is a separate included Gradle subproject that builds the `atsassistmod` companion mod jar. It depends on the root RTMU project at compile time and should stay separated unless the user asks to merge it.
 - The repo currently has about 223 Java source files and a large resource surface: model JSON, PNG textures, OGG sounds, JavaScript render/sound scripts, MQO/MQOZ models, and pack-import tooling.
 
 ## Important Paths
 
 - `build.gradle`, `settings.gradle`, `gradle.properties`: root NeoForge build configuration.
-- `src/main/java/com/portofino/realtrainmodunofficial/RealTrainModRenewed.java`: root mod entry point.
-- `src/main/java/com/portofino/realtrainmodunofficial/`: main mod code.
+- `src/main/java/cc/mirukuneko/realtrainmodrenewed/RealTrainModRenewed.java`: root mod entry point.
+- `src/main/java/cc/mirukuneko/realtrainmodrenewed/`: main mod code.
 - `src/main/resources/META-INF/neoforge.mods.toml`: root mod metadata.
 - `src/main/resources/assets/`: bundled Minecraft/RTM/RTMU assets and WebCTC static files.
 - `atsa/build.gradle`: ATSA companion mod build.
@@ -22,7 +22,8 @@
 ## Development Direction
 
 - The long-term direction is to rewrite the Java codebase in Kotlin and add new features.
-- Prefer Kotlin for new gameplay, loader, data, UI, and feature code once the Kotlin Gradle plugin/source sets are introduced.
+- Keep the Java 26.1 port working before introducing Kotlin rewrites.
+- Prefer Kotlin for new gameplay, loader, data, UI, and feature code only after the Kotlin Gradle plugin/source sets are introduced.
 - Migrate incrementally. Keep public behavior, mod ids, registry names, packet ids, resource paths, and saved-data formats compatible unless the user explicitly requests a breaking change.
 - Do not start a broad Java-to-Kotlin rewrite just because a file is touched. Convert only the smallest useful area for the requested work, or create Kotlin beside existing Java when that keeps risk lower.
 - When converting Java to Kotlin, preserve NeoForge lifecycle semantics, event-bus registration timing, `DeferredRegister` behavior, sided client/server boundaries, and Java interop for the ATSA subproject.

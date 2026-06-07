@@ -7,6 +7,7 @@ import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import cc.mirukuneko.realtrainmodrenewed.rail.RailPackLoader;
 import cc.mirukuneko.realtrainmodrenewed.util.PackTextDecoder;
+import cc.mirukuneko.realtrainmodrenewed.util.PackZipReader;
 import net.minecraft.world.phys.Vec3;
 import net.neoforged.fml.ModList;
 import net.neoforged.fml.loading.FMLPaths;
@@ -20,8 +21,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.zip.ZipEntry;
-import java.util.zip.ZipInputStream;
 
 public class VehiclePackLoader {
     private static final List<VehicleDefinition> LOADED = new ArrayList<>();
@@ -236,21 +235,17 @@ public class VehiclePackLoader {
         List<byte[]> jsonBytes = new ArrayList<>();
         List<String> jsonPaths = new ArrayList<>();
         List<NestedArchive> nestedArchives = new ArrayList<>();
-        try (ZipInputStream zip = new ZipInputStream(zipInput)) {
-            ZipEntry entry;
-            while ((entry = zip.getNextEntry()) != null) {
-                if (!entry.isDirectory()) {
-                    String name = normalize(entry.getName());
-                    if (isTrainJson(name)) {
-                        jsonBytes.add(zip.readAllBytes());
-                        jsonPaths.add(name);
-                    } else if (depth < 2 && isArchiveName(name)) {
-                        nestedArchives.add(new NestedArchive(name, zip.readAllBytes()));
-                    }
+        PackZipReader.read(zipInput, (entry, zip) -> {
+            if (!entry.isDirectory()) {
+                String name = normalize(entry.getName());
+                if (isTrainJson(name)) {
+                    jsonBytes.add(zip.readAllBytes());
+                    jsonPaths.add(name);
+                } else if (depth < 2 && isArchiveName(name)) {
+                    nestedArchives.add(new NestedArchive(name, zip.readAllBytes()));
                 }
-                zip.closeEntry();
             }
-        }
+        });
         for (int i = 0; i < jsonBytes.size(); i++) {
             parseTrainJson(jsonBytes.get(i), packName, jsonPaths.get(i));
         }
@@ -1143,14 +1138,18 @@ public class VehiclePackLoader {
                 }
                 return null;
             }
-            try (java.util.zip.ZipInputStream zip = new java.util.zip.ZipInputStream(Files.newInputStream(packPath))) {
-                java.util.zip.ZipEntry entry;
-                while ((entry = zip.getNextEntry()) != null) {
+            try (InputStream input = Files.newInputStream(packPath)) {
+                final String[] result = {null};
+                PackZipReader.read(input, (entry, zip) -> {
                     String name = normalize(entry.getName());
-                    if (name.equalsIgnoreCase(scriptPath) || name.toLowerCase().endsWith("/" + scriptFileName) || name.toLowerCase().equals(scriptFileName)) {
-                        return PackTextDecoder.readText(zip);
+                    if (result[0] == null
+                        && (name.equalsIgnoreCase(scriptPath) || name.toLowerCase().endsWith("/" + scriptFileName)
+                        || name.toLowerCase().equals(scriptFileName))) {
+                        result[0] = PackTextDecoder.readText(zip);
                     }
-                    zip.closeEntry();
+                });
+                if (result[0] != null) {
+                    return result[0];
                 }
             }
         } catch (Exception e) {

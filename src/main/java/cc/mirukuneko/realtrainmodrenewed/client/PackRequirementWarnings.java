@@ -2,6 +2,7 @@ package cc.mirukuneko.realtrainmodrenewed.client;
 
 import cc.mirukuneko.realtrainmodrenewed.BundledPackStore;
 import cc.mirukuneko.realtrainmodrenewed.RealTrainModRenewed;
+import cc.mirukuneko.realtrainmodrenewed.util.PackZipReader;
 import net.neoforged.fml.loading.FMLPaths;
 
 import java.io.IOException;
@@ -85,7 +86,7 @@ public final class PackRequirementWarnings {
         Set<String> aliases = new LinkedHashSet<>();
         aliases.add(cleanDisplayName(archive.getFileName().toString()));
         Set<String> prerequisites = new LinkedHashSet<>();
-        try (ZipFile zipFile = new ZipFile(archive.toFile())) {
+        try (ZipFile zipFile = PackZipReader.openZipFile(archive)) {
             String readme = readReadme(zipFile);
             if (!readme.isBlank()) {
                 String title = extractTitle(readme);

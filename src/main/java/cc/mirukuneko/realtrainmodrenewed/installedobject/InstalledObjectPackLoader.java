@@ -8,6 +8,7 @@ import com.google.gson.JsonParser;
 import cc.mirukuneko.realtrainmodrenewed.BundledPackStore;
 import cc.mirukuneko.realtrainmodrenewed.rail.RailPackLoader;
 import cc.mirukuneko.realtrainmodrenewed.util.PackTextDecoder;
+import cc.mirukuneko.realtrainmodrenewed.util.PackZipReader;
 import net.neoforged.fml.ModList;
 import net.neoforged.fml.loading.FMLPaths;
 import net.minecraft.world.phys.Vec3;
@@ -23,8 +24,6 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-import java.util.zip.ZipEntry;
-import java.util.zip.ZipInputStream;
 
 public final class InstalledObjectPackLoader {
     private static final Pattern LIGHT_STATE_PATTERN = Pattern.compile("S\\((\\d+)\\)");
@@ -181,20 +180,16 @@ public final class InstalledObjectPackLoader {
     private static void loadPack(InputStream zipInput, String packName, int depth) throws IOException {
         List<EntryData> entries = new ArrayList<>();
         List<NestedArchive> nestedArchives = new ArrayList<>();
-        try (ZipInputStream zip = new ZipInputStream(zipInput)) {
-            ZipEntry entry;
-            while ((entry = zip.getNextEntry()) != null) {
-                if (!entry.isDirectory()) {
-                    String normalized = normalize(entry.getName());
-                    if (isSupportedJson(normalized)) {
-                        entries.add(new EntryData(normalized, zip.readAllBytes()));
-                    } else if (depth < 2 && isArchiveName(normalized)) {
-                        nestedArchives.add(new NestedArchive(normalized, zip.readAllBytes()));
-                    }
+        PackZipReader.read(zipInput, (entry, zip) -> {
+            if (!entry.isDirectory()) {
+                String normalized = normalize(entry.getName());
+                if (isSupportedJson(normalized)) {
+                    entries.add(new EntryData(normalized, zip.readAllBytes()));
+                } else if (depth < 2 && isArchiveName(normalized)) {
+                    nestedArchives.add(new NestedArchive(normalized, zip.readAllBytes()));
                 }
-                zip.closeEntry();
             }
-        }
+        });
         for (EntryData entry : entries) {
             parse(entry.path(), entry.bytes(), packName);
         }

@@ -66,9 +66,9 @@ public final class TrainHudOverlay {
         int x = Math.round((screenW - CAB_W * scale) * 0.5F);
         int y = Math.round(screenH - CAB_H * scale);
         graphics.blit(RenderPipelines.GUI_TEXTURED, CAB_TEXTURE, x, y, 0.0F, 0.0F, Math.round(CAB_W * scale), Math.round(CAB_H * scale), TEX_SIZE, TEX_SIZE);
-        drawMeter(graphics, x, y, scale, 32, 19, 32, 32, 48, 240.0F * getBrakeRatio(train));
-        drawMeter(graphics, x, y, scale, 32, 19, 32, 0, 48, 240.0F * getBrakeCommandRatio(train));
-        drawMeter(graphics, x, y, scale, 72, 19, 32, 64, 48, getSpeedNeedleRotation(train, def));
+        drawGaugeNeedle(graphics, x, y, scale, 32, 19, 14.0F, getGaugeAngle(240.0F * getBrakeRatio(train)), 0xFFFFFFFF);
+        drawGaugeNeedle(graphics, x, y, scale, 32, 19, 11.0F, getGaugeAngle(240.0F * getBrakeCommandRatio(train)), 0xFFFF4040);
+        drawGaugeNeedle(graphics, x, y, scale, 72, 19, 14.0F, getGaugeAngle(getSpeedNeedleRotation(train, def)), 0xFFFFFFFF);
         drawLever(graphics, x, y, scale, train);
         drawWatch(graphics, x, y, scale, train);
         drawCenteredText(graphics, font, Integer.toString(getSpeedKmh(train)), x, y, scale, 72, 37);
@@ -125,6 +125,28 @@ public final class TrainHudOverlay {
         int offset = -(size / 2);
         graphics.blit(RenderPipelines.GUI_TEXTURED, CAB_TEXTURE, offset, offset, u, v, size, size, TEX_SIZE, TEX_SIZE);
         pose.popMatrix();
+    }
+
+    private static void drawGaugeNeedle(GuiGraphicsExtractor graphics, int x, int y, float scale,
+                                        int localX, int localY, float length, float angleDegrees, int color) {
+        int cx = scaledX(x, scale, localX);
+        int cy = scaledY(y, scale, localY);
+        double radians = Math.toRadians(angleDegrees);
+        double dx = Math.cos(radians);
+        double dy = Math.sin(radians);
+        int steps = Math.max(1, Math.round(length * scale));
+        int halfWidth = scale >= 0.85F ? 1 : 0;
+        for (int i = 0; i <= steps; i++) {
+            double t = i / (double) steps;
+            int px = (int) Math.round(cx + dx * length * scale * t);
+            int py = (int) Math.round(cy + dy * length * scale * t);
+            graphics.fill(px - halfWidth, py - halfWidth, px + halfWidth + 1, py + halfWidth + 1, color);
+        }
+        graphics.fill(cx - 1, cy - 1, cx + 2, cy + 2, 0xFFFFFFFF);
+    }
+
+    private static float getGaugeAngle(float rotation) {
+        return 150.0F + rotation;
     }
 
     private static int scaledX(int x, float scale, int localX) {
