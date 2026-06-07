@@ -39,3 +39,4 @@ __pycache__
 *.pyc
 /.codex-tmp/
 docs/
+.deepseek/

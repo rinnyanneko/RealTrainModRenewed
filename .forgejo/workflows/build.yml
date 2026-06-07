@@ -15,6 +15,12 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Debug files
+        run: |
+          pwd
+          ls -lah
+          find . -maxdepth 3 \( -name "gradlew" -o -name "build.gradle*" -o -name "settings.gradle*" \)
+
       - name: Install Java 25
         run: |
           apt-get update
