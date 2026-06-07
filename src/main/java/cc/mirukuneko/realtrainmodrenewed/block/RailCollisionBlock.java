@@ -130,25 +130,6 @@ public class RailCollisionBlock extends BaseEntityBlock {
         return new RailCollisionBlockEntity(pos, state);
     }
 
-    protected InteractionResult useItemOn(ItemStack stack, BlockState state, Level level, BlockPos pos, Player player, InteractionHand hand, BlockHitResult hit) {
-        if (level.isClientSide()) {
-            return InteractionResult.PASS;
-        }
-        if (!stack.is(RealTrainModRenewedItems.CROWBAR_ITEM.get())) {
-            return InteractionResult.PASS;
-        }
-        BlockEntity be = level.getBlockEntity(pos);
-        if (be instanceof RailCollisionBlockEntity collision) {
-            BlockPos corePos = collision.getCorePos();
-            if (corePos != null && level.getBlockState(corePos).getBlock() instanceof LargeRailCoreBlock) {
-                LargeRailCoreBlockEntity core = level.getBlockEntity(corePos) instanceof LargeRailCoreBlockEntity c ? c : null;
-                LargeRailCoreBlock.removeRailNetwork(level, corePos, core);
-                return InteractionResult.SUCCESS;
-            }
-        }
-        return InteractionResult.PASS;
-    }
-
     @Override
     protected void neighborChanged(BlockState state, Level level, BlockPos pos, Block block,
                                    @Nullable net.minecraft.world.level.redstone.Orientation orientation, boolean isMoving) {

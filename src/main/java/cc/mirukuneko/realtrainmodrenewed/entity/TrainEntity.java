@@ -662,9 +662,9 @@ public class TrainEntity extends Entity {
         }
         boolean runScriptTick = !level().isClientSide() || shouldRunClientVisualScriptThisTick();
         if (level().isClientSide() && soundScriptEngine != null) {
-            LegacyScriptSoundManager.stopAutoRunningSound(this);
             TrainScriptSystem.invokeScriptTick(soundScriptEngine, this);
             TrainScriptSystem.invokeScriptUpdate(soundScriptEngine, this, 1.0F);
+            LegacyScriptSoundManager.tickJsonRunningSound(this);
         } else {
             if (level().isClientSide()) {
                 LegacyScriptSoundManager.tickJsonRunningSound(this);
@@ -811,11 +811,7 @@ public class TrainEntity extends Entity {
         clientLerpZ = z;
         clientLerpYRot = yRot;
         clientLerpXRot = xRot;
-        // Trains send a position update every tick (hasImpulse=true while moving), so
-        // using steps=1 (snap to server position each tick) gives smooth rendering AND
-        // keeps the lerped body position aligned with the rail-anchor-based bogie positions.
-        // Multi-step lerp would lag the body behind the bogies by several ticks at speed.
-        clientLerpSteps = 1;
+        clientLerpSteps = isLocalPlayerOnThisTrain() ? 1 : Math.max(2, Math.min(3, steps));
         setDeltaMovement(Vec3.ZERO);
     }
 
@@ -882,7 +878,7 @@ public class TrainEntity extends Entity {
         }
 
         if (notch < 0) {
-            // 本家RTM(EnumNotch)準拠のブレーキ。B1=-0.0005 ... B7=-0.0035、非常EB(-8)=-0.01。
+            // RTM EnumNotch に近い常用ブレーキ。B1..B7 は段ごと、EB は強め。
             int b = -notch; // 1..8
             float decel = (b >= MAX_BRAKE_NOTCH) ? 0.01F : 0.0005F * b;
             return approachZero(speed, decel);
@@ -909,9 +905,7 @@ public class TrainEntity extends Entity {
 
     private float getConfiguredAcceleration(VehicleDefinition def) {
         if (def != null && def.getAcceleration() > 0.0F) {
-            // 実車に近い穏やかな加速にするため倍率と上限を下げる
-            // (旧: *1.75 / 上限0.0062 は急加速ぎみだった)。
-            return Mth.clamp(def.getAcceleration() * 1.30F, 0.0006F, 0.0042F);
+            return Mth.clamp(def.getAcceleration() * 1.25F, 0.0006F, 0.0040F);
         }
         return 0.0022F;
     }
@@ -6507,8 +6501,7 @@ public class TrainEntity extends Entity {
     }
 
     public double getDefaultDistanceToConnectedTrain(TrainEntity other) {
-        return Math.max((getConfiguredTrainDistance() + (other != null ? other.getConfiguredTrainDistance() : getConfiguredTrainDistance())) + 0.5,
-            getTrainHalfLength() + (other != null ? other.getTrainHalfLength() : getTrainHalfLength()) + 1.5);
+        return getCoupledGap(this, other == null ? this : other);
     }
 
     private void ensureDriverReadyForFormation(Entity driver) {

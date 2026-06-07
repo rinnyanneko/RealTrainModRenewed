@@ -31,8 +31,9 @@ RealTrainModRenewed aims to bring the RTM experience to newer Minecraft versions
 
 - [x] Upgrade to Minecraft Java Edition 26.1 / NeoForge 26.1
 - [x] Make the mod compile and run on the new target version
-- [ ] **Preserve compatibility with existing RTM models, packs, and content where possible**
-- [ ] Gradually rewrite the codebase with Kotlin
+- [X] Preserve compatibility with existing RTM models, packs, and content where possible
+- [ ] **Gradually rewrite the codebase with Kotlin**
+- [ ] FIX BUUUUUUGS
 - [ ] Improve documentation for users and developers
 - [ ] Evaluate migration to the next NeoForge LTS version when available
 - [ ] Add new features where appropriate

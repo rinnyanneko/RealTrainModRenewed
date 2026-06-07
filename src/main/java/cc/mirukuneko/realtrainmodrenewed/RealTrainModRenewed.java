@@ -92,6 +92,8 @@ public class RealTrainModRenewed {
             WebCtcCompat::onServerStopping);
         net.neoforged.neoforge.common.NeoForge.EVENT_BUS.addListener(
             CrowbarItem::onAttackEntity);
+        net.neoforged.neoforge.common.NeoForge.EVENT_BUS.addListener(
+            CrowbarItem::onBreakBlock);
         // スピーカー音源マッピングをサーバー起動時にロードし、プレイヤー接続時に同期する。
         net.neoforged.neoforge.common.NeoForge.EVENT_BUS.addListener(
             (net.neoforged.neoforge.event.server.ServerStartingEvent e) ->

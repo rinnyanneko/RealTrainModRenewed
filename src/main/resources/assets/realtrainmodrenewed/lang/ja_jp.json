@@ -77,8 +77,8 @@
 
   "key.categories.realtrainmodrenewed": "RealTrainMod Renewed",
   "key.realtrainmodrenewed.open_control": "運転操作を開く",
-  "key.realtrainmodrenewed.power_off": "力行を上げる",
-  "key.realtrainmodrenewed.brake_off": "ブレーキをかける",
+  "key.realtrainmodrenewed.power_off": "力行を上げる(S)",
+  "key.realtrainmodrenewed.brake_off": "ブレーキをかける(W)",
   "key.realtrainmodrenewed.neutral": "ニュートラルにする",
   "key.realtrainmodrenewed.toggle_cab": "運転台UIを切り替える",
   "key.realtrainmodrenewed.play_announcement": "選択中の車内放送を再生",

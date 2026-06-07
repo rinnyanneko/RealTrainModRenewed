@@ -1,11 +1,6 @@
 package cc.mirukuneko.realtrainmodrenewed.item;
 
 import cc.mirukuneko.realtrainmodrenewed.RealTrainModRenewedItems;
-import cc.mirukuneko.realtrainmodrenewed.block.InstalledObjectBlock;
-import cc.mirukuneko.realtrainmodrenewed.block.LargeRailCoreBlock;
-import cc.mirukuneko.realtrainmodrenewed.block.RailCollisionBlock;
-import cc.mirukuneko.realtrainmodrenewed.block.SignalRemoteBlock;
-import cc.mirukuneko.realtrainmodrenewed.block.SignalStateBlock;
 import cc.mirukuneko.realtrainmodrenewed.entity.CarEntity;
 import cc.mirukuneko.realtrainmodrenewed.entity.TrainBogieEntity;
 import cc.mirukuneko.realtrainmodrenewed.entity.TrainEntity;
@@ -17,6 +12,7 @@ import net.minecraft.world.item.Item;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.state.BlockState;
 import net.neoforged.neoforge.event.entity.player.AttackEntityEvent;
+import net.neoforged.neoforge.event.level.block.BreakBlockEvent;
 
 public class CrowbarItem extends Item {
     public CrowbarItem() {
@@ -28,18 +24,19 @@ public class CrowbarItem extends Item {
     }
 
     public boolean canAttackBlock(BlockState state, Level level, BlockPos pos, Player player) {
-        return state.getBlock() instanceof RailCollisionBlock
-            || state.getBlock() instanceof LargeRailCoreBlock
-            || state.getBlock() instanceof InstalledObjectBlock
-            || state.getBlock() instanceof SignalRemoteBlock
-            || state.getBlock() instanceof SignalStateBlock;
+        return false;
+    }
+
+    public static void onBreakBlock(BreakBlockEvent event) {
+        Player player = event.getPlayer();
+        if (player != null && isHoldingCrowbar(player)) {
+            event.setCanceled(true);
+        }
     }
 
     public static void onAttackEntity(AttackEntityEvent event) {
         Player player = event.getEntity();
-        if (player == null
-            || (!player.getMainHandItem().is(RealTrainModRenewedItems.CROWBAR_ITEM.get())
-                && !player.getOffhandItem().is(RealTrainModRenewedItems.CROWBAR_ITEM.get()))) {
+        if (player == null || !isHoldingCrowbar(player)) {
             return;
         }
         Entity target = event.getTarget();
@@ -50,5 +47,10 @@ public class CrowbarItem extends Item {
             return;
         }
         event.setCanceled(true);
+    }
+
+    private static boolean isHoldingCrowbar(Player player) {
+        return player.getMainHandItem().is(RealTrainModRenewedItems.CROWBAR_ITEM.get())
+            || player.getOffhandItem().is(RealTrainModRenewedItems.CROWBAR_ITEM.get());
     }
 }
