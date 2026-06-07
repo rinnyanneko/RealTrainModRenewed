@@ -33,6 +33,11 @@ jobs:
       - name: Show Java version
         run: java -version
 
+      - name: Fix Gradle wrapper line endings
+        run: |
+          sed -i 's/\r$//' ./gradlew
+          head -n 1 ./gradlew | cat -v
+
       - name: Make Gradle wrapper executable
         run: chmod +x ./gradlew
 
