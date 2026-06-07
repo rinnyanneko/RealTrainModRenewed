@@ -87,7 +87,7 @@ Before making large architectural changes, please open an issue first so the dir
 
 This project is licensed under the GNU Lesser General Public License v3.0 or later.
 
-RealTrainModRenewed is a fork of [RealTrainModRenewed](https://github.com/325-Sunnygo/RealTrainModUnofficial) and is based on the original RealTrainMod project by NGT5479.
+RealTrainModRenewed is a fork of [RealTrainModUnofficial](https://github.com/325-Sunnygo/RealTrainModUnofficial) and is based on the original RealTrainMod project by NGT5479.
 
 Original copyright notices, license files, and attribution are preserved where applicable.
 
