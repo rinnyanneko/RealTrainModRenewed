@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - main
+      - master
       - dev
   pull_request:
 
@@ -11,12 +12,18 @@ jobs:
   build:
     runs-on: docker
 
-    container:
-      image: eclipse-temurin:25-jdk
-
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Install Java 25
+        run: |
+          apt-get update
+          apt-get install -y curl ca-certificates gnupg
+          curl -fsSL https://packages.adoptium.net/artifactory/api/gpg/key/public | gpg --dearmor -o /usr/share/keyrings/adoptium.gpg
+          echo "deb [signed-by=/usr/share/keyrings/adoptium.gpg] https://packages.adoptium.net/artifactory/deb bookworm main" > /etc/apt/sources.list.d/adoptium.list
+          apt-get update
+          apt-get install -y temurin-25-jdk
 
       - name: Show Java version
         run: java -version
@@ -26,9 +33,6 @@ jobs:
 
       - name: Build
         run: ./gradlew build --no-daemon
-
-      - name: List jars
-        run: ls -lah build/libs
 
       - name: Upload jar artifact
         uses: actions/upload-artifact@v4
