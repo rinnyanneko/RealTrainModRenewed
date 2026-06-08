@@ -1,6 +1,7 @@
 package cc.mirukuneko.realtrainmodrenewed.client.sound;
 
 import cc.mirukuneko.realtrainmodrenewed.RealTrainModRenewed;
+import cc.mirukuneko.realtrainmodrenewed.util.LegacyResourcePathUtil;
 import cc.mirukuneko.realtrainmodrenewed.util.PackZipReader;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
@@ -92,6 +93,7 @@ public final class ExternalSoundPackBridge {
                 }
             }
             boolean wroteAnyJson = writeMergedSoundsJson(mergedSoundDefs);
+            repairMissingReferencedSounds();
             if (!copiedAnySoundAsset && !wroteAnyJson) {
                 deleteDirectoryIfExists(GENERATED_PACK_ROOT);
                 return null;
@@ -147,7 +149,7 @@ public final class ExternalSoundPackBridge {
                 for (Path source : walk.filter(Files::isRegularFile).toList()) {
                     Path relative = rootSoundsDir.relativize(source);
                     Path target = GENERATED_PACK_ROOT.resolve("assets").resolve(rootNamespace).resolve("sounds")
-                        .resolve(lowercasePath(relative));
+                        .resolve(sanitizedSoundAssetPath(relative));
                     Files.createDirectories(target.getParent());
                     Files.copy(source, target, StandardCopyOption.REPLACE_EXISTING);
                     registerCopiedSound(mergedSoundDefs, rootNamespace, relative);
@@ -176,7 +178,7 @@ public final class ExternalSoundPackBridge {
                         for (Path source : walk.filter(Files::isRegularFile).toList()) {
                             Path relative = soundsDir.relativize(source);
                             Path target = GENERATED_PACK_ROOT.resolve("assets").resolve(namespace).resolve("sounds")
-                                .resolve(lowercasePath(relative));
+                                .resolve(sanitizedSoundAssetPath(relative));
                             Files.createDirectories(target.getParent());
                             Files.copy(source, target, StandardCopyOption.REPLACE_EXISTING);
                             registerCopiedSound(mergedSoundDefs, namespace, relative);
@@ -212,7 +214,7 @@ public final class ExternalSoundPackBridge {
                     String[] parts = normalized.split("/");
                     Path target = GENERATED_PACK_ROOT.resolve("assets").resolve(rootNamespace).resolve("sounds");
                     for (int i = 1; i < parts.length; i++) {
-                        target = target.resolve(parts[i].toLowerCase(Locale.ROOT));
+                        target = target.resolve(sanitizePathSegment(parts[i]));
                     }
                     Files.createDirectories(target.getParent());
                     try (InputStream input = zipFile.getInputStream(entry)) {
@@ -242,7 +244,7 @@ public final class ExternalSoundPackBridge {
                 if (parts.length >= 4 && "sounds".equalsIgnoreCase(parts[2])) {
                     Path target = GENERATED_PACK_ROOT.resolve("assets").resolve(namespace).resolve("sounds");
                     for (int i = 3; i < parts.length; i++) {
-                        target = target.resolve(parts[i].toLowerCase(Locale.ROOT));
+                        target = target.resolve(sanitizePathSegment(parts[i]));
                     }
                     Files.createDirectories(target.getParent());
                     try (InputStream input = zipFile.getInputStream(entry)) {
@@ -256,10 +258,10 @@ public final class ExternalSoundPackBridge {
         return copiedAny;
     }
 
-    private static Path lowercasePath(Path path) {
+    private static Path sanitizedSoundAssetPath(Path path) {
         Path lowered = Path.of("");
         for (Path part : path) {
-            lowered = lowered.resolve(part.toString().toLowerCase(Locale.ROOT));
+            lowered = lowered.resolve(sanitizePathSegment(part.toString()));
         }
         return lowered;
     }
@@ -273,6 +275,7 @@ public final class ExternalSoundPackBridge {
             return;
         }
         soundPath = soundPath.substring(0, soundPath.length() - ".ogg".length());
+        soundPath = sanitizeSoundPath(soundPath);
         if (soundPath.isBlank()) {
             return;
         }
@@ -297,7 +300,10 @@ public final class ExternalSoundPackBridge {
             JsonObject target = mergedSoundDefs.computeIfAbsent(namespace, ignored -> new JsonObject());
             JsonObject source = parsed.getAsJsonObject();
             for (Map.Entry<String, JsonElement> entry : source.entrySet()) {
-                target.add(entry.getKey().toLowerCase(Locale.ROOT), normalizeSoundEvent(namespace, entry.getValue()));
+                String eventKey = sanitizeSoundEventKey(entry.getKey());
+                if (!eventKey.isBlank()) {
+                    target.add(eventKey, normalizeSoundEvent(namespace, entry.getValue()));
+                }
             }
         } catch (Exception e) {
             RealTrainModRenewed.LOGGER.debug("Could not merge sounds.json for namespace {}", namespace, e);
@@ -361,7 +367,18 @@ public final class ExternalSoundPackBridge {
         if (ns == null || ns.isBlank() || "minecraft".equalsIgnoreCase(ns)) {
             return raw;
         }
-        return ns.toLowerCase(Locale.ROOT) + ":" + path.toLowerCase(Locale.ROOT);
+        String normalizedPath = normalize(path);
+        if (normalizedPath.startsWith("sounds/")) {
+            normalizedPath = normalizedPath.substring("sounds/".length());
+        }
+        if (normalizedPath.endsWith(".ogg")) {
+            normalizedPath = normalizedPath.substring(0, normalizedPath.length() - ".ogg".length());
+        }
+        normalizedPath = sanitizeSoundPath(normalizedPath);
+        if (normalizedPath.isBlank()) {
+            return raw;
+        }
+        return ns.toLowerCase(Locale.ROOT).replaceAll("[^a-z0-9_.-]", "_") + ":" + normalizedPath;
     }
 
     private static boolean writeMergedSoundsJson(Map<String, JsonObject> mergedSoundDefs) throws IOException {
@@ -402,8 +419,99 @@ public final class ExternalSoundPackBridge {
         );
     }
 
+    private static void repairMissingReferencedSounds() {
+        Path assetsRoot = GENERATED_PACK_ROOT.resolve("assets");
+        if (!Files.isDirectory(assetsRoot)) {
+            return;
+        }
+        try (var namespaces = Files.list(assetsRoot)) {
+            for (Path namespaceDir : namespaces.toList()) {
+                Path soundsJson = namespaceDir.resolve("sounds.json");
+                Path soundsDir = namespaceDir.resolve("sounds");
+                if (!Files.isRegularFile(soundsJson) || !Files.isDirectory(soundsDir)) {
+                    continue;
+                }
+                String namespace = namespaceDir.getFileName().toString();
+                JsonElement parsed = JsonParser.parseString(Files.readString(soundsJson));
+                if (!parsed.isJsonObject()) {
+                    continue;
+                }
+                for (Map.Entry<String, JsonElement> entry : parsed.getAsJsonObject().entrySet()) {
+                    repairSoundElement(namespace, soundsDir, entry.getValue());
+                }
+            }
+        } catch (Exception e) {
+            RealTrainModRenewed.LOGGER.debug("Could not repair generated sound references", e);
+        }
+    }
+
+    private static void repairSoundElement(String namespace, Path soundsDir, JsonElement element) throws IOException {
+        if (element == null || element.isJsonNull()) {
+            return;
+        }
+        if (element.isJsonArray()) {
+            for (JsonElement child : element.getAsJsonArray()) {
+                repairSoundElement(namespace, soundsDir, child);
+            }
+            return;
+        }
+        if (element.isJsonPrimitive() && element.getAsJsonPrimitive().isString()) {
+            repairSoundReference(namespace, soundsDir, element.getAsString());
+            return;
+        }
+        if (!element.isJsonObject()) {
+            return;
+        }
+        JsonObject object = element.getAsJsonObject();
+        JsonElement sounds = object.get("sounds");
+        if (sounds != null) {
+            repairSoundElement(namespace, soundsDir, sounds);
+        }
+        JsonElement name = object.get("name");
+        if (name != null && name.isJsonPrimitive() && name.getAsJsonPrimitive().isString()) {
+            repairSoundReference(namespace, soundsDir, name.getAsString());
+        }
+    }
+
+    private static void repairSoundReference(String namespace, Path soundsDir, String rawReference) throws IOException {
+        String ref = rawReference == null ? "" : rawReference;
+        int colon = ref.indexOf(':');
+        String refNamespace = colon >= 0 ? ref.substring(0, colon) : namespace;
+        if (!namespace.equals(refNamespace)) {
+            return;
+        }
+        String soundPath = colon >= 0 ? ref.substring(colon + 1) : ref;
+        if (soundPath.endsWith(".ogg")) {
+            soundPath = soundPath.substring(0, soundPath.length() - ".ogg".length());
+        }
+        Path expected = soundsDir.resolve(sanitizedSoundAssetPath(Path.of(soundPath + ".ogg")));
+        if (Files.isRegularFile(expected)) {
+            return;
+        }
+        Path replacement = LegacyResourcePathUtil.findBestReplacementSound(soundsDir, soundPath);
+        if (replacement == null) {
+            return;
+        }
+        Files.createDirectories(expected.getParent());
+        Files.copy(replacement, expected, StandardCopyOption.REPLACE_EXISTING);
+    }
+
     private static String normalize(String raw) {
         return raw.replace('\\', '/').replaceFirst("^/+", "");
+    }
+
+    private static String sanitizeSoundPath(String path) {
+        return LegacyResourcePathUtil.sanitizeSoundPath(path);
+    }
+
+    private static String sanitizePathSegment(String segment) {
+        String sanitized = sanitizeSoundPath(segment);
+        return sanitized.isBlank() ? "_" : sanitized;
+    }
+
+    private static String sanitizeSoundEventKey(String key) {
+        String sanitized = sanitizeSoundPath(key == null ? "" : key.replace('\\', '/'));
+        return sanitized.replace('/', '.');
     }
 
     private static String namespaceFromPackName(String packName) {

@@ -1,6 +1,7 @@
 package cc.mirukuneko.realtrainmodrenewed.script;
 
 import cc.mirukuneko.realtrainmodrenewed.RealTrainModRenewed;
+import cc.mirukuneko.realtrainmodrenewed.BundledPackStore;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.math.Axis;
 import cc.mirukuneko.realtrainmodrenewed.client.ScriptClientCompat;
@@ -13,8 +14,10 @@ import cc.mirukuneko.realtrainmodrenewed.blockentity.InstalledObjectBlockEntity;
 import cc.mirukuneko.realtrainmodrenewed.client.model.MqoModelLoader;
 import cc.mirukuneko.realtrainmodrenewed.entity.TrainEntity;
 import cc.mirukuneko.realtrainmodrenewed.util.PackTextDecoder;
+import cc.mirukuneko.realtrainmodrenewed.util.PackZipReader;
 import cc.mirukuneko.realtrainmodrenewed.vehicle.VehicleDefinition;
 import cc.mirukuneko.realtrainmodrenewed.vehicle.VehicleRegistry;
+import net.neoforged.fml.loading.FMLPaths;
 import net.minecraft.core.BlockPos;
 import net.minecraft.client.renderer.MultiBufferSource;
 import net.minecraft.util.Mth;
@@ -30,6 +33,8 @@ import java.util.stream.Collectors;
 import net.minecraft.world.entity.player.Player;
 
 import javax.script.*;
+import java.io.InputStream;
+import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.HashMap;
@@ -38,6 +43,8 @@ import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipFile;
 
 public class TrainScriptSystem {
     private static final String[] PREFERRED_ECMA_VERSIONS = {"2024", "2023", "2022"};
@@ -139,7 +146,7 @@ public class TrainScriptSystem {
         "  return V;\n" +
         "})();\n" +
         "var Vec3 = __Vec3Impl;\n" +
-        "NGTText = {\n" +
+        "NGTText = (typeof __RTMU_NGTText__ !== 'undefined' && __RTMU_NGTText__) ? __RTMU_NGTText__ : {\n" +
         // 空 ArrayList を返すと sound_includeSoundLib の eval が no-op になり、
         // onUpdate が再定義されないまま onUpdate(su) を再帰呼出して StackOverflow する。
         // dummy の onUpdate/onUpdate2 定義を1要素入れて、eval で no-op 化させる。
@@ -735,7 +742,7 @@ public class TrainScriptSystem {
             //   var NGTText = __RTMU_NGTText__;
             // を実行することで、ユーザースクリプトの importPackage より先に
             // global var として確立しておく (var 宣言は importPackage よりも優先)。
-            NGTTextCompat ngtText = new NGTTextCompat();
+            NGTTextCompat ngtText = new NGTTextCompat(scriptEngine);
             NGTLogCompat ngtLog = new NGTLogCompat();
             NGTUtilCompat ngtUtil = new NGTUtilCompat();
             NGTMathCompat ngtMath = new NGTMathCompat();
@@ -1619,10 +1626,9 @@ public class TrainScriptSystem {
             this.seatRotation = train == null ? 0.0F : train.getSeatRotation();
             this.pantograph_F = train == null ? 0.0F : train.pantograph_F;
             this.pantograph_B = train == null ? 0.0F : train.pantograph_B;
-            // brakeCount: 0–8 equivalent brake notch position for gauge display
+            // brakeCount: 0-8 equivalent brake notch position for gauge display
             this.brakeCount = train == null ? 0.0F : Math.max(0, -train.getNotch());
-            // brakeAirCount: simulated MR pressure (starts at max 800, decreases with braking)
-            this.brakeAirCount = train == null ? 800.0F : 800.0F - Math.max(0, -train.getNotch()) * 30.0F;
+            this.brakeAirCount = train == null ? 0.0F : train.getBrakeCylinderPressure();
             this.xCoord = train == null ? 0.0 : train.getX();
             this.yCoord = train == null ? 0.0 : train.getY();
             this.zCoord = train == null ? 0.0 : train.getZ();
@@ -5117,13 +5123,31 @@ public class TrainScriptSystem {
      * Nashorn のオーバーロード解決は不安定で、複数の readText() オーバーロードがあると
      * "is not a function" エラーになることがある。各メソッドを 1 個の定義に統一する。
      * readText は本来テキストファイル内容を List<String> で返す。
+     * 追加パック側には eval(NGTText.readText(...)) のように文字列化を期待する
+     * スクリプトもあるため、List として扱えつつ toString() は元テキストを返す。
      */
     public static final class NGTTextCompat {
+        private static final Map<String, String> TEXT_CACHE = new ConcurrentHashMap<>();
+        private final ScriptEngine scriptEngine;
+
+        public NGTTextCompat() {
+            this(null);
+        }
+
+        public NGTTextCompat(ScriptEngine scriptEngine) {
+            this.scriptEngine = scriptEngine;
+        }
+
         public java.util.List<String> readText(Object resource) {
-            return new java.util.ArrayList<>();
+            String content = readTextContent(resource);
+            if (content.isEmpty()) {
+                return ScriptTextLines.empty();
+            }
+            return ScriptTextLines.from(content);
         }
         public String[] readTextLines(Object resource) {
-            return new String[0];
+            java.util.List<String> lines = readText(resource);
+            return lines.toArray(String[]::new);
         }
         public void writeText(Object a) {}
         public String loadText(Object a) { return ""; }
@@ -5134,6 +5158,260 @@ public class TrainScriptSystem {
         public void appendSibling(Object a) {}
         public void appendText(Object a) {}
         public void applyTextStyles(Object a) {}
+
+        private static final class ScriptTextLines extends java.util.ArrayList<String> {
+            private final String content;
+
+            private ScriptTextLines(String content) {
+                this.content = content;
+            }
+
+            static ScriptTextLines empty() {
+                return new ScriptTextLines("");
+            }
+
+            static ScriptTextLines from(String content) {
+                ScriptTextLines lines = new ScriptTextLines(content);
+                Collections.addAll(lines, content.split("\\R", -1));
+                return lines;
+            }
+
+            @Override
+            public String toString() {
+                return content;
+            }
+        }
+
+        private String readTextContent(Object resource) {
+            String requested = resourcePath(resource);
+            if (requested.isBlank()) {
+                return "";
+            }
+            String normalized = normalizeResourcePath(requested);
+            if (normalized.isBlank() || normalized.contains("..")) {
+                return "";
+            }
+            try {
+                String fromScript = readRelativeToCurrentScript(normalized);
+                if (!fromScript.isEmpty()) {
+                    return fromScript;
+                }
+                for (Path candidate : listScriptPackCandidates()) {
+                    String cacheKey = normalizeResourcePath(candidate.toString()) + "|" + normalized;
+                    String cached = TEXT_CACHE.get(cacheKey);
+                    if (cached != null) {
+                        return cached;
+                    }
+                    String text = Files.isDirectory(candidate)
+                        ? readFromDirectory(candidate, normalized)
+                        : readFromArchive(candidate, normalized);
+                    if (!text.isEmpty()) {
+                        TEXT_CACHE.put(cacheKey, text);
+                        return text;
+                    }
+                }
+            } catch (Exception e) {
+                RealTrainModRenewed.LOGGER.debug("NGTText.readText failed for {}", normalized, e);
+            }
+            return "";
+        }
+
+        private String readRelativeToCurrentScript(String requested) throws IOException {
+            if (scriptEngine == null) {
+                return "";
+            }
+            Object rawScriptPath = scriptEngine.get(SCRIPT_PATH_KEY);
+            if (!(rawScriptPath instanceof String scriptPath) || scriptPath.isBlank()) {
+                return "";
+            }
+            String cacheKey = "script:" + normalizeResourcePath(scriptPath) + "|" + requested;
+            String cached = TEXT_CACHE.get(cacheKey);
+            if (cached != null) {
+                return cached;
+            }
+            try {
+                Path current = Path.of(scriptPath);
+                Path parent = current.getParent();
+                if (parent != null) {
+                    Path relative = parent.resolve(requested).normalize();
+                    if (Files.isRegularFile(relative)) {
+                        String text = PackTextDecoder.readText(relative);
+                        TEXT_CACHE.put(cacheKey, text);
+                        return text;
+                    }
+                }
+            } catch (Exception ignored) {
+                // Most pack scripts use virtual ZIP paths here; fall back to pack search.
+            }
+            return "";
+        }
+
+        private static String readFromDirectory(Path root, String requested) throws IOException {
+            Path direct = root.resolve(requested).normalize();
+            if (Files.isRegularFile(direct)) {
+                return PackTextDecoder.readText(direct);
+            }
+            Path assetsMinecraft = root.resolve("assets").resolve("minecraft").resolve(requested).normalize();
+            if (Files.isRegularFile(assetsMinecraft)) {
+                return PackTextDecoder.readText(assetsMinecraft);
+            }
+            String leaf = requested.substring(requested.lastIndexOf('/') + 1);
+            try (var stream = Files.walk(root)) {
+                Path found = stream
+                    .filter(Files::isRegularFile)
+                    .filter(path -> path.getFileName().toString().equalsIgnoreCase(leaf))
+                    .filter(path -> normalizeResourcePath(root.relativize(path).toString()).endsWith(requested)
+                        || scoreLooseResourceMatch(root.relativize(path).toString(), requested) > 0)
+                    .findFirst()
+                    .orElse(null);
+                return found == null ? "" : PackTextDecoder.readText(found);
+            }
+        }
+
+        private static String readFromArchive(Path archive, String requested) throws IOException {
+            try (ZipFile zipFile = PackZipReader.openZipFile(archive)) {
+                ZipEntry entry = zipFile.stream()
+                    .filter(e -> !e.isDirectory())
+                    .filter(e -> {
+                        String name = normalizeResourcePath(e.getName());
+                        return name.equals(requested)
+                            || name.endsWith("/" + requested)
+                            || name.endsWith("/assets/minecraft/" + requested)
+                            || scoreLooseResourceMatch(name, requested) > 0;
+                    })
+                    .findFirst()
+                    .orElse(null);
+                if (entry == null) {
+                    return "";
+                }
+                try (InputStream input = zipFile.getInputStream(entry)) {
+                    return PackTextDecoder.readText(input);
+                }
+            }
+        }
+
+        private static int scoreLooseResourceMatch(String path, String requested) {
+            String normalizedPath = normalizeResourcePath(path);
+            String requestedLeaf = requested.substring(requested.lastIndexOf('/') + 1);
+            if (!normalizedPath.endsWith("/" + requestedLeaf) && !normalizedPath.equals(requestedLeaf)) {
+                return -1;
+            }
+            int score = 1;
+            if (normalizedPath.contains("/scripts/") && requested.contains("scripts/")) score += 4;
+            if (normalizedPath.contains("/script/") && requested.contains("script/")) score += 3;
+            if (normalizedPath.endsWith(requested)) score += 8;
+            return score;
+        }
+
+        private static String resourcePath(Object resource) {
+            if (resource == null) {
+                return "";
+            }
+            if (resource instanceof CharSequence text) {
+                return text.toString();
+            }
+            String path = invokeString(resource, "func_110623_a");
+            if (path.isBlank()) path = invokeString(resource, "getPath");
+            if (path.isBlank()) path = fieldString(resource, "path");
+            if (path.isBlank()) path = fieldString(resource, "resourcePath");
+            if (!path.isBlank()) {
+                return path;
+            }
+            return String.valueOf(resource);
+        }
+
+        private static String invokeString(Object target, String method) {
+            try {
+                Object value = target.getClass().getMethod(method).invoke(target);
+                return value == null ? "" : String.valueOf(value);
+            } catch (Exception ignored) {
+                return "";
+            }
+        }
+
+        private static String fieldString(Object target, String field) {
+            try {
+                var f = target.getClass().getField(field);
+                Object value = f.get(target);
+                return value == null ? "" : String.valueOf(value);
+            } catch (Exception ignored) {
+                return "";
+            }
+        }
+
+        private static String normalizeResourcePath(String raw) {
+            if (raw == null) {
+                return "";
+            }
+            String normalized = raw.replace('\\', '/').trim();
+            int colon = normalized.indexOf(':');
+            if (colon >= 0) {
+                normalized = normalized.substring(colon + 1);
+            }
+            normalized = normalized.replaceFirst("^/+", "");
+            if (normalized.startsWith("assets/minecraft/")) {
+                normalized = normalized.substring("assets/minecraft/".length());
+            }
+            return normalized;
+        }
+
+        private static List<Path> listScriptPackCandidates() {
+            LinkedHashSet<Path> seen = new LinkedHashSet<>();
+            ArrayList<Path> result = new ArrayList<>();
+            Path gameDir = FMLPaths.GAMEDIR.get();
+            addDirectoryChildren(gameDir, seen, result);
+            addArchiveChildren(gameDir, seen, result);
+            for (String dir : new String[]{"mods", "content", "vehicle_packs"}) {
+                addDirectoryChildren(gameDir.resolve(dir), seen, result);
+                addArchiveChildren(gameDir.resolve(dir), seen, result);
+            }
+            Path config = gameDir.resolve("config");
+            addDirectoryChildren(config.resolve("realtrainmodrenewed"), seen, result);
+            addArchiveChildren(config.resolve("realtrainmodrenewed"), seen, result);
+            addDirectoryChildren(config.resolve("realtrainmodunofficial"), seen, result);
+            addArchiveChildren(config.resolve("realtrainmodunofficial"), seen, result);
+            for (String category : new String[]{"vehicle", "rail", "installed_object", "official"}) {
+                for (Path path : BundledPackStore.listBundledPacks(category)) {
+                    if (seen.add(path)) {
+                        result.add(path);
+                    }
+                }
+            }
+            return result;
+        }
+
+        private static void addDirectoryChildren(Path dir, Set<Path> seen, List<Path> result) {
+            if (dir == null || !Files.isDirectory(dir)) {
+                return;
+            }
+            try (var stream = Files.list(dir)) {
+                stream.filter(Files::isDirectory).forEach(path -> {
+                    if (seen.add(path)) {
+                        result.add(path);
+                    }
+                });
+            } catch (Exception ignored) {
+            }
+        }
+
+        private static void addArchiveChildren(Path dir, Set<Path> seen, List<Path> result) {
+            if (dir == null || !Files.isDirectory(dir)) {
+                return;
+            }
+            try (var stream = Files.list(dir)) {
+                stream.filter(Files::isRegularFile)
+                    .filter(path -> {
+                        String name = path.getFileName().toString().toLowerCase(Locale.ROOT);
+                        return name.endsWith(".zip") || name.endsWith(".jar");
+                    })
+                    .forEach(path -> {
+                        if (seen.add(path)) {
+                            result.add(path);
+                        }
+                    });
+            } catch (Exception ignored) {
+            }
+        }
     }
 
     /** RTM 原作の jp.ngt.ngtlib.io.NGTLog スタブ。debug/info/warn/error を Java の logger に橋渡し。 */

@@ -169,11 +169,19 @@ public final class LegacyScriptSoundManager {
             stopAutoRunningSound(train);
             return;
         }
+        if (definition.hasSoundScript() && train.getSoundScriptEngine() != null) {
+            if (!definition.hasJsonRunningSounds()) {
+                tickScriptFallbackRunningSound(train, definition);
+            } else {
+                stopAutoRunningSound(train);
+            }
+            return;
+        }
         if (definition.hasSoundScript() && !definition.hasJsonRunningSounds()) {
             tickScriptFallbackRunningSound(train, definition);
             return;
         }
-        if (definition.hasSoundScript() || !definition.hasJsonRunningSounds()) {
+        if (!definition.hasJsonRunningSounds()) {
             stopAutoRunningSound(train);
             return;
         }
@@ -258,7 +266,7 @@ public final class LegacyScriptSoundManager {
         } else if (scriptPath.contains("sound_trailer")) {
             tickFallbackTrailerSound(train);
         } else {
-            stopAutoRunningSound(train);
+            tickFallbackTrailerSound(train);
         }
     }
 

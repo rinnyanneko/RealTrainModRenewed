@@ -3,6 +3,7 @@ package cc.mirukuneko.realtrainmodrenewed.client;
 import cc.mirukuneko.realtrainmodrenewed.RealTrainModRenewed;
 import cc.mirukuneko.realtrainmodrenewed.BundledPackStore;
 import cc.mirukuneko.realtrainmodrenewed.rail.RailPackLoader;
+import cc.mirukuneko.realtrainmodrenewed.util.LegacyResourcePathUtil;
 import cc.mirukuneko.realtrainmodrenewed.util.PackZipReader;
 import com.mojang.blaze3d.platform.NativeImage;
 import net.minecraft.client.Minecraft;
@@ -146,19 +147,22 @@ public final class PackButtonTextureCache {
     }
 
     private static Path resolveDirectoryTexture(Path root, String texturePath) throws Exception {
-        String normalized = normalize(texturePath);
-        Path direct = root.resolve(normalized);
-        if (Files.isRegularFile(direct)) {
-            return direct;
+        List<String> candidates = LegacyResourcePathUtil.buttonTexturePathCandidates(texturePath);
+        for (String candidate : candidates) {
+            Path direct = root.resolve(candidate);
+            if (Files.isRegularFile(direct)) {
+                return direct;
+            }
+            Path assets = root.resolve("assets").resolve("minecraft").resolve(candidate);
+            if (Files.isRegularFile(assets)) {
+                return assets;
+            }
+            Path textures = root.resolve("textures").resolve(candidate);
+            if (Files.isRegularFile(textures)) {
+                return textures;
+            }
         }
-        Path assets = root.resolve("assets").resolve("minecraft").resolve(normalized);
-        if (Files.isRegularFile(assets)) {
-            return assets;
-        }
-        Path textures = root.resolve("textures").resolve(normalized);
-        if (Files.isRegularFile(textures)) {
-            return textures;
-        }
+        String normalized = LegacyResourcePathUtil.buttonTexturePathCandidates(texturePath).get(0);
         String leaf = normalized.substring(normalized.lastIndexOf('/') + 1);
         try (var stream = Files.walk(root)) {
             return stream.filter(Files::isRegularFile)
@@ -228,23 +232,39 @@ public final class PackButtonTextureCache {
     }
 
     private static ZipEntry findEntry(ZipFile zipFile, String texturePath) {
-        String normalized = normalize(texturePath).toLowerCase(Locale.ROOT);
+        List<String> candidates = LegacyResourcePathUtil.buttonTexturePathCandidates(texturePath).stream()
+            .map(path -> path.toLowerCase(Locale.ROOT))
+            .toList();
+        String normalized = candidates.get(0);
         String leaf = normalized.substring(normalized.lastIndexOf('/') + 1);
         return zipFile.stream()
             .filter(entry -> !entry.isDirectory())
             .filter(entry -> {
                 String name = normalize(entry.getName()).toLowerCase(Locale.ROOT);
-                return name.equals(normalized)
-                    || name.endsWith("/" + normalized)
-                    || name.endsWith("/" + leaf)
-                    || name.contains("/textures/" + normalized);
+                for (String candidate : candidates) {
+                    if (name.equals(candidate)
+                        || name.endsWith("/" + candidate)
+                        || name.endsWith("/textures/" + candidate)
+                        || name.contains("/textures/" + candidate)) {
+                        return true;
+                    }
+                }
+                return name.endsWith("/" + leaf);
             })
             .findFirst()
             .orElse(null);
     }
 
     private static String normalize(String raw) {
-        return raw.replace('\\', '/').replaceFirst("^/+", "");
+        if (raw == null) {
+            return "";
+        }
+        String normalized = raw.trim().replace('\\', '/').replaceFirst("^/+", "");
+        int namespaceSeparator = normalized.indexOf(':');
+        if (namespaceSeparator >= 0) {
+            normalized = normalized.substring(namespaceSeparator + 1);
+        }
+        return normalized.replaceFirst("^/+", "");
     }
 
     private static String safe(String raw) {

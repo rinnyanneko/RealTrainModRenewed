@@ -2,6 +2,7 @@ plugins {
     id 'java-library'
     id 'maven-publish'
     id 'idea'
+    id 'org.jetbrains.kotlin.jvm' version '2.4.0'
     id 'net.neoforged.moddev' version '2.0.141'
 }
 
@@ -22,12 +23,24 @@ repositories {
     mavenCentral()
 }
 
+def graalJsVersion = '25.0.3'
+
 base {
     archivesName = mod_id
 }
 
 // Minecraft 26.1 runs on Java 25.
 java.toolchain.languageVersion = JavaLanguageVersion.of(25)
+
+kotlin {
+    jvmToolchain(25)
+}
+
+tasks.withType(org.jetbrains.kotlin.gradle.tasks.KotlinCompile).configureEach {
+    compilerOptions {
+        jvmTarget = org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_25
+    }
+}
 
 neoForge {
     enable {
@@ -80,6 +93,7 @@ configurations {
     localRuntime
     runtimeClasspath.extendsFrom localRuntime
     jsRuntime
+    kotlinRuntime
 }
 
 dependencies {
@@ -89,10 +103,13 @@ dependencies {
     // You can however also use the vanilla plugin (net.neoforged.gradle.vanilla) to use a version of Minecraft without the neoforge loader.
     // And its provides the option to then use net.minecraft as the group, and one of; client, server or joined as the module name, plus the game version as version.
     // For all intends and purposes: You can treat this dependency as if it is a normal library you would use.
-    implementation "org.graalvm.js:js-scriptengine:24.2.2"
-    implementation "org.graalvm.polyglot:js:24.2.2"
-    jsRuntime "org.graalvm.js:js-scriptengine:24.2.2"
-    jsRuntime "org.graalvm.polyglot:js:24.2.2"
+    implementation "org.graalvm.js:js-scriptengine:${graalJsVersion}"
+    implementation "org.graalvm.polyglot:js:${graalJsVersion}"
+    jsRuntime "org.graalvm.js:js-scriptengine:${graalJsVersion}"
+    jsRuntime "org.graalvm.polyglot:js:${graalJsVersion}"
+    implementation "org.jetbrains.kotlin:kotlin-stdlib"
+    kotlinRuntime "org.jetbrains.kotlin:kotlin-stdlib"
+    testImplementation "org.jetbrains.kotlin:kotlin-test-junit5"
     // Bundled add-on ATSAssistMod+ uses Jackson for IFTTT rule serialization.
     implementation "com.fasterxml.jackson.core:jackson-databind:2.15.2"
     jsRuntime "com.fasterxml.jackson.core:jackson-databind:2.15.2"
@@ -122,12 +139,42 @@ dependencies {
 
 tasks.named('jar', Jar).configure {
     duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+    manifest {
+        attributes('Multi-Release': 'true')
+    }
     from {
-        configurations.jsRuntime
+        (configurations.jsRuntime + configurations.kotlinRuntime)
                 .filter { it.isDirectory() || it.name.endsWith('.jar') }
                 .collect { it.isDirectory() ? it : zipTree(it) }
     } {
         exclude 'META-INF/*.SF', 'META-INF/*.DSA', 'META-INF/*.RSA', 'module-info.class'
+    }
+}
+
+tasks.register('compileJsEngineVerifier', JavaCompile) {
+    source = fileTree('tools/verify-js-engine') {
+        include 'VerifyJsEngine.java'
+    }
+    destinationDirectory = layout.buildDirectory.dir('js-engine-verifier/classes')
+    classpath = files()
+    options.release = 17
+    options.encoding = 'UTF-8'
+}
+
+def builtModJar = tasks.named('jar').flatMap { it.archiveFile }
+
+tasks.register('verifyBundledJsEngine', JavaExec) {
+    dependsOn tasks.named('jar'), tasks.named('compileJsEngineVerifier')
+    group = 'verification'
+    description = 'Verifies the built jar still exposes a working bundled GraalJS script engine.'
+    classpath = files(
+        tasks.named('compileJsEngineVerifier').flatMap { it.destinationDirectory },
+        builtModJar
+    )
+    mainClass = 'VerifyJsEngine'
+    jvmArgs '-Dpolyglot.engine.WarnInterpreterOnly=false'
+    doFirst {
+        args = [builtModJar.get().asFile.absolutePath]
     }
 }
 
@@ -221,6 +268,14 @@ publishing {
 
 tasks.withType(JavaCompile).configureEach {
     options.encoding = 'UTF-8' // Use the UTF-8 charset for Java compilation
+}
+
+tasks.withType(Test).configureEach {
+    useJUnitPlatform()
+}
+
+tasks.named('check').configure {
+    dependsOn tasks.named('verifyBundledJsEngine')
 }
 
 // IDEA no longer automatically downloads sources/javadoc jars for dependencies, so we need to explicitly enable the behavior.

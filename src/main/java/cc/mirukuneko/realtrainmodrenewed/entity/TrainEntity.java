@@ -130,6 +130,15 @@ public class TrainEntity extends Entity {
     private static final float FRICTION = 0.9997f;
     private static final float DRAG_BASE = 0.00012f;
     private static final float DRAG_SPEED_FACTOR = 0.00018f;
+    private static final float MAIN_RESERVOIR_NORMAL = 780.0F;
+    private static final float BRAKE_PIPE_NORMAL = 490.0F;
+    private static final float BRAKE_PIPE_SERVICE_DROP = 150.0F;
+    private static final float BRAKE_CYLINDER_SERVICE_MAX = 420.0F;
+    private static final float BRAKE_CYLINDER_EMERGENCY_MAX = 480.0F;
+    private static final float BRAKE_APPLY_RATE = 13.0F;
+    private static final float BRAKE_RELEASE_RATE = 8.0F;
+    private static final float BRAKE_PIPE_RATE = 9.0F;
+    private static final float MAIN_RESERVOIR_RATE = 2.5F;
     // 本家RTM(EnumNotch)準拠: 力行 P1-P5(5段)、ブレーキ B1-B7 + 非常EB(-8) = 8段。
     private static final int MAX_POWER_NOTCH = 5;
     private static final int MAX_BRAKE_NOTCH = 8;
@@ -147,7 +156,7 @@ public class TrainEntity extends Entity {
     private static final double DEFAULT_HALF_WIDTH = 1.35D;
     private static final double DEFAULT_HALF_HEIGHT = 2.2D;
     private static final double TRAIN_BODY_MARGIN = 1.2D;
-    private static final double COUPLED_CLEARANCE = 0.55D;
+    private static final double COUPLED_CLEARANCE = 0.18D;
     private static final double BOGIE_SPAN_TOLERANCE = 1.75D;
     private static final double RAIL_CONNECTION_MAX_DISTANCE_SQ = 0.25D;
     private static final float RAIL_CONNECTION_MAX_YAW_DIFF = 20.0F;
@@ -238,6 +247,9 @@ public class TrainEntity extends Entity {
     private float prevRotationRoll;
     public float doorMoveL;
     public float doorMoveR;
+    private float mainReservoirPressure = MAIN_RESERVOIR_NORMAL;
+    private float brakePipePressure = BRAKE_PIPE_NORMAL;
+    private float brakeCylinderPressure = 0.0F;
     public float pantograph_F = 40.0F;
     public float pantograph_B = 40.0F;
     public float seatRotation;
@@ -356,6 +368,9 @@ public class TrainEntity extends Entity {
     public void setNotch(int notch) { entityData.set(NOTCH, Mth.clamp(notch, -getMaxBrakeNotch(), getMaxPowerNotch())); }
     public int getMaxPowerNotch() { return getMaxPowerNotch(VehicleRegistry.getById(getVehicleId())); }
     public int getMaxBrakeNotch() { return MAX_BRAKE_NOTCH; }
+    public float getMainReservoirPressure() { return mainReservoirPressure; }
+    public float getBrakePipePressure() { return brakePipePressure; }
+    public float getBrakeCylinderPressure() { return brakeCylinderPressure; }
     public boolean isHeadlightOn() { return entityData.get(HEADLIGHT_ON); }
     public void setHeadlightOn(boolean value) { setLightMode(value ? 1 : 0); }
     public int getLightMode() { return entityData.get(LIGHT_MODE); }
@@ -653,6 +668,7 @@ public class TrainEntity extends Entity {
 
         // スクリプトのtick関数を呼び出す
         updateTrainAnimationState();
+        updateBrakeAirState();
         if (level().isClientSide() && soundScriptEngine == null && !attemptedSoundScriptLoad) {
             attemptedSoundScriptLoad = true;
             VehicleDefinition soundVehicle = VehicleRegistry.getById(getVehicleId());
@@ -811,7 +827,7 @@ public class TrainEntity extends Entity {
         clientLerpZ = z;
         clientLerpYRot = yRot;
         clientLerpXRot = xRot;
-        clientLerpSteps = isLocalPlayerOnThisTrain() ? 3 : Math.max(2, Math.min(4, steps));
+        clientLerpSteps = isLocalPlayerOnThisTrain() ? 1 : Math.max(2, Math.min(4, steps));
         setDeltaMovement(Vec3.ZERO);
     }
 
@@ -878,9 +894,14 @@ public class TrainEntity extends Entity {
         }
 
         if (notch < 0) {
-            // RTM EnumNotch に近い常用ブレーキ。B1..B7 は段ごと、EB は強め。
-            int b = -notch; // 1..8
-            float decel = (b >= MAX_BRAKE_NOTCH) ? 0.01F : 0.0005F * b;
+            // Brake force follows the gradually changing cylinder pressure.
+            // This keeps the HUD air gauges and actual deceleration tied together.
+            float maxPressure = (-notch >= MAX_BRAKE_NOTCH)
+                ? BRAKE_CYLINDER_EMERGENCY_MAX
+                : BRAKE_CYLINDER_SERVICE_MAX;
+            float ratio = Mth.clamp(brakeCylinderPressure / Math.max(1.0F, maxPressure), 0.0F, 1.0F);
+            float serviceDecel = (-notch >= MAX_BRAKE_NOTCH) ? 0.0100F : 0.0072F;
+            float decel = Math.max(0.00018F, serviceDecel * ratio);
             return approachZero(speed, decel);
         }
 
@@ -947,6 +968,25 @@ public class TrainEntity extends Entity {
             seatRotation += 1.0F;
         }
         seatRotation = Mth.clamp(seatRotation, -45.0F, 45.0F);
+    }
+
+    private void updateBrakeAirState() {
+        int brakeNotch = Math.max(0, -getNotch());
+        float ratio = Mth.clamp(brakeNotch / (float) Math.max(1, getMaxBrakeNotch()), 0.0F, 1.0F);
+        boolean emergency = brakeNotch >= getMaxBrakeNotch();
+        float targetPipe = BRAKE_PIPE_NORMAL - ratio * BRAKE_PIPE_SERVICE_DROP;
+        float targetCylinder = emergency
+            ? BRAKE_CYLINDER_EMERGENCY_MAX
+            : ratio * BRAKE_CYLINDER_SERVICE_MAX;
+        float targetReservoir = MAIN_RESERVOIR_NORMAL - Math.min(35.0F, targetCylinder * 0.06F);
+
+        brakePipePressure = approach(brakePipePressure, targetPipe, BRAKE_PIPE_RATE);
+        brakeCylinderPressure = approach(
+            brakeCylinderPressure,
+            targetCylinder,
+            targetCylinder > brakeCylinderPressure ? BRAKE_APPLY_RATE : BRAKE_RELEASE_RATE
+        );
+        mainReservoirPressure = approach(mainReservoirPressure, targetReservoir, MAIN_RESERVOIR_RATE);
     }
 
     private boolean canTravelOnRail(Vec3 worldPos) {
@@ -4894,6 +4934,13 @@ public class TrainEntity extends Entity {
             if (train == null) {
                 return;
             }
+            int notch = train.getNotch();
+            int powerNotch = Math.max(0, notch);
+            int brakeNotch = Math.max(0, -notch);
+            float speedKmh = Math.abs(train.getSpeed()) * 72.0F;
+            float mainReservoirPressure = train.getMainReservoirPressure();
+            float brakePipePressure = train.getBrakePipePressure();
+            float brakeCylinderPressure = train.getBrakeCylinderPressure();
             values.put("headLight", train.isHeadlightOn() ? 1 : 0);
             values.put("door", train.isDoorOpen() ? 1 : 0);
             values.put("doorLeft", train.isDoorLeftOpen() ? 1 : 0);
@@ -4901,9 +4948,29 @@ public class TrainEntity extends Entity {
             values.put("lightMode", train.getLightMode());
             values.put("pantograph", train.isPantographUp() ? 1 : 0);
             values.put("destination", train.getDestinationIndex());
+            values.put("rollsign", train.getDestinationIndex());
+            values.put("rollsignId", train.getDestinationIndex());
+            values.put("maku", train.getDestinationIndex());
             values.put("sound", train.getSoundIndex());
             values.put("reverse", train.getReverser() < 0 ? 1 : 0);
             values.put("reverser", train.getReverser());
+            values.put("notch", notch);
+            values.put("mascon", powerNotch);
+            values.put("power", powerNotch);
+            values.put("brake", brakeNotch);
+            values.put("brakeNotch", brakeNotch);
+            values.put("speed", speedKmh);
+            values.put("speedKmh", speedKmh);
+            values.put("kmh", speedKmh);
+            values.put("MR", mainReservoirPressure);
+            values.put("mr", mainReservoirPressure);
+            values.put("mainReservoir", mainReservoirPressure);
+            values.put("BP", brakePipePressure);
+            values.put("bp", brakePipePressure);
+            values.put("brakePipe", brakePipePressure);
+            values.put("BC", brakeCylinderPressure);
+            values.put("bc", brakeCylinderPressure);
+            values.put("brakeCylinder", brakeCylinderPressure);
             values.put("customButtons", train.getCustomButtonBits());
             values.put("railProgress", train.getRailProgress());
             values.put("connected", train.isConnected() ? 1 : 0);
@@ -6238,6 +6305,9 @@ public class TrainEntity extends Entity {
         if (tag.getInt("DestinationIndex").isPresent()) setDestinationIndex(tag.getIntOr("DestinationIndex", 0));
         if (tag.getInt("SoundIndex").isPresent()) setSoundIndex(tag.getIntOr("SoundIndex", 0));
         if (!Float.isNaN(tag.getFloatOr("BodyRoll", Float.NaN))) setBodyRoll(tag.getFloatOr("BodyRoll", 0.0F));
+        mainReservoirPressure = Mth.clamp(tag.getFloatOr("MainReservoirPressure", MAIN_RESERVOIR_NORMAL), 0.0F, MAIN_RESERVOIR_NORMAL);
+        brakePipePressure = Mth.clamp(tag.getFloatOr("BrakePipePressure", BRAKE_PIPE_NORMAL), 0.0F, BRAKE_PIPE_NORMAL);
+        brakeCylinderPressure = Mth.clamp(tag.getFloatOr("BrakeCylinderPressure", 0.0F), 0.0F, BRAKE_CYLINDER_EMERGENCY_MAX);
         if (tag.getInt("CustomButtonBits").isPresent()) setCustomButtonBits(tag.getIntOr("CustomButtonBits", 0));
         if (!Float.isNaN(tag.getFloatOr("RailProgress", Float.NaN))) setRailProgress(tag.getFloatOr("RailProgress", 0.0F));
         tag.getString("CoupledFollower").ifPresent(value -> {
@@ -6305,6 +6375,9 @@ public class TrainEntity extends Entity {
         tag.putInt("DestinationIndex", getDestinationIndex());
         tag.putInt("SoundIndex", getSoundIndex());
         tag.putFloat("BodyRoll", getBodyRoll());
+        tag.putFloat("MainReservoirPressure", mainReservoirPressure);
+        tag.putFloat("BrakePipePressure", brakePipePressure);
+        tag.putFloat("BrakeCylinderPressure", brakeCylinderPressure);
         tag.putInt("CustomButtonBits", getCustomButtonBits());
         tag.putFloat("RailProgress", getRailProgress());
         if (coupledFollowerUuid != null) {
@@ -6582,7 +6655,7 @@ public class TrainEntity extends Entity {
         setSpeed(speed);
         setNotch(leader.getNotch());
         setReverser(leader.getReverser());
-        setDeltaMovement(Vec3.ZERO);
+        setDeltaMovement(getX() - preX, getY() - preY, getZ() - preZ);
         this.hurtMarked = true;
         this.hurtMarked = true;
     }

@@ -38,6 +38,7 @@ tools/convert_bbmodel_to_rtmu_pack.py
 __pycache__
 *.pyc
 .codex-tmp/
-docs/
+docs/*
+!docs/PORTING-26.1-NEOFORGE.md
 .deepseek/
 .codex_tmp/

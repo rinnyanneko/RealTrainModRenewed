@@ -23,9 +23,10 @@
 
 - The long-term direction is to rewrite the Java codebase in Kotlin and add new features.
 - Keep the Java 26.1 port working before introducing Kotlin rewrites.
-- Prefer Kotlin for new gameplay, loader, data, UI, and feature code only after the Kotlin Gradle plugin/source sets are introduced.
+- Kotlin Gradle plugin/source sets are now introduced in the root project. Continue using Kotlin only for narrow, low-risk areas until the 26.1 runtime is proven stable.
 - Migrate incrementally. Keep public behavior, mod ids, registry names, packet ids, resource paths, and saved-data formats compatible unless the user explicitly requests a breaking change.
 - Do not start a broad Java-to-Kotlin rewrite just because a file is touched. Convert only the smallest useful area for the requested work, or create Kotlin beside existing Java when that keeps risk lower.
+- `UnitConverter` and `PackTextDecoder` are early Kotlin conversions and keep their Java static APIs through `@file:JvmName(...)`; preserve this interop shape when converting similar utility files.
 - When converting Java to Kotlin, preserve NeoForge lifecycle semantics, event-bus registration timing, `DeferredRegister` behavior, sided client/server boundaries, and Java interop for the ATSA subproject.
 - Avoid renaming assets or namespaces casually. A lot of compatibility depends on exact paths under `assets/minecraft`, `assets/rtm`, and `assets/realtrainmodunofficial`.
 
@@ -44,9 +45,12 @@
 - If Gradle needs network access for dependencies and the sandbox blocks it, ask for approval rather than working around the build.
 - Report any build or test command that could not be run, including the exact reason.
 
-## CodeRabbit Review Requirement
+## CodeWhale Review Requirement
 
-- After every code or documentation change, run a CodeRabbit review before reporting the work as complete.
-- On Windows, run CodeRabbit from WSL. Use the available `coderabbit` command there rather than a native Windows shell invocation.
-- Prefer `coderabbit review --agent -t uncommitted` for local changes.
-- Include the CodeRabbit result, or clearly state why it could not be run, in the final response.
+- Do not run CodeRabbit for this repository.
+- After every code or documentation change, run a CodeWhale review before reporting the work as complete.
+- On Windows, CodeWhale is available at `C:\Users\rinny\AppData\Local\Programs\CodeWhale\bin\codewhale.exe`.
+- Use `codewhale.exe review` from the repository root to review the current uncommitted diff.
+- Before review, make sure new untracked files are visible to `git diff`; use `git add -N <path>` for intent-to-add when needed.
+- CodeWhale sends the current diff to its configured external review provider. The project owner has approved this workflow.
+- Include the CodeWhale result, or clearly state why it could not be run, in the final response.

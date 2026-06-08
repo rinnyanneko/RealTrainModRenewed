@@ -379,14 +379,18 @@ public class TrainEntityRenderer extends EntityRenderer<TrainEntity, LegacyEntit
             return;
         }
         boolean isDoorLeaf = normalized.matches(".*(?:^|_)[0-9]+[lr](?:_|$).*")
-            || normalized.matches(".*(?:^|_)[lr](?:_|$).*");
+            || normalized.matches(".*(?:^|_)[lr](?:_|$).*")
+            || normalized.matches(".*door[fb]?[lr][0-9_]*.*")
+            || normalized.matches(".*door[0-9]+[lr].*");
         if (!isDoorLeaf) {
             return;
         }
         double slide = 0.72D * progress;
         boolean opensTowardPositiveZ = normalized.matches(".*[0-9]+l(?:_|$).*")
             || normalized.contains("_l_")
-            || normalized.endsWith("_l");
+            || normalized.endsWith("_l")
+            || normalized.matches(".*door[fb]?l[0-9_]*.*")
+            || normalized.matches(".*door[0-9]+l.*");
         // Barus Keikyu 系はドア名に train-side 情報を持たないため、まずは対象側の開閉で
         // 全ドア葉を確実に動かし、葉ごとの L/R だけでスライド方向を決める。
         poseStack.translate(0.0D, 0.0D, opensTowardPositiveZ ? slide : -slide);

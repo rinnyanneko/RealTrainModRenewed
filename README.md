@@ -64,11 +64,14 @@ Recent compatibility work focuses on preserving legacy RTM add-on behavior:
 - The model-selection UI, add-on `buttonTexture` icons, train cab HUD readouts,
   train acceleration/braking, coupling distance, and Graal.js script-engine
   fallback have active 26.1 compatibility fixes.
+- Kotlin support is now wired into the root Gradle build. Early conversions
+  include low-risk utilities such as `UnitConverter` and `PackTextDecoder`,
+  while Java-facing static APIs are preserved for existing callers.
 - Some old RTM/ATSA APIs are still compatibility stubs and need runtime
   verification with representative add-on packs before release.
 
-Safe Kotlin candidates after runtime verification are small utility or pure data
-areas such as `UnitConverter`, `PackTextDecoder`, `PackZipReader`, immutable
+Next safe Kotlin candidates after runtime verification are small utility or pure data
+areas such as `PackZipReader`, immutable
 definition records, and isolated rail math helpers. Avoid converting entry
 points, registries, packets, entities, block entities, renderers, and ATSA
 integration until the 26.1 runtime path is stable.
