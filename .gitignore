@@ -42,3 +42,4 @@ docs/*
 !docs/PORTING-26.1-NEOFORGE.md
 .deepseek/
 .codex_tmp/
+local.properties

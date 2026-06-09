@@ -60,8 +60,7 @@ object PackZipReader {
                 last = e
             }
         }
-        last?.let { throw it }
-        return ZipFile(path.toFile())
+        throw last ?: IOException("Failed to open $path with any supported entry-name encoding")
     }
 
     @Throws(IOException::class)
@@ -78,8 +77,7 @@ object PackZipReader {
                 last = e
             }
         }
-        last?.let { throw it }
-        return StandardCharsets.UTF_8
+        throw last ?: IOException("Failed to decode ZIP entry names with any supported encoding")
     }
 
     @Throws(IOException::class)

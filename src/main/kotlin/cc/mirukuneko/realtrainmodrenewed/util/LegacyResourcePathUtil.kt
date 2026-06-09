@@ -47,7 +47,7 @@ fun findBestReplacementSound(soundsDir: Path, soundPath: String?): Path? {
     var bestScore = 0
     var ambiguous = false
 
-    Files.walk(soundsDir).use { walk ->
+    Files.walk(soundsDir, 4).use { walk ->
         walk.filter { it.isRegularFile() }.forEach { candidate ->
             if (candidate.fileName.toString() != fileName) {
                 return@forEach

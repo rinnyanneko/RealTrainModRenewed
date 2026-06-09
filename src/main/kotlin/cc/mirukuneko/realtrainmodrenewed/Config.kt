@@ -42,6 +42,10 @@ object Config {
 
     @JvmStatic
     private fun validateItemName(obj: Any): Boolean {
-        return obj is String && BuiltInRegistries.ITEM.containsKey(Identifier.parse(obj))
+        if (obj !is String) {
+            return false
+        }
+        val id = Identifier.tryParse(obj) ?: return false
+        return BuiltInRegistries.ITEM.containsKey(id)
     }
 }

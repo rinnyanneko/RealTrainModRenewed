@@ -45,19 +45,34 @@ Please open an issue on [Codeberg](https://codeberg.org/mirukuneko/RealTrainModR
 
 This project is currently in early development.
 
-The current priority is to port the existing Java codebase to Minecraft Java Edition 26.1 / NeoForge 26.1 before large-scale Kotlin refactoring.
+The current priority is to continue the Kotlin rewrite while keeping the existing Minecraft Java Edition 26.1 / NeoForge 26.1 runtime path buildable.
 
 Minecraft 26.1 is used as the initial modernization target.  
 When the next NeoForge LTS version becomes available, this project may migrate to it as the new long-term target.
 
 Breaking changes may happen during this stage.
 
+## Known Issues
+
+These are known runtime issues observed during compatibility testing with legacy RTM packs. They are intentionally deferred until after more of the codebase has been rewritten in Kotlin.
+
+- EV-E300 / EV-E301 compatibility is incomplete:
+  - Stationary and running sounds still do not fully match the original RTM behavior.
+  - Headlights, tail lights, and interior lights still do not render correctly.
+  - Passenger/entity visibility through train glass is still unreliable.
+- Moving trains can visibly jitter forward/back. This appears to affect multiple vehicles, not only EV-E301, and is likely in the common train movement/interpolation path.
+- Some legacy model scripts still need compatibility work around RTM/KaizPatchX helper APIs, render passes, and fullbright/emissive group behavior.
+- Some legacy sound scripts still need exact sound-event mapping and lifecycle behavior verification against original RTM packs.
+- Model selection still uses improved icon lookup rather than a complete stable 3D preview path.
+
+Current policy: do not continue deep runtime compatibility debugging until the Kotlin rewrite has advanced further, unless the issue blocks compiling, launching, or basic placement of vehicles.
+
 ## Current Port Notes
 
 The active target is Minecraft Java Edition `26.1.2` with NeoForge `26.1.2.73`
 on Java `25`. Keep the Java port stable before starting broad Kotlin work.
 
-Recent compatibility work focuses on preserving legacy RTM add-on behavior:
+Recent compatibility work focuses on preserving legacy RTM add-on behavior while migrating implementation code to Kotlin:
 
 - Legacy rail, vehicle, installed-object, model, texture, and sound packs can be
   read with common old ZIP entry-name encodings such as MS932 and Shift_JIS.
@@ -65,16 +80,15 @@ Recent compatibility work focuses on preserving legacy RTM add-on behavior:
   train acceleration/braking, coupling distance, and Graal.js script-engine
   fallback have active 26.1 compatibility fixes.
 - Kotlin support is now wired into the root Gradle build. Early conversions
-  include low-risk utilities such as `UnitConverter` and `PackTextDecoder`,
-  while Java-facing static APIs are preserved for existing callers.
+  include low-risk utilities and data carriers such as `Config`,
+  `SelectableModelInfo`, `Point`, `CurveMath`, `SignalAspect`,
+  `RealTrainModRenewedConstants`, `UnitConverter`, `PackTextDecoder`,
+  `LegacyResourcePathUtil`, and `PackZipReader`, while Java-facing static APIs
+  are preserved for existing callers.
 - Some old RTM/ATSA APIs are still compatibility stubs and need runtime
   verification with representative add-on packs before release.
 
-Next safe Kotlin candidates after runtime verification are small utility or pure data
-areas such as `PackZipReader`, immutable
-definition records, and isolated rail math helpers. Avoid converting entry
-points, registries, packets, entities, block entities, renderers, and ATSA
-integration until the 26.1 runtime path is stable.
+Next Kotlin candidates are small utility, enum, immutable data, payload, and registry-adjacent classes that can be migrated without changing runtime behavior. Avoid converting the largest entity, renderer, script, loader, and ATSA integration classes until enough supporting code has already moved to Kotlin.
 
 ## Contributing
 
