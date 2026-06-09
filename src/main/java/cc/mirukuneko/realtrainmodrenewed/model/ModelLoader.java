@@ -99,13 +99,7 @@ public class ModelLoader {
                 if (scriptPath != null && Files.exists(scriptPath)) {
                     TrainScriptSystem.loadScript(scriptPath.toString(), model);
                 } else {
-                    Path fallback = findFallbackScriptFile(packPath);
-                    if (fallback != null) {
-                        RealTrainModRenewed.LOGGER.warn("Script {} not found in pack {}; using fallback {}", normalized, packPath, fallback);
-                        TrainScriptSystem.loadScript(fallback.toString(), model);
-                    } else {
-                        RealTrainModRenewed.LOGGER.warn("Script {} not found in pack {}", normalized, packPath);
-                    }
+                    RealTrainModRenewed.LOGGER.warn("Script {} not found in pack {}", normalized, packPath);
                 }
             } else {
                 try (ZipFile zf = PackZipReader.openZipFile(packPath)) {
@@ -116,16 +110,7 @@ public class ModelLoader {
                             TrainScriptSystem.loadScript(normalized, script, model);
                         }
                     } else {
-                        ZipEntry fallback = findFallbackScriptEntry(zf);
-                        if (fallback != null) {
-                            try (InputStream in = zf.getInputStream(fallback)) {
-                                String script = new String(in.readAllBytes(), StandardCharsets.UTF_8);
-                                RealTrainModRenewed.LOGGER.warn("Script {} not found in pack {}; using fallback {}", normalized, packPath, fallback.getName());
-                                TrainScriptSystem.loadScript(fallback.getName(), script, model);
-                            }
-                        } else {
-                            RealTrainModRenewed.LOGGER.warn("Script {} not found in pack {}", normalized, packPath);
-                        }
+                        RealTrainModRenewed.LOGGER.warn("Script {} not found in pack {}", normalized, packPath);
                     }
                 }
             }

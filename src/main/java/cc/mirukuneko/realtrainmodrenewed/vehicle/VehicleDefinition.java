@@ -56,6 +56,7 @@ public class VehicleDefinition {
     private final List<DoorAnimationDefinition> leftDoors;
     private final List<DoorAnimationDefinition> rightDoors;
     private final List<Float> notchMaxSpeeds;
+    private final List<Float> brakeDecelerations;
     private final float acceleration;
     private final boolean smoothing;
     private final List<String> rollsignNames;
@@ -68,6 +69,8 @@ public class VehicleDefinition {
     private final List<LightDefinition> interiorLights;
     private final String hornSound;
     private final List<String> announcementSounds;
+    private String doorOpenSound = "";
+    private String doorCloseSound = "";
     private String soundStop = "";
     private String soundStartAcceleration = "";
     private String soundAcceleration = "";
@@ -120,6 +123,58 @@ public class VehicleDefinition {
         boolean singleTrain
     ) {
         this(
+            id, displayName, packName, modelFile, buttonTexture, textureOverrides, modelOffset, modelScale,
+            bogies, seatPositions, playerPositions, seatOffset, scriptPath, soundScriptPath, vehicleType, doorType,
+            trainDistance, driverSeatIndex, frontDriverSeatIndex, rearDriverSeatIndex, leftDoors, rightDoors,
+            notchMaxSpeeds, List.of(), acceleration, smoothing, rollsignNames, customButtonNames, customButtonOptions,
+            rollsignTexture, rollsigns, headLights, tailLights, interiorLights, hornSound, announcementSounds,
+            doCulling, renderLight, notDisplayCab, singleTrain
+        );
+    }
+
+    public VehicleDefinition(
+        String id,
+        String displayName,
+        String packName,
+        String modelFile,
+        String buttonTexture,
+        Map<String, String> textureOverrides,
+        Vec3 modelOffset,
+        float modelScale,
+        List<BogieDefinition> bogies,
+        List<Vec3> seatPositions,
+        List<Vec3> playerPositions,
+        Vec3 seatOffset,
+        String scriptPath,
+        String soundScriptPath,
+        String vehicleType,
+        String doorType,
+        float trainDistance,
+        int driverSeatIndex,
+        int frontDriverSeatIndex,
+        int rearDriverSeatIndex,
+        List<DoorAnimationDefinition> leftDoors,
+        List<DoorAnimationDefinition> rightDoors,
+        List<Float> notchMaxSpeeds,
+        List<Float> brakeDecelerations,
+        float acceleration,
+        boolean smoothing,
+        List<String> rollsignNames,
+        List<String> customButtonNames,
+        List<List<String>> customButtonOptions,
+        String rollsignTexture,
+        List<RollsignDefinition> rollsigns,
+        List<LightDefinition> headLights,
+        List<LightDefinition> tailLights,
+        List<LightDefinition> interiorLights,
+        String hornSound,
+        List<String> announcementSounds,
+        boolean doCulling,
+        boolean renderLight,
+        boolean notDisplayCab,
+        boolean singleTrain
+    ) {
+        this(
             id,
             displayName,
             packName,
@@ -144,6 +199,7 @@ public class VehicleDefinition {
             leftDoors,
             rightDoors,
             notchMaxSpeeds,
+            brakeDecelerations,
             acceleration,
             smoothing,
             rollsignNames,
@@ -205,6 +261,59 @@ public class VehicleDefinition {
         boolean notDisplayCab,
         boolean singleTrain
     ) {
+        this(
+            id, displayName, packName, modelFile, buttonTexture, textureOverrides, modelOffset, modelScale,
+            bogies, seatMarkers, seatPositions, playerPositions, seatOffset, scriptPath, soundScriptPath,
+            vehicleType, doorType, trainDistance, driverSeatIndex, frontDriverSeatIndex, rearDriverSeatIndex,
+            leftDoors, rightDoors, notchMaxSpeeds, List.of(), acceleration, smoothing, rollsignNames,
+            customButtonNames, customButtonOptions, rollsignTexture, rollsigns, headLights, tailLights,
+            interiorLights, hornSound, announcementSounds, doCulling, renderLight, notDisplayCab, singleTrain
+        );
+    }
+
+    public VehicleDefinition(
+        String id,
+        String displayName,
+        String packName,
+        String modelFile,
+        String buttonTexture,
+        Map<String, String> textureOverrides,
+        Vec3 modelOffset,
+        float modelScale,
+        List<BogieDefinition> bogies,
+        List<SeatMarker> seatMarkers,
+        List<Vec3> seatPositions,
+        List<Vec3> playerPositions,
+        Vec3 seatOffset,
+        String scriptPath,
+        String soundScriptPath,
+        String vehicleType,
+        String doorType,
+        float trainDistance,
+        int driverSeatIndex,
+        int frontDriverSeatIndex,
+        int rearDriverSeatIndex,
+        List<DoorAnimationDefinition> leftDoors,
+        List<DoorAnimationDefinition> rightDoors,
+        List<Float> notchMaxSpeeds,
+        List<Float> brakeDecelerations,
+        float acceleration,
+        boolean smoothing,
+        List<String> rollsignNames,
+        List<String> customButtonNames,
+        List<List<String>> customButtonOptions,
+        String rollsignTexture,
+        List<RollsignDefinition> rollsigns,
+        List<LightDefinition> headLights,
+        List<LightDefinition> tailLights,
+        List<LightDefinition> interiorLights,
+        String hornSound,
+        List<String> announcementSounds,
+        boolean doCulling,
+        boolean renderLight,
+        boolean notDisplayCab,
+        boolean singleTrain
+    ) {
         this.id = id;
         this.displayName = displayName;
         this.packName = packName;
@@ -229,6 +338,7 @@ public class VehicleDefinition {
         this.leftDoors = leftDoors == null ? List.of() : List.copyOf(leftDoors);
         this.rightDoors = rightDoors == null ? List.of() : List.copyOf(rightDoors);
         this.notchMaxSpeeds = notchMaxSpeeds == null ? List.of() : List.copyOf(notchMaxSpeeds);
+        this.brakeDecelerations = brakeDecelerations == null ? List.of() : List.copyOf(brakeDecelerations);
         this.acceleration = acceleration > 0 ? acceleration : 0.00243F;
         this.smoothing = smoothing;
         this.rollsignNames = rollsignNames == null ? List.of() : List.copyOf(rollsignNames);
@@ -402,6 +512,10 @@ public class VehicleDefinition {
         return notchMaxSpeeds;
     }
 
+    public List<Float> getBrakeDecelerations() {
+        return brakeDecelerations;
+    }
+
     public float getAcceleration() {
         return acceleration;
     }
@@ -448,6 +562,19 @@ public class VehicleDefinition {
 
     public List<String> getAnnouncementSounds() {
         return announcementSounds;
+    }
+
+    public String getDoorOpenSound() {
+        return doorOpenSound;
+    }
+
+    public String getDoorCloseSound() {
+        return doorCloseSound;
+    }
+
+    public void setDoorSounds(String doorOpenSound, String doorCloseSound) {
+        this.doorOpenSound = doorOpenSound == null ? "" : doorOpenSound;
+        this.doorCloseSound = doorCloseSound == null ? "" : doorCloseSound;
     }
 
     public String getSoundStop() {

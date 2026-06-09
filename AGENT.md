@@ -21,8 +21,8 @@ The objective is to preserve the experience, compatibility, and ecosystem expect
 ## Repository Snapshot
 
 * Project: RealTrainModRenewed
-* Minecraft Version: 26.1
-* Mod Loader: NeoForge 26.1
+* Minecraft Version: 26.1.*
+* Mod Loader: NeoForge 26.1.*
 * Main Mod ID: `realtrainmodrenewed`
 * Main Package: `cc.mirukuneko.realtrainmodrenewed`
 
@@ -512,40 +512,6 @@ Always report:
 * Build status
 * Validation status
 * Commands that could not be executed
-
----
-
-## AI Development Workflow
-
-### Primary Implementation Agent
-
-CodeWhale (DeepSeek) is the primary implementation agent.
-
-Responsibilities:
-
-* Coding
-* Refactoring
-* Rewrites
-* Kotlin migration
-* Documentation
-* Bug fixes
-* Architecture changes
-
-CodeWhale should perform implementation work unless explicitly instructed otherwise.
-
-### Reviewer Agent
-
-Codex is a review-only agent.
-
-Codex should:
-
-* Review changes
-* Review architecture
-* Review compatibility risks
-* Review performance concerns
-* Review maintainability concerns
-
-Codex should not be the primary implementation agent unless explicitly requested.
 
 ---
 

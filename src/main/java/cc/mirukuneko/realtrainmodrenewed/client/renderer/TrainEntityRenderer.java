@@ -197,17 +197,16 @@ public class TrainEntityRenderer extends EntityRenderer<TrainEntity, LegacyEntit
             double rollsignThreshold = compatibilityHeavy ? 42.0D : 64.0D;
             double lightThreshold = compatibilityHeavy ? 64.0D : 96.0D;
             boolean nearTrain = cameraDistanceSq < nearThreshold * nearThreshold;
-            boolean renderInterior = ridingThisTrain || nearTrain;
-            boolean aggressiveDistanceCulling = !ridingThisTrain && cameraDistanceSq > aggressiveThreshold * aggressiveThreshold;
-            boolean renderRollsigns = ridingThisTrain || cameraDistanceSq < rollsignThreshold * rollsignThreshold;
-            boolean renderLights = ridingThisTrain || cameraDistanceSq < lightThreshold * lightThreshold;
-            int trainPackedLight = resolveTrainPackedLight(entity, packedLight);
-
             boolean modelScriptRunning = model.hasRenderScript();
             // def.hasScript() covers cases where the JS engine failed to load (e.g. unsupported JS runtime)
             // but the pack was designed with a renderer script (e.g. SL packs with rod animation).
             // In that case, wheel/truck groups belong in the main model and must NOT be filtered out.
             boolean modelHasScript = modelScriptRunning || def.hasScript();
+            boolean renderInterior = ridingThisTrain || nearTrain || modelHasScript && model.hasGroupNamed("alpha");
+            boolean aggressiveDistanceCulling = !ridingThisTrain && cameraDistanceSq > aggressiveThreshold * aggressiveThreshold;
+            boolean renderRollsigns = ridingThisTrain || cameraDistanceSq < rollsignThreshold * rollsignThreshold;
+            boolean renderLights = ridingThisTrain || cameraDistanceSq < lightThreshold * lightThreshold;
+            int trainPackedLight = resolveTrainPackedLight(entity, packedLight);
             MqoModelLoader.GroupPredicate groupFilter =
                 groupName -> shouldRenderTrainGroup(groupName, renderInterior, aggressiveDistanceCulling, compatibilityHeavy, def, modelHasScript, modelScriptRunning);
             MqoModelLoader.GroupTransform doorTransform = new MqoModelLoader.GroupTransform() {
@@ -536,7 +535,7 @@ public class TrainEntityRenderer extends EntityRenderer<TrainEntity, LegacyEntit
         if (isBogieOrWheel) {
             boolean hasSeparateBogieModel = def != null && def.getBogies().stream()
                 .anyMatch(b -> b.modelFile() != null && !b.modelFile().isBlank());
-            if (hasSeparateBogieModel && !scriptActuallyRunning) return false;
+            if (hasSeparateBogieModel && !scriptActuallyRunning && !def.hasScript()) return false;
         }
         // RTMパックには非表示にすべきヘルパーグループが含まれている:
         //   shadow    - 地面に張り付いたシャドウポリゴン(レールを隠す)
@@ -688,16 +687,13 @@ public class TrainEntityRenderer extends EntityRenderer<TrainEntity, LegacyEntit
                                                MqoModelLoader.MqoModel model,
                                                PoseStack poseStack, MultiBufferSource buffer, float renderYaw,
                                                boolean ridingThisTrain) {
-        // 「臨場感ライト」(放射状グローのビルボード)はユーザー要望で無効化。
-        // 実際のランプ部品(モデルの発光テクスチャ)はスクリプト/モデル側で描画されるので残る。
-        if (true) return;
         if (def == null) return;
         int mode = entity.getLightMode();
         boolean interiorOn = entity.isInteriorLightOn();
         if (mode <= 0 && !interiorOn) return;
 
         boolean singleTrainActive = def.isSingleTrain() && !entity.isConnected();
-        boolean renderHeadLights = mode == 1 || mode == 3;
+        boolean renderHeadLights = mode == 1 || mode == 2 || mode == 3;
         boolean renderTailLights = mode == 2 || mode == 3;
         if (singleTrainActive && mode == 1) renderTailLights = true;
 
@@ -736,8 +732,7 @@ public class TrainEntityRenderer extends EntityRenderer<TrainEntity, LegacyEntit
                 renderLightGlow(consumer, mat, normalMatrix, light, true, billRight, billUp);
             }
         }
-        if (def.getHeadLights().isEmpty() && def.getTailLights().isEmpty()
-                && (model == null || !model.hasRenderScript())) {
+        if (!def.hasScript() && def.getHeadLights().isEmpty() && def.getTailLights().isEmpty()) {
             renderLegacyFallbackLights(entity, consumer, mat, normalMatrix, mode, billRight, billUp);
         }
     }
@@ -748,7 +743,7 @@ public class TrainEntityRenderer extends EntityRenderer<TrainEntity, LegacyEntit
         float halfLength = Math.max(3.5F, entity.getTrainDistance() - 0.45F);
         float lampY = 1.52F;
         float lampX = 0.58F;
-        if (mode == 1 || mode == 3) {
+        if (mode == 1 || mode == 2 || mode == 3) {
             renderLightGlow(consumer, mat, normalMatrix,
                 new VehicleDefinition.LightDefinition((byte) 0, 0xFFF6F0C8,
                     new net.minecraft.world.phys.Vec3(-lampX, lampY, halfLength), 0.6F, false),

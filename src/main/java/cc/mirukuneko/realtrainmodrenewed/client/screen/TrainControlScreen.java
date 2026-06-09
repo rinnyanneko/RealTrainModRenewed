@@ -176,7 +176,7 @@ public class TrainControlScreen extends Screen {
     private String lightLabel() {
         return switch (train.getLightMode()) {
             case 1 -> "前照灯";
-            case 3 -> "前照灯・尾灯";
+            case 2 -> "前照灯・尾灯";
             default -> "消灯";
         };
     }
@@ -188,7 +188,7 @@ public class TrainControlScreen extends Screen {
     private int nextLightMode() {
         return switch (train.getLightMode()) {
             case 0 -> 1;
-            case 1 -> 3;
+            case 1 -> 2;
             default -> 0;
         };
     }

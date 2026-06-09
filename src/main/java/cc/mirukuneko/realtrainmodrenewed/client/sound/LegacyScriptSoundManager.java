@@ -170,11 +170,7 @@ public final class LegacyScriptSoundManager {
             return;
         }
         if (definition.hasSoundScript() && train.getSoundScriptEngine() != null) {
-            if (!definition.hasJsonRunningSounds()) {
-                tickScriptFallbackRunningSound(train, definition);
-            } else {
-                stopAutoRunningSound(train);
-            }
+            stopAutoRunningSound(train);
             return;
         }
         if (definition.hasSoundScript() && !definition.hasJsonRunningSounds()) {
@@ -293,21 +289,18 @@ public final class LegacyScriptSoundManager {
         stop(train, "rtm", "train.223_air");
         if (speedKmh < 20.0F) {
             float volume = speedKmh < 5.0F ? speedKmh / 5.0F : (speedKmh > 10.0F ? (20.0F - speedKmh) / 10.0F : 1.0F);
-            play(train, "rtm", "train.223_s0", Mth.clamp(volume, 0.0F, 1.0F), 1.0F, true);
         } else {
             stop(train, "rtm", "train.223_s0");
         }
         if (speedKmh >= 8.0F) {
             float volume = speedKmh < 12.0F ? (speedKmh - 8.0F) / 4.0F : 1.0F;
             float pitch = (speedKmh - 8.0F) / (120.0F - 8.0F) + 0.8F;
-            play(train, "rtm", "train.223_s1", Mth.clamp(volume, 0.0F, 1.0F), pitch, true);
         } else {
             stop(train, "rtm", "train.223_s1");
         }
         if (speedKmh >= 12.0F) {
             float pitch = (speedKmh - 12.0F) / (120.0F - 12.0F) + 0.9F;
             float runVolume = Mth.clamp((speedKmh - 12.0F) / (120.0F - 12.0F), 0.0F, 1.0F);
-            play(train, "rtm", "train.223_s2", 2.0F, pitch, true);
             play(train, "rtm", "train.223_run", runVolume, 1.0F, true);
         } else {
             stop(train, "rtm", "train.223_s2");
@@ -422,7 +415,14 @@ public final class LegacyScriptSoundManager {
         if (resolvedPath.endsWith(".ogg")) {
             resolvedPath = resolvedPath.substring(0, resolvedPath.length() - ".ogg".length());
         }
-        if (resolvedNamespace.equals("rtm") && resolvedPath.indexOf('/') >= 0) {
+        if (resolvedNamespace.equals("rtm") && (
+                resolvedPath.equals("train.223_air")
+                    || resolvedPath.equals("train.223_run")
+                    || resolvedPath.equals("train.223_run_tunnel")
+            )) {
+            resolvedNamespace = "sound_rtm";
+            resolvedPath = resolvedPath.substring("train.".length());
+        } else if (resolvedNamespace.equals("rtm") && resolvedPath.indexOf('/') >= 0) {
             resolvedPath = resolvedPath.replace('/', '.');
         }
         try {

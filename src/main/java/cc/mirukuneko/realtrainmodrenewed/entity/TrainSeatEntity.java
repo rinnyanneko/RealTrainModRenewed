@@ -125,14 +125,20 @@ public final class TrainSeatEntity extends Entity {
         Vec3 target = train.getSeatWorldPosition(getSeatIndex());
         float targetYaw = train.getSeatWorldYaw(getSeatIndex());
         this.deltaYaw = Mth.wrapDegrees(targetYaw - this.getYRot());
+        double dx = target.x - this.getX();
+        double dy = target.y - this.getY();
+        double dz = target.z - this.getZ();
+        boolean resetOldPose = !level().isClientSide() || tickCount <= 1 || (dx * dx + dy * dy + dz * dz) > 64.0D;
         this.setPos(target.x, target.y, target.z);
         this.setYRot(targetYaw);
         this.setXRot(0.0F);
-        this.xo = target.x;
-        this.yo = target.y;
-        this.zo = target.z;
-        this.yRotO = targetYaw;
-        this.xRotO = 0.0F;
+        if (resetOldPose) {
+            this.xo = target.x;
+            this.yo = target.y;
+            this.zo = target.z;
+            this.yRotO = targetYaw;
+            this.xRotO = 0.0F;
+        }
         this.setYHeadRot(this.getYRot());
         this.setYBodyRot(this.getYRot());
     }

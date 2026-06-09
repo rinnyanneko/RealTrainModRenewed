@@ -32,6 +32,6 @@ public final class TrainSeatEntityRenderer extends EntityRenderer<TrainSeatEntit
 
     @Override
     public boolean shouldRender(TrainSeatEntity entity, Frustum frustum, double camX, double camY, double camZ) {
-        return false;
+        return true;
     }
 }

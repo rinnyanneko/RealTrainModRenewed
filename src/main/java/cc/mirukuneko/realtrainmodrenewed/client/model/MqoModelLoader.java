@@ -1560,7 +1560,11 @@ public final class MqoModelLoader {
             // legacy resource manager may not be initialized or the script may not be available
         }
 
-        RealTrainModRenewed.LOGGER.info("Attempting to load legacy model script '{}' from pack {}", hasExplicitPath ? normalized : "(fallback search)", packPath);
+        if (!hasExplicitPath) {
+            return;
+        }
+
+        RealTrainModRenewed.LOGGER.info("Attempting to load legacy model script '{}' from pack {}", normalized, packPath);
         try {
             if (Files.isDirectory(packPath)) {
                 Path scriptFile = null;
@@ -1577,23 +1581,11 @@ public final class MqoModelLoader {
                     RealTrainModRenewed.LOGGER.info("Script file loaded, length={}", script.length());
                     TrainScriptSystem.loadScript(normalized, script, model, modelName);
                 } else {
-                    Path fallback = findFallbackScriptFile(packPath);
-                    if (fallback != null) {
-                        RealTrainModRenewed.LOGGER.warn("Model script {} not found in pack directory {}; using fallback {}", normalized, packPath, fallback);
-                        String script = PackTextDecoder.readText(fallback);
-                        script = preprocessScriptIncludesForDirectory(fallback, rootDirectory(packPath));
-                        TrainScriptSystem.loadScript(fallback.toString(), script, model, modelName);
+                    ResourceSearchResult external = findResource(normalized, packPath);
+                    if (external != null && !packPath.equals(external.packPath())) {
+                        loadScriptFromResource(model, external, normalized, modelName);
                     } else {
-                        if (hasExplicitPath) {
-                            ResourceSearchResult external = findResource(normalized, packPath);
-                            if (external != null && !packPath.equals(external.packPath())) {
-                                loadScriptFromResource(model, external, normalized, modelName);
-                            } else {
-                                RealTrainModRenewed.LOGGER.warn("Model script not found in pack directory: {} (normalized={})", packPath, normalized);
-                            }
-                        } else {
-                            RealTrainModRenewed.LOGGER.warn("No fallback model script found in pack directory: {}", packPath);
-                        }
+                        RealTrainModRenewed.LOGGER.warn("Model script not found in pack directory: {} (normalized={})", packPath, normalized);
                     }
                 }
             } else {
@@ -1613,25 +1605,11 @@ public final class MqoModelLoader {
                             TrainScriptSystem.loadScript(normalized, script, model, modelName);
                         }
                     } else {
-                        ZipEntry fallback = findFallbackScriptEntry(zf);
-                        if (fallback != null) {
-                            RealTrainModRenewed.LOGGER.warn("Model script {} not found in pack zip {}; using fallback {}", normalized, packPath, fallback.getName());
-                            try (InputStream in = zf.getInputStream(fallback)) {
-                                String script = PackTextDecoder.readText(in);
-                                script = preprocessScriptIncludesForZip(zf, fallback.getName(), script);
-                                TrainScriptSystem.loadScript(fallback.getName(), script, model, modelName);
-                            }
+                        ResourceSearchResult external = findResource(normalized, packPath);
+                        if (external != null && !packPath.equals(external.packPath())) {
+                            loadScriptFromResource(model, external, normalized, modelName);
                         } else {
-                            if (hasExplicitPath) {
-                                ResourceSearchResult external = findResource(normalized, packPath);
-                                if (external != null && !packPath.equals(external.packPath())) {
-                                    loadScriptFromResource(model, external, normalized, modelName);
-                                } else {
-                                    RealTrainModRenewed.LOGGER.warn("Model script not found in pack zip: {} (normalized={})", packPath, normalized);
-                                }
-                            } else {
-                                RealTrainModRenewed.LOGGER.warn("No fallback model script found in pack zip: {}", packPath);
-                            }
+                            RealTrainModRenewed.LOGGER.warn("Model script not found in pack zip: {} (normalized={})", packPath, normalized);
                         }
                     }
                 }
@@ -3487,14 +3465,15 @@ public final class MqoModelLoader {
                     int scriptPass = scriptRenderer != null ? scriptRenderer.getCurrentPass() : 0;
                     boolean scriptTexture = scriptRenderer != null && scriptRenderer.getBoundTexture() != null;
                     Identifier emissiveTexture = !scriptTexture && scriptPass >= 2 ? batch.emissiveTextureForPass(scriptPass) : null;
-                    if (scriptPass >= 2 && !scriptTexture && emissiveTexture == null) {
+                    boolean legacyPlainFullbright = scriptPass >= 2 && isLegacyPlainFullbrightGroup(batch.groupNameLower);
+                    if (scriptPass >= 2 && !scriptTexture && emissiveTexture == null && !legacyPlainFullbright) {
                         continue;
                     }
                     String lowerGroupName = batch.groupNameLower;
                     Identifier texture = scriptTexture
                         ? scriptRenderer.getBoundTexture()
                         : (emissiveTexture != null ? emissiveTexture : batch.texture);
-                    if (!scriptTexture && emissiveTexture == null) {
+                    if (!scriptTexture && emissiveTexture == null && !legacyPlainFullbright) {
                         texture = translucent ? batch.windowTexture : batch.opaqueTexture;
                     }
 
@@ -3565,7 +3544,7 @@ public final class MqoModelLoader {
                                 .setColor(scriptRed, scriptGreen, scriptBlue, scriptAlpha)
                                 .setUv(u, v)
                                 .setOverlay(overlay)
-                                .setLight(packedLight)
+                                .setLight(legacyPlainFullbright || emissiveTexture != null ? 0x00F000F0 : packedLight)
                                 .setNormal(normalOut[0], normalOut[1], normalOut[2]);
                         }
                 } finally {
@@ -3865,6 +3844,23 @@ public final class MqoModelLoader {
             return lowerGroupName.contains("light")
                 || lowerGroupName.contains("lamp")
                 || lowerGroupName.contains("marker");
+        }
+
+        private static boolean isLegacyPlainFullbrightGroup(String lowerGroupName) {
+            if (lowerGroupName == null || lowerGroupName.isBlank()) {
+                return false;
+            }
+            return lowerGroupName.contains("light")
+                || lowerGroupName.contains("lamp")
+                || lowerGroupName.contains("marker")
+                || lowerGroupName.contains("interior")
+                || lowerGroupName.contains("roomlight")
+                || lowerGroupName.contains("room_light")
+                || lowerGroupName.contains("cabinlight")
+                || lowerGroupName.contains("cabin_light")
+                || lowerGroupName.contains("_ceil")
+                || lowerGroupName.contains("led_box")
+                || lowerGroupName.contains("led");
         }
 
         private static boolean shouldUseGlassOnlyPass(Batch batch, String lowerGroupName) {

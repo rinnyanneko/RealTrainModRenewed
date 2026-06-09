@@ -409,6 +409,7 @@ public class VehiclePackLoader {
             List<VehicleDefinition.DoorAnimationDefinition> leftDoors = parseDoorAnimations(obj, trainModel, "door_left");
             List<VehicleDefinition.DoorAnimationDefinition> rightDoors = parseDoorAnimations(obj, trainModel, "door_right");
             List<Float> notchMaxSpeeds = parseFloatList(obj, trainModel, "maxSpeed");
+            List<Float> brakeDecelerations = parseFloatList(obj, trainModel, "deccelerations");
             List<String> rollsignNames = parseStringList(obj, trainModel, "rollsignNames");
             List<String> customButtonNames = parseCustomButtonNames(obj, trainModel);
             List<List<String>> customButtonOptions = parseCustomButtonOptions(obj, trainModel);
@@ -423,6 +424,8 @@ public class VehiclePackLoader {
             String soundAcceleration = firstNonBlank(getString(trainModel, "sound_Acceleration"), getString(obj, "sound_Acceleration"));
             String soundDeceleration = firstNonBlank(getString(trainModel, "sound_Deceleration"), getString(obj, "sound_Deceleration"));
             String soundDecelerationStop = firstNonBlank(getString(trainModel, "sound_D_S"), getString(obj, "sound_D_S"));
+            String soundDoorOpen = firstNonBlank(getString(trainModel, "sound_DoorOpen"), getString(obj, "sound_DoorOpen"));
+            String soundDoorClose = firstNonBlank(getString(trainModel, "sound_DoorClose"), getString(obj, "sound_DoorClose"));
             List<String> announcementSounds = parseAnnouncementSounds(obj, trainModel);
             float acceleration = parseFloat(trainModel, "acceleration",
                 parseFloat(trainModel, "accelerateion", parseFloat(obj, "acceleration", parseFloat(obj, "accelerateion", 0.00243F))));
@@ -462,6 +465,7 @@ public class VehiclePackLoader {
                 leftDoors,
                 rightDoors,
                 notchMaxSpeeds,
+                brakeDecelerations,
                 acceleration,
                 smoothing,
                 rollsignNames,
@@ -480,6 +484,7 @@ public class VehiclePackLoader {
                 singleTrain
             );
             definition.setServerScriptPath(serverScriptPath);
+            definition.setDoorSounds(soundDoorOpen, soundDoorClose);
             definition.setJsonRunningSounds(
                 soundStop,
                 soundStartAcceleration,

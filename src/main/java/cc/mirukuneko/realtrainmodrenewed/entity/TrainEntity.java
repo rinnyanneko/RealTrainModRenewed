@@ -88,6 +88,8 @@ public class TrainEntity extends Entity {
         SynchedEntityData.defineId(TrainEntity.class, EntityDataSerializers.INT);
     private static final EntityDataAccessor<Float> RAIL_PROGRESS =
         SynchedEntityData.defineId(TrainEntity.class, EntityDataSerializers.FLOAT);
+    private static final EntityDataAccessor<Integer> SIGNAL =
+        SynchedEntityData.defineId(TrainEntity.class, EntityDataSerializers.INT);
     private static final EntityDataAccessor<String> SEAT_ASSIGNMENTS =
         SynchedEntityData.defineId(TrainEntity.class, EntityDataSerializers.STRING);
     private static final EntityDataAccessor<String> COUPLED_FOLLOWER =
@@ -139,6 +141,8 @@ public class TrainEntity extends Entity {
     private static final float BRAKE_RELEASE_RATE = 8.0F;
     private static final float BRAKE_PIPE_RATE = 9.0F;
     private static final float MAIN_RESERVOIR_RATE = 2.5F;
+    private static final int LEGACY_MAX_AIR_COUNT = 2880;
+    private static final int LEGACY_MIN_AIR_COUNT = 2480;
     // 本家RTM(EnumNotch)準拠: 力行 P1-P5(5段)、ブレーキ B1-B7 + 非常EB(-8) = 8段。
     private static final int MAX_POWER_NOTCH = 5;
     private static final int MAX_BRAKE_NOTCH = 8;
@@ -340,6 +344,7 @@ public class TrainEntity extends Entity {
         builder.define(BODY_ROLL, 0.0F);
         builder.define(CUSTOM_BUTTON_BITS, 0);
         builder.define(RAIL_PROGRESS, 0.0F);
+        builder.define(SIGNAL, 0);
         builder.define(SEAT_ASSIGNMENTS, "");
         builder.define(COUPLED_FOLLOWER, "");
         builder.define(COUPLED_LEADER, "");
@@ -367,7 +372,7 @@ public class TrainEntity extends Entity {
     public int getNotch() { return entityData.get(NOTCH); }
     public void setNotch(int notch) { entityData.set(NOTCH, Mth.clamp(notch, -getMaxBrakeNotch(), getMaxPowerNotch())); }
     public int getMaxPowerNotch() { return getMaxPowerNotch(VehicleRegistry.getById(getVehicleId())); }
-    public int getMaxBrakeNotch() { return MAX_BRAKE_NOTCH; }
+    public int getMaxBrakeNotch() { return getMaxBrakeNotch(VehicleRegistry.getById(getVehicleId())); }
     public float getMainReservoirPressure() { return mainReservoirPressure; }
     public float getBrakePipePressure() { return brakePipePressure; }
     public float getBrakeCylinderPressure() { return brakeCylinderPressure; }
@@ -375,9 +380,9 @@ public class TrainEntity extends Entity {
     public void setHeadlightOn(boolean value) { setLightMode(value ? 1 : 0); }
     public int getLightMode() { return entityData.get(LIGHT_MODE); }
     public void setLightMode(int value) {
-        int mode = Mth.clamp(value, 0, 3);
+        int mode = value == 3 ? 2 : Mth.clamp(value, 0, 2);
         entityData.set(LIGHT_MODE, mode);
-        entityData.set(HEADLIGHT_ON, mode == 1 || mode == 3);
+        entityData.set(HEADLIGHT_ON, mode == 1 || mode == 2);
     }
     public void setLightModeForFormation(int value) {
         if (level().isClientSide()) {
@@ -472,6 +477,7 @@ public class TrainEntity extends Entity {
     public void setCustomButtonBits(int bits) { entityData.set(CUSTOM_BUTTON_BITS, bits); }
     public float getRailProgress() { return entityData.get(RAIL_PROGRESS); }
     public void setRailProgress(float progress) { entityData.set(RAIL_PROGRESS, Mth.clamp(progress, 0.0F, 1.0F)); }
+    private void setLegacySignalState(int signal) { entityData.set(SIGNAL, Mth.clamp(signal, -1, 15)); }
     private String getSeatAssignmentsData() { return entityData.get(SEAT_ASSIGNMENTS); }
     private void setSeatAssignmentsData(String data) { entityData.set(SEAT_ASSIGNMENTS, data == null ? "" : data); }
 
@@ -680,7 +686,6 @@ public class TrainEntity extends Entity {
         if (level().isClientSide() && soundScriptEngine != null) {
             TrainScriptSystem.invokeScriptTick(soundScriptEngine, this);
             TrainScriptSystem.invokeScriptUpdate(soundScriptEngine, this, 1.0F);
-            LegacyScriptSoundManager.tickJsonRunningSound(this);
         } else {
             if (level().isClientSide()) {
                 LegacyScriptSoundManager.tickJsonRunningSound(this);
@@ -812,6 +817,7 @@ public class TrainEntity extends Entity {
             if (formation != null && formation.size() > 1) {
                 formation.updateTrainMovement();
             }
+            updateLegacySignalFromRail();
             tryCompletePendingCoupling();
 
             // 端台車のワールド位置をクライアントへ同期(カーブで台車をレール上に正確に描くため)。
@@ -827,7 +833,7 @@ public class TrainEntity extends Entity {
         clientLerpZ = z;
         clientLerpYRot = yRot;
         clientLerpXRot = xRot;
-        clientLerpSteps = isLocalPlayerOnThisTrain() ? 1 : Math.max(2, Math.min(4, steps));
+        clientLerpSteps = Math.max(2, Math.min(4, steps));
         setDeltaMovement(Vec3.ZERO);
     }
 
@@ -896,11 +902,11 @@ public class TrainEntity extends Entity {
         if (notch < 0) {
             // Brake force follows the gradually changing cylinder pressure.
             // This keeps the HUD air gauges and actual deceleration tied together.
-            float maxPressure = (-notch >= MAX_BRAKE_NOTCH)
+            float maxPressure = (-notch >= getMaxBrakeNotch(def))
                 ? BRAKE_CYLINDER_EMERGENCY_MAX
                 : BRAKE_CYLINDER_SERVICE_MAX;
             float ratio = Mth.clamp(brakeCylinderPressure / Math.max(1.0F, maxPressure), 0.0F, 1.0F);
-            float serviceDecel = (-notch >= MAX_BRAKE_NOTCH) ? 0.0100F : 0.0072F;
+            float serviceDecel = getConfiguredBrakeDeceleration(def, -notch);
             float decel = Math.max(0.00018F, serviceDecel * ratio);
             return approachZero(speed, decel);
         }
@@ -926,9 +932,32 @@ public class TrainEntity extends Entity {
 
     private float getConfiguredAcceleration(VehicleDefinition def) {
         if (def != null && def.getAcceleration() > 0.0F) {
-            return Mth.clamp(def.getAcceleration() * 1.75F, 0.0010F, 0.0060F);
+            return Mth.clamp(def.getAcceleration(), 0.0002F, 0.0060F);
         }
-        return 0.0030F;
+        return 0.001736F;
+    }
+
+    private float getConfiguredBrakeDeceleration(VehicleDefinition def, int brakeNotch) {
+        if (def != null && !def.getBrakeDecelerations().isEmpty()) {
+            int index = Mth.clamp(brakeNotch, 0, def.getBrakeDecelerations().size() - 1);
+            float configured = Math.abs(def.getBrakeDecelerations().get(index));
+            if (configured > 0.0F) {
+                return configured;
+            }
+        }
+        return brakeNotch >= getMaxBrakeNotch(def) ? 0.0100F : 0.0035F;
+    }
+
+    private int getMaxBrakeNotch(VehicleDefinition def) {
+        if (def != null && !def.getBrakeDecelerations().isEmpty()) {
+            return Mth.clamp(def.getBrakeDecelerations().size() - 1, 1, 12);
+        }
+        return MAX_BRAKE_NOTCH;
+    }
+
+    public float getLegacyBrakeAirCount() {
+        float ratio = Mth.clamp(brakeCylinderPressure / BRAKE_CYLINDER_EMERGENCY_MAX, 0.0F, 1.0F);
+        return LEGACY_MAX_AIR_COUNT - ratio * (LEGACY_MAX_AIR_COUNT - LEGACY_MIN_AIR_COUNT);
     }
 
     private boolean shouldRunClientVisualScriptThisTick() {
@@ -999,6 +1028,56 @@ public class TrainEntity extends Entity {
             }
         }
         return false;
+    }
+
+    private void updateLegacySignalFromRail() {
+        if (level().isClientSide() || activeRailMap == null || activeRailSplit <= 0 || activeRailPosition < 0.0D) {
+            return;
+        }
+        LargeRailCoreBlockEntity core = findActiveRailCore();
+        if (core != null) {
+            setRailSignal(core.getLastSignalStrength());
+        }
+    }
+
+    private void setRailSignal(int signal) {
+        if (getSignal() != -1) {
+            setSignal2(Math.max(0, signal));
+        }
+    }
+
+    private LargeRailCoreBlockEntity findActiveRailCore() {
+        RailSample sample = sampleRail(activeRailMap, activeRailSplit, activeRailPosition);
+        BlockPos base = BlockPos.containing(sample.x, sample.y - RAIL_HEIGHT_OFFSET, sample.z);
+        LargeRailCoreBlockEntity direct = railCoreAt(base);
+        if (direct != null) {
+            return direct;
+        }
+        for (int dy = -1; dy <= 1; dy++) {
+            for (int dx = -1; dx <= 1; dx++) {
+                for (int dz = -1; dz <= 1; dz++) {
+                    LargeRailCoreBlockEntity core = railCoreAt(base.offset(dx, dy, dz));
+                    if (core != null) {
+                        return core;
+                    }
+                }
+            }
+        }
+        return null;
+    }
+
+    private LargeRailCoreBlockEntity railCoreAt(BlockPos pos) {
+        BlockEntity blockEntity = level().getBlockEntity(pos);
+        if (blockEntity instanceof LargeRailCoreBlockEntity core && core.isLoaded()) {
+            return core;
+        }
+        if (blockEntity instanceof RailCollisionBlockEntity collision) {
+            BlockPos corePos = collision.getCorePos();
+            if (corePos != null && level().getBlockEntity(corePos) instanceof LargeRailCoreBlockEntity core && core.isLoaded()) {
+                return core;
+            }
+        }
+        return null;
     }
 
     private void syncCoupledFollower() {
@@ -1369,6 +1448,9 @@ public class TrainEntity extends Entity {
     }
 
     private boolean travelAlongRail(float speed, Entity controller, TrainEntity cabTrain) {
+        double startX = getX();
+        double startY = getY();
+        double startZ = getZ();
         // Direction of travel is driven purely by the reverser.
         // Cab direction (seat Z position) is a UI concept only — reading it here caused
         // the train to violently reverse the moment a player mounted a rear seat.
@@ -1534,7 +1616,7 @@ public class TrainEntity extends Entity {
             appliedYaw,
             activeRailBodyDirection == 0 ? 1 : activeRailBodyDirection
         );
-        setDeltaMovement(Vec3.ZERO);
+        setDeltaMovement(getX() - startX, getY() - startY, getZ() - startZ);
         activeRailIndex = Mth.clamp((int) Math.round(activeRailPosition), 0, activeRailSplit);
         activeRailDirection = controllerDirection == 0 ? activeRailDirection : controllerDirection * (activeRailBodyDirection == 0 ? 1 : activeRailBodyDirection);
         setRailProgress(activeRailIndex / (float) activeRailSplit);
@@ -1809,8 +1891,6 @@ public class TrainEntity extends Entity {
         }
         setYRot(yaw);
         setXRot(pitch);
-        yRotO = yaw;
-        xRotO = pitch;
         setYHeadRot(yaw);
         setYBodyRot(yaw);
         return yaw;
@@ -4607,7 +4687,6 @@ public class TrainEntity extends Entity {
         return switch (mode) {
             case 1 -> 1.0F;
             case 2 -> 2.0F;
-            case 3 -> 3.0F;
             default -> 0.0F;
         };
     }
@@ -4709,7 +4788,18 @@ public class TrainEntity extends Entity {
     }
 
     public int getSignal() {
-        return 0;
+        return entityData.get(SIGNAL);
+    }
+
+    public void setSignal(int signal) {
+        int current = getSignal();
+        if (signal > 0 && current != -1) {
+            setSignal2(signal);
+        }
+    }
+
+    public void setSignal2(int signal) {
+        setLegacySignalState(signal);
     }
 
     public boolean isControlCar() {
@@ -4902,6 +4992,10 @@ public class TrainEntity extends Entity {
             }
         }
 
+        public void setBoolean(String key, Object value, int syncType) {
+            setBoolean(key, toBoolean(value), syncType);
+        }
+
         /**
          * Stores an integer value for the current script frame.
          */
@@ -4911,6 +5005,10 @@ public class TrainEntity extends Entity {
                 train.scriptData.put(key, Integer.toString(value));
                 if (syncType != 0) train.scriptDataDirty = true;
             }
+        }
+
+        public void setInt(String key, Object value, int syncType) {
+            setInt(key, toInt(value), syncType);
         }
 
         public void setString(String key, String value, int syncType) {
@@ -4928,6 +5026,45 @@ public class TrainEntity extends Entity {
                 train.scriptData.put(key, Double.toString(value));
                 if (syncType != 0) train.scriptDataDirty = true;
             }
+        }
+
+        public void setDouble(String key, Object value, int syncType) {
+            setDouble(key, toDouble(value), syncType);
+        }
+
+        private static boolean toBoolean(Object value) {
+            if (value instanceof Boolean bool) return bool;
+            if (value instanceof Number number) return number.intValue() != 0;
+            if (value instanceof String string) return Boolean.parseBoolean(string) || "1".equals(string);
+            return false;
+        }
+
+        private static int toInt(Object value) {
+            if (value instanceof Number number) return number.intValue();
+            if (value instanceof Boolean bool) return bool ? 1 : 0;
+            if (value instanceof String string) {
+                try {
+                    return Integer.parseInt(string);
+                } catch (NumberFormatException ignored) {
+                    try {
+                        return (int) Math.round(Double.parseDouble(string));
+                    } catch (NumberFormatException ignoredAgain) {
+                    }
+                }
+            }
+            return 0;
+        }
+
+        private static double toDouble(Object value) {
+            if (value instanceof Number number) return number.doubleValue();
+            if (value instanceof Boolean bool) return bool ? 1.0D : 0.0D;
+            if (value instanceof String string) {
+                try {
+                    return Double.parseDouble(string);
+                } catch (NumberFormatException ignored) {
+                }
+            }
+            return 0.0D;
         }
 
         private void refresh() {
@@ -4959,6 +5096,7 @@ public class TrainEntity extends Entity {
             values.put("power", powerNotch);
             values.put("brake", brakeNotch);
             values.put("brakeNotch", brakeNotch);
+            values.put("brakeAirCount", train.getLegacyBrakeAirCount());
             values.put("speed", speedKmh);
             values.put("speedKmh", speedKmh);
             values.put("kmh", speedKmh);
@@ -5846,7 +5984,7 @@ public class TrainEntity extends Entity {
             Math.max(1, getSeatCount(VehicleRegistry.getById(getVehicleId()))),
             this.canAddPassenger(player)
         );
-        if (player.startRiding(seatEntity, true, false)) {
+        if (player.startRiding(this, true, false)) {
             RealTrainModRenewed.LOGGER.info(
                 "Player '{}' mounted vehicle '{}' at seat {}",
                 player.getName().getString(),
@@ -6310,6 +6448,7 @@ public class TrainEntity extends Entity {
         brakeCylinderPressure = Mth.clamp(tag.getFloatOr("BrakeCylinderPressure", 0.0F), 0.0F, BRAKE_CYLINDER_EMERGENCY_MAX);
         if (tag.getInt("CustomButtonBits").isPresent()) setCustomButtonBits(tag.getIntOr("CustomButtonBits", 0));
         if (!Float.isNaN(tag.getFloatOr("RailProgress", Float.NaN))) setRailProgress(tag.getFloatOr("RailProgress", 0.0F));
+        if (tag.getInt("Signal").isPresent()) setLegacySignalState(tag.getIntOr("Signal", 0));
         tag.getString("CoupledFollower").ifPresent(value -> {
             try {
                 setCoupledFollowerUuid(UUID.fromString(value));
@@ -6380,6 +6519,7 @@ public class TrainEntity extends Entity {
         tag.putFloat("BrakeCylinderPressure", brakeCylinderPressure);
         tag.putInt("CustomButtonBits", getCustomButtonBits());
         tag.putFloat("RailProgress", getRailProgress());
+        tag.putInt("Signal", getSignal());
         if (coupledFollowerUuid != null) {
             tag.putString("CoupledFollower", coupledFollowerUuid.toString());
             tag.putInt("CoupledFollowerThisSide", coupledFollowerThisSide);

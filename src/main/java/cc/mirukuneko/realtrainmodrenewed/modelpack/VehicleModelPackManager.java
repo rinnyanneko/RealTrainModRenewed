@@ -684,6 +684,7 @@ public class VehicleModelPackManager implements ResourceManagerReloadListener {
                 java.util.List.of(),
                 java.util.List.of(),
                 vehicle.maxSpeed > 0.0F ? java.util.List.of(vehicle.maxSpeed) : java.util.List.of(),
+                java.util.List.of(),
                 0.00243F,
                 false,
                 java.util.List.of(),

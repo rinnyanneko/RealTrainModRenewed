@@ -132,9 +132,21 @@ public record TrainControlPayload(int trainEntityId, String action, int value) i
                 case "toggle_headlight" -> controlTrain.setHeadlightOn(!controlTrain.isHeadlightOn());
                 case "set_light_mode" -> controlTrain.setLightModeForFormation(payload.value());
                 case "toggle_interior_light" -> controlTrain.setInteriorLightOnForFormation(!controlTrain.isInteriorLightOn());
-                case "toggle_door" -> controlTrain.toggleDoorForFormation();
-                case "toggle_door_left" -> controlTrain.toggleDoorSideForFormation(true);
-                case "toggle_door_right" -> controlTrain.toggleDoorSideForFormation(false);
+                case "toggle_door" -> {
+                    boolean opening = !controlTrain.isDoorOpen();
+                    controlTrain.toggleDoorForFormation();
+                    playDoorSound(sourceTrain, controlTrain, opening);
+                }
+                case "toggle_door_left" -> {
+                    boolean opening = !controlTrain.isDoorLeftOpen();
+                    controlTrain.toggleDoorSideForFormation(true);
+                    playDoorSound(sourceTrain, controlTrain, opening);
+                }
+                case "toggle_door_right" -> {
+                    boolean opening = !controlTrain.isDoorRightOpen();
+                    controlTrain.toggleDoorSideForFormation(false);
+                    playDoorSound(sourceTrain, controlTrain, opening);
+                }
                 case "toggle_pantograph" -> controlTrain.setPantographUpForFormation(!controlTrain.isPantographUp());
                 case "toggle_reverse" -> controlTrain.setReverse(!controlTrain.isReverse());
                 case "set_reverser" -> controlTrain.setReverser(payload.value());
@@ -197,6 +209,17 @@ public record TrainControlPayload(int trainEntityId, String action, int value) i
             return;
         }
         broadcastTrainSound(sourceTrain, definition.getHornSound(), 1.0F, 1.0F);
+    }
+
+    private static void playDoorSound(TrainEntity sourceTrain, TrainEntity controlTrain, boolean opening) {
+        VehicleDefinition definition = VehicleRegistry.getById(controlTrain.getVehicleId());
+        if (definition == null) {
+            return;
+        }
+        String sound = opening ? definition.getDoorOpenSound() : definition.getDoorCloseSound();
+        if (!sound.isBlank()) {
+            broadcastTrainSound(sourceTrain, sound, 1.0F, 1.0F);
+        }
     }
 
     private static void broadcastTrainSound(TrainEntity sourceTrain, String soundId, float volume, float pitch) {

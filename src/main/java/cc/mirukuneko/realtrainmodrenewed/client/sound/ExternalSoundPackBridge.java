@@ -93,7 +93,7 @@ public final class ExternalSoundPackBridge {
                 }
             }
             boolean wroteAnyJson = writeMergedSoundsJson(mergedSoundDefs);
-            repairMissingReferencedSounds();
+            repairEventKeySoundReferences();
             if (!copiedAnySoundAsset && !wroteAnyJson) {
                 deleteDirectoryIfExists(GENERATED_PACK_ROOT);
                 return null;
@@ -285,6 +285,7 @@ public final class ExternalSoundPackBridge {
             return;
         }
         JsonObject event = new JsonObject();
+        event.addProperty("replace", true);
         JsonArray sounds = new JsonArray();
         sounds.add(namespace + ":" + soundPath);
         event.add("sounds", sounds);
@@ -325,6 +326,7 @@ public final class ExternalSoundPackBridge {
             return element.deepCopy();
         }
         JsonObject copy = element.getAsJsonObject().deepCopy();
+        copy.addProperty("replace", true);
         JsonElement sounds = copy.get("sounds");
         if (sounds != null && sounds.isJsonArray()) {
             JsonArray normalizedSounds = new JsonArray();
@@ -400,7 +402,7 @@ public final class ExternalSoundPackBridge {
     }
 
     private static void writePackMeta() throws IOException {
-        int packFormat = SharedConstants.getCurrentVersion().packVersion(PackType.CLIENT_RESOURCES).major();
+        int packFormat = Math.min(64, SharedConstants.getCurrentVersion().packVersion(PackType.CLIENT_RESOURCES).major());
         String packMeta = """
             {
               "pack": {
@@ -419,7 +421,7 @@ public final class ExternalSoundPackBridge {
         );
     }
 
-    private static void repairMissingReferencedSounds() {
+    private static void repairEventKeySoundReferences() {
         Path assetsRoot = GENERATED_PACK_ROOT.resolve("assets");
         if (!Files.isDirectory(assetsRoot)) {
             return;
@@ -437,26 +439,23 @@ public final class ExternalSoundPackBridge {
                     continue;
                 }
                 for (Map.Entry<String, JsonElement> entry : parsed.getAsJsonObject().entrySet()) {
-                    repairSoundElement(namespace, soundsDir, entry.getValue());
+                    repairEventKeySoundElement(namespace, soundsDir, entry.getKey(), entry.getValue());
                 }
+                Files.writeString(soundsJson, parsed.getAsJsonObject().toString(), StandardCharsets.UTF_8, StandardOpenOption.TRUNCATE_EXISTING, StandardOpenOption.WRITE);
             }
         } catch (Exception e) {
-            RealTrainModRenewed.LOGGER.debug("Could not repair generated sound references", e);
+            RealTrainModRenewed.LOGGER.debug("Could not repair event-key sound references", e);
         }
     }
 
-    private static void repairSoundElement(String namespace, Path soundsDir, JsonElement element) throws IOException {
+    private static void repairEventKeySoundElement(String namespace, Path soundsDir, String eventKey, JsonElement element) {
         if (element == null || element.isJsonNull()) {
             return;
         }
         if (element.isJsonArray()) {
             for (JsonElement child : element.getAsJsonArray()) {
-                repairSoundElement(namespace, soundsDir, child);
+                repairEventKeySoundElement(namespace, soundsDir, eventKey, child);
             }
-            return;
-        }
-        if (element.isJsonPrimitive() && element.getAsJsonPrimitive().isString()) {
-            repairSoundReference(namespace, soundsDir, element.getAsString());
             return;
         }
         if (!element.isJsonObject()) {
@@ -465,35 +464,41 @@ public final class ExternalSoundPackBridge {
         JsonObject object = element.getAsJsonObject();
         JsonElement sounds = object.get("sounds");
         if (sounds != null) {
-            repairSoundElement(namespace, soundsDir, sounds);
+            repairEventKeySoundElement(namespace, soundsDir, eventKey, sounds);
         }
         JsonElement name = object.get("name");
         if (name != null && name.isJsonPrimitive() && name.getAsJsonPrimitive().isString()) {
-            repairSoundReference(namespace, soundsDir, name.getAsString());
+            String repaired = repairEventKeySoundReference(namespace, soundsDir, eventKey, name.getAsString());
+            if (repaired != null) {
+                object.addProperty("name", repaired);
+            }
         }
     }
 
-    private static void repairSoundReference(String namespace, Path soundsDir, String rawReference) throws IOException {
+    private static String repairEventKeySoundReference(String namespace, Path soundsDir, String eventKey, String rawReference) {
         String ref = rawReference == null ? "" : rawReference;
         int colon = ref.indexOf(':');
         String refNamespace = colon >= 0 ? ref.substring(0, colon) : namespace;
         if (!namespace.equals(refNamespace)) {
-            return;
+            return null;
         }
-        String soundPath = colon >= 0 ? ref.substring(colon + 1) : ref;
+        String soundPath = normalize(colon >= 0 ? ref.substring(colon + 1) : ref);
+        if (soundPath.startsWith("sounds/")) {
+            soundPath = soundPath.substring("sounds/".length());
+        }
         if (soundPath.endsWith(".ogg")) {
             soundPath = soundPath.substring(0, soundPath.length() - ".ogg".length());
         }
         Path expected = soundsDir.resolve(sanitizedSoundAssetPath(Path.of(soundPath + ".ogg")));
         if (Files.isRegularFile(expected)) {
-            return;
+            return null;
         }
-        Path replacement = LegacyResourcePathUtil.findBestReplacementSound(soundsDir, soundPath);
-        if (replacement == null) {
-            return;
+        String eventPath = sanitizeSoundPath(eventKey.replace('.', '/'));
+        Path eventSound = soundsDir.resolve(sanitizedSoundAssetPath(Path.of(eventPath + ".ogg")));
+        if (Files.isRegularFile(eventSound)) {
+            return namespace + ":" + eventPath;
         }
-        Files.createDirectories(expected.getParent());
-        Files.copy(replacement, expected, StandardCopyOption.REPLACE_EXISTING);
+        return null;
     }
 
     private static String normalize(String raw) {

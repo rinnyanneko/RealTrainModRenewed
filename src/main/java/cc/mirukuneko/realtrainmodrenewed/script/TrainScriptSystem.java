@@ -832,6 +832,7 @@ public class TrainScriptSystem {
                 "if (typeof print === 'undefined') print = function() {};\n" +
                 "var __ptOriginalJavaFrom = (typeof Java.from === 'function') ? Java.from : null;\n" +
                 "function __ptJavaFrom(value) { if (value == null) return []; if (Array.isArray && Array.isArray(value)) return Array.prototype.slice.call(value); if (Object.prototype.toString.call(value) === '[object Array]') return Array.prototype.slice.call(value); if (typeof value.length === 'number') { try { return Array.prototype.slice.call(value); } catch (e) {} } if (typeof value.toArray === 'function') return Array.prototype.slice.call(value.toArray()); if (__ptOriginalJavaFrom) { try { return __ptOriginalJavaFrom(value); } catch (e) {} } return [value]; }\n" +
+                "Java.from = __ptJavaFrom;\n" +
                 "var ScriptUtil = {\n" +
                 "  doScript: function(script) { return ScriptUtilJava.doScript(String(script || '')); },\n" +
                 "  doScriptFunction: function(se, func, args) { return ScriptUtilJava.doScriptFunction(se, String(func || ''), __ptJavaFrom(args)); },\n" +
@@ -951,13 +952,18 @@ public class TrainScriptSystem {
                 "try { Packages.jp.legacy.legacylib.renderer.NGTRenderer = NGTRenderer; } catch(e) {}\n" +
                 "if (typeof BlockScaffold === 'undefined') BlockScaffold = { getConnectionType: function() { return 0; } };\n" +
                 "if (typeof BlockScaffoldStairs === 'undefined') BlockScaffoldStairs = { getConnectionType: function() { return 0; } };\n" +
-                "if (typeof MCWrapperClient === 'undefined') MCWrapperClient = { playSound: function() {}, getPlayer: function() { return null; }, bindTexture: function() {} };\n" +
+                "if (typeof MCWrapperClient === 'undefined') MCWrapperClient = { getPlayer: function() { return null; }, bindTexture: function() {} };\n" +
+                "MCWrapperClient.playSound = function(domain, name, volume, pitch) { if (typeof __RTMU_SoundBridge__ !== 'undefined') __RTMU_SoundBridge__.playSound(domain, name, volume == null ? 1.0 : volume, pitch == null ? 1.0 : pitch); };\n" +
                 // NGTText: Packages プロキシで undefined ではなくなる場合があるので、readText が
                 // 関数として呼べるかも確認して、無理なら自前のスタブで上書きする。
                 "if (typeof NGTText === 'undefined' || typeof NGTText.readText !== 'function') {\n" +
                 "  NGTText = { createText: function() { return ''; }, getText: function() { return ''; }, getFormattedText: function() { return ''; }, getString: function() { return ''; }, appendSibling: function() {}, appendText: function() {}, applyTextStyles: function() {}, readText: function() { return ''; }, writeText: function() {}, loadText: function() { return ''; } };\n" +
                 "}\n" +
-                "if (typeof NGTSound === 'undefined') NGTSound = { playSound: function() {}, stopSound: function() {}, setSoundVolume: function() {}, setSoundPitch: function() {} };\n" +
+                "if (typeof NGTSound === 'undefined') NGTSound = {};\n" +
+                "NGTSound.playSound = function(domain, name, volume, pitch) { if (typeof __RTMU_SoundBridge__ !== 'undefined') __RTMU_SoundBridge__.playSound(domain, name, volume == null ? 1.0 : volume, pitch == null ? 1.0 : pitch); };\n" +
+                "NGTSound.stopSound = function(domain, name) { if (typeof __RTMU_SoundBridge__ !== 'undefined') __RTMU_SoundBridge__.stopSound(domain, name); };\n" +
+                "NGTSound.setSoundVolume = function(domain, name, volume) { if (typeof __RTMU_SoundBridge__ !== 'undefined') __RTMU_SoundBridge__.setSoundVolume(domain, name, volume == null ? 0.0 : volume); };\n" +
+                "NGTSound.setSoundPitch = function(domain, name, pitch) { if (typeof __RTMU_SoundBridge__ !== 'undefined') __RTMU_SoundBridge__.setSoundPitch(domain, name, pitch == null ? 1.0 : pitch); };\n" +
                 "if (typeof BlockHandler === 'undefined') BlockHandler = { getBlock: function() { return null; }, getTileEntity: function() { return null; } };\n" +
                 // SoundState: ANSL系スクリプトで使われるサウンド状態クラス
                 "if (typeof SoundState === 'undefined') SoundState = function(su, trackData) {\n" +
@@ -1142,7 +1148,7 @@ public class TrainScriptSystem {
                 "  CustomLightParts.prototype.__ptLightAllowed = function(entity) {\n" +
                 "    var mode = 0;\n" +
                 "    try { mode = Math.floor(entity.getTrainStateData(5)); } catch (e) {}\n" +
-                "    if (this.lightTextureSuffix === '_headLight') return mode === 1 || mode === 3;\n" +
+                "    if (this.lightTextureSuffix === '_headLight') return mode === 1 || mode === 2 || mode === 3;\n" +
                 "    if (this.lightTextureSuffix === '_tailLight') return mode === 2 || mode === 3;\n" +
                 "    return true;\n" +
                 "  };\n" +
@@ -1299,6 +1305,7 @@ public class TrainScriptSystem {
         try {
             scriptEngine.put("executer", compat);
             scriptEngine.put("executor", compat);
+            scriptEngine.put("__RTMU_SoundBridge__", new LegacySoundBridge(compat));
         } catch (Throwable ignored) {
         }
         if (entity instanceof TrainEntity train) {
@@ -1623,18 +1630,28 @@ public class TrainScriptSystem {
             this.field_70153_n = resolvePrimaryPassenger(train);
             this.doorMoveL = train == null ? 0.0F : train.doorMoveL;
             this.doorMoveR = train == null ? 0.0F : train.doorMoveR;
-            this.seatRotation = train == null ? 0.0F : train.getSeatRotation();
+            this.seatRotation = resolveLegacySeatRotation(train);
             this.pantograph_F = train == null ? 0.0F : train.pantograph_F;
             this.pantograph_B = train == null ? 0.0F : train.pantograph_B;
             // brakeCount: 0-8 equivalent brake notch position for gauge display
             this.brakeCount = train == null ? 0.0F : Math.max(0, -train.getNotch());
-            this.brakeAirCount = train == null ? 0.0F : train.getBrakeCylinderPressure();
+            this.brakeAirCount = train == null ? 0.0F : train.getLegacyBrakeAirCount();
             this.xCoord = train == null ? 0.0 : train.getX();
             this.yCoord = train == null ? 0.0 : train.getY();
             this.zCoord = train == null ? 0.0 : train.getZ();
             // 走行距離ベースの累積回転角(TrainEntity.tick で毎tick加算)。
             // 旧 tickCount×速度 は速度変化で巨大ジャンプ→空転の原因だったので使わない。
             this.wheelRotationR = train == null ? 0.0F : train.getWheelRotationDegrees();
+        }
+
+        private static float resolveLegacySeatRotation(TrainEntity train) {
+            if (train == null) {
+                return 0.0F;
+            }
+            if (train.getLightMode() > 0) {
+                return train.getReverser() < 0 ? -45.0F : 45.0F;
+            }
+            return train.getSeatRotation();
         }
 
         public long getCount() {
@@ -1667,6 +1684,23 @@ public class TrainScriptSystem {
 
         public float getSpeed() {
             return train == null ? 0.0F : train.getSpeed() * 72.0F;
+        }
+
+        public float getMaxSpeed() {
+            if (train == null) {
+                return 0.0F;
+            }
+            VehicleDefinition definition = VehicleRegistry.getById(train.getVehicleId());
+            if (definition == null || definition.getNotchMaxSpeeds().isEmpty()) {
+                return 0.0F;
+            }
+            float max = 0.0F;
+            for (Float speed : definition.getNotchMaxSpeeds()) {
+                if (speed != null && Float.isFinite(speed)) {
+                    max = Math.max(max, speed);
+                }
+            }
+            return max;
         }
 
         public TrainEntity getEntity() {
@@ -1732,8 +1766,20 @@ public class TrainScriptSystem {
             invokeLegacySoundManager("play", namespace, soundName, (float) volume, (float) pitch, true);
         }
 
+        public void playSound(String namespace, String soundName) {
+            playSound(namespace, soundName, 1.0D, 1.0D, true);
+        }
+
+        public void playSound(String namespace, String soundName, Object volume, Object pitch) {
+            playSound(namespace, soundName, toSoundDouble(volume, 1.0D), toSoundDouble(pitch, 1.0D), true);
+        }
+
         public void playSound(String namespace, String soundName, double volume, double pitch, boolean looping) {
             invokeLegacySoundManager("play", namespace, soundName, (float) volume, (float) pitch, looping);
+        }
+
+        public void playSound(String namespace, String soundName, Object volume, Object pitch, Object looping) {
+            playSound(namespace, soundName, toSoundDouble(volume, 1.0D), toSoundDouble(pitch, 1.0D), toSoundBoolean(looping, true));
         }
 
         public void stopSound(String namespace, String soundName) {
@@ -1756,6 +1802,43 @@ public class TrainScriptSystem {
             } catch (Exception e) {
                 RealTrainModRenewed.LOGGER.debug("Legacy sound bridge failed for {}:{}", namespace, soundName, e);
             }
+        }
+
+        private static double toSoundDouble(Object value, double fallback) {
+            if (value instanceof Number number) {
+                double result = number.doubleValue();
+                return Double.isFinite(result) ? result : fallback;
+            }
+            if (value instanceof Boolean bool) {
+                return bool ? 1.0D : 0.0D;
+            }
+            if (value != null) {
+                String text = String.valueOf(value);
+                if (!text.isBlank() && !"undefined".equalsIgnoreCase(text) && !"null".equalsIgnoreCase(text)) {
+                    try {
+                        double result = Double.parseDouble(text);
+                        return Double.isFinite(result) ? result : fallback;
+                    } catch (NumberFormatException ignored) {
+                    }
+                }
+            }
+            return fallback;
+        }
+
+        private static boolean toSoundBoolean(Object value, boolean fallback) {
+            if (value instanceof Boolean bool) {
+                return bool;
+            }
+            if (value instanceof Number number) {
+                return number.doubleValue() != 0.0D;
+            }
+            if (value != null) {
+                String text = String.valueOf(value).trim();
+                if (!text.isEmpty() && !"undefined".equalsIgnoreCase(text) && !"null".equalsIgnoreCase(text)) {
+                    return Boolean.parseBoolean(text);
+                }
+            }
+            return fallback;
         }
 
         // ---- TrainStateData (RTM 2.x API) ----
@@ -2229,6 +2312,60 @@ public class TrainScriptSystem {
 
     }
 
+    public static final class LegacySoundBridge {
+        private static final Map<String, SoundState> STATES = new java.util.concurrent.ConcurrentHashMap<>();
+        private final LegacyScriptExecutor executor;
+
+        public LegacySoundBridge(LegacyScriptExecutor executor) {
+            this.executor = executor;
+        }
+
+        public void playSound(String namespace, String soundName, double volume, double pitch) {
+            if (executor != null) {
+                STATES.put(soundKey(namespace, soundName), new SoundState(volume, pitch));
+                executor.playSound(namespace, soundName, volume, pitch);
+            }
+        }
+
+        public void stopSound(String namespace, String soundName) {
+            if (executor != null) {
+                STATES.remove(soundKey(namespace, soundName));
+                executor.stopSound(namespace, soundName);
+            }
+        }
+
+        public void setSoundVolume(String namespace, String soundName, double volume) {
+            if (executor != null) {
+                SoundState state = STATES.computeIfAbsent(soundKey(namespace, soundName), ignored -> new SoundState(1.0D, 1.0D));
+                state.volume = volume;
+                executor.playSound(namespace, soundName, state.volume, state.pitch);
+            }
+        }
+
+        public void setSoundPitch(String namespace, String soundName, double pitch) {
+            if (executor != null) {
+                SoundState state = STATES.computeIfAbsent(soundKey(namespace, soundName), ignored -> new SoundState(1.0D, 1.0D));
+                state.pitch = pitch;
+                executor.playSound(namespace, soundName, state.volume, state.pitch);
+            }
+        }
+
+        private String soundKey(String namespace, String soundName) {
+            Object trainKey = executor.train == null ? "none" : executor.train.getUUID();
+            return trainKey + "|" + String.valueOf(namespace) + ":" + String.valueOf(soundName);
+        }
+
+        private static final class SoundState {
+            private double volume;
+            private double pitch;
+
+            private SoundState(double volume, double pitch) {
+                this.volume = volume;
+                this.pitch = pitch;
+            }
+        }
+    }
+
     public static final class ScriptModelRenderer {
         private final Object model;
         private final MqoModelLoader.MqoModel mqoModel;
@@ -2689,6 +2826,14 @@ public class TrainScriptSystem {
                 return groupNames;
             }
 
+            public List<Object> getObjects(Object model) {
+                return renderer == null ? List.of() : renderer.getScriptModelObjects(String.join(",", groupNames));
+            }
+
+            public List<Object> getObjects() {
+                return getObjects(null);
+            }
+
             /** RTM 原作互換: 与えた renderer の現在の poseStack でグループを描画する。 */
             public void render(Object rendererArg) {
                 ScriptModelRenderer target = (rendererArg instanceof ScriptModelRenderer smr) ? smr : renderer;
@@ -3144,7 +3289,24 @@ public class TrainScriptSystem {
         }
 
         public List<Object> getScriptModelObjects(String groupsCsv) {
-            return Collections.emptyList();
+            if (mqoModel == null || groupsCsv == null || groupsCsv.isBlank()) {
+                return Collections.emptyList();
+            }
+            Set<String> groups = expandSerializedGroupNames(groupsCsv).stream()
+                .map(ScriptModelRenderer::normalizeLegacyGroupName)
+                .filter(name -> !name.isEmpty())
+                .collect(Collectors.toCollection(LinkedHashSet::new));
+            if (groups.isEmpty()) {
+                return Collections.emptyList();
+            }
+            List<Object> out = new ArrayList<>();
+            for (float[] q : mqoModel.getGroupQuadCorners(groups)) {
+                if (q == null || q.length < 12) {
+                    continue;
+                }
+                out.add(q);
+            }
+            return out;
         }
 
         public void markScriptManagedParts(Object parts) {
@@ -4001,8 +4163,10 @@ public class TrainScriptSystem {
                 // ここで消してしまわず script の描画意図を優先する。
                 return true;
             }
-            boolean head = lower.contains("hlight") || lower.contains("headlight") || lower.contains("head_light") || lower.equals("lightf");
-            boolean tail = lower.contains("tlight") || lower.contains("taillight") || lower.contains("tail_light") || lower.equals("lightb");
+            boolean head = lower.contains("hlight") || lower.contains("headlight") || lower.contains("head_light")
+                || lower.equals("lightf") || lower.equals("light_f") || lower.equals("frontlight") || lower.equals("front_light");
+            boolean tail = lower.contains("tlight") || lower.contains("taillight") || lower.contains("tail_light")
+                || lower.equals("lightb") || lower.equals("light_b") || lower.equals("rearlight") || lower.equals("rear_light");
             boolean auxiliary = lower.contains("elight");
             if (!head && !tail && !auxiliary) {
                 return true;
@@ -4012,7 +4176,7 @@ public class TrainScriptSystem {
                 return false;
             }
             if (head) {
-                return mode == 1 || mode == 3 || mode == 2;
+                return mode == 1 || mode == 2 || mode == 3;
             }
             if (tail) {
                 return mode >= 2;
@@ -4056,7 +4220,10 @@ public class TrainScriptSystem {
                 // meshes into daylight/fullbright flashes. Interior light is the only
                 // train-wide emissive surface here; headlights and destination signs are
                 // rendered normally in pass 0/1 and should not brighten the shell.
-                return interiorOn && isInteriorEmissionGroup(lower);
+                if (interiorOn && isInteriorEmissionGroup(lower) && !isExteriorTrainLightGroup(lower)) {
+                    return true;
+                }
+                return shouldRenderLightGroup(train, lower) && !isLightOffGroup(lower);
             }
             if (isLegacyDisplayGroup(lower)) {
                 return true;
@@ -4077,11 +4244,40 @@ public class TrainScriptSystem {
         }
 
         private boolean isInteriorEmissionGroup(String lowerGroupName) {
-            return lowerGroupName.contains("light")
-                || lowerGroupName.contains("lamp")
+            if (lowerGroupName == null) {
+                return false;
+            }
+            if (isExteriorTrainLightGroup(lowerGroupName)) {
+                return false;
+            }
+            return lowerGroupName.contains("interior")
+                || lowerGroupName.contains("roomlight")
+                || lowerGroupName.contains("room_light")
+                || lowerGroupName.contains("cabinlight")
+                || lowerGroupName.contains("cabin_light")
                 || lowerGroupName.contains("_ceil")
                 || lowerGroupName.contains("led_box")
                 || lowerGroupName.contains("led");
+        }
+
+        private boolean isExteriorTrainLightGroup(String lowerGroupName) {
+            if (lowerGroupName == null) {
+                return false;
+            }
+            return lowerGroupName.contains("hlight")
+                || lowerGroupName.contains("headlight")
+                || lowerGroupName.contains("head_light")
+                || lowerGroupName.contains("tlight")
+                || lowerGroupName.contains("taillight")
+                || lowerGroupName.contains("tail_light")
+                || lowerGroupName.equals("lightf")
+                || lowerGroupName.equals("light_f")
+                || lowerGroupName.equals("lightb")
+                || lowerGroupName.equals("light_b")
+                || lowerGroupName.equals("frontlight")
+                || lowerGroupName.equals("front_light")
+                || lowerGroupName.equals("rearlight")
+                || lowerGroupName.equals("rear_light");
         }
 
         private boolean bindLegacyRollsignTextureIfPresent(List<String> groupNames) {
@@ -4516,6 +4712,11 @@ public class TrainScriptSystem {
             recordOp(OP_TRANSLATE, x, y, z, 0, 0, null, ' ');
         }
 
+        public void translate(double x, double y, double z) {
+            if (!Double.isFinite(x) || !Double.isFinite(y) || !Double.isFinite(z)) return;
+            translate((float) x, (float) y, (float) z);
+        }
+
         private Vec3 adjustLegacyScriptBogieTranslate(float x, float y, float z) {
             Vec3 requested = new Vec3(x, y, z);
             if (!(currentEntity instanceof TrainEntity train)) {
@@ -4568,6 +4769,11 @@ public class TrainScriptSystem {
             // 任意軸は未サポート (RTM スクリプトでは使われない)
         }
 
+        public void rotate(double angle, double x, double y, double z) {
+            if (!Double.isFinite(angle) || !Double.isFinite(x) || !Double.isFinite(y) || !Double.isFinite(z)) return;
+            rotate((float) angle, (float) x, (float) y, (float) z);
+        }
+
         public void rotate(double angle, String axis, double originX, double originY, double originZ) {
             if (poseStack == null || axis == null || axis.isBlank()) {
                 return;
@@ -4603,6 +4809,11 @@ public class TrainScriptSystem {
                 poseStack.scale(x, y, z);
             }
             recordOp(OP_SCALE, x, y, z, 0, 0, null, ' ');
+        }
+
+        public void scale(double x, double y, double z) {
+            if (!Double.isFinite(x) || !Double.isFinite(y) || !Double.isFinite(z)) return;
+            scale((float) x, (float) y, (float) z);
         }
 
         private static List<String> extractGroupNames(Object groups) {

@@ -449,6 +449,13 @@ public class LargeRailCoreBlockEntity extends BlockEntity {
     }
 
     /**
+     * Returns the current redstone signal strength used by legacy RTM train signal APIs.
+     */
+    public int getLastSignalStrength() {
+        return Math.max(0, lastSignalStrength);
+    }
+
+    /**
      * Returns the previous branch index used during client-side animation.
      */
     public int getPreviousSegmentIndex() {

@@ -185,6 +185,10 @@ public final class PackButtonTextureCache {
     }
 
     private static NativeImage loadBestButtonFromDirectory(Path root, String modelId, String displayName) throws Exception {
+        NativeImage exact = loadExactFallbackButtonFromDirectory(root, modelId, displayName);
+        if (exact != null) {
+            return exact;
+        }
         ButtonCandidate best = null;
         try (var stream = Files.walk(root)) {
             for (Path path : (Iterable<Path>) stream::iterator) {
@@ -209,6 +213,10 @@ public final class PackButtonTextureCache {
 
     private static NativeImage loadBestButtonFromArchive(Path archive, String modelId, String displayName) throws Exception {
         try (ZipFile zipFile = PackZipReader.openZipFile(archive)) {
+            NativeImage exact = loadExactFallbackButtonFromArchive(zipFile, modelId, displayName);
+            if (exact != null) {
+                return exact;
+            }
             ButtonCandidate best = null;
             var entries = zipFile.entries();
             while (entries.hasMoreElements()) {
@@ -228,6 +236,72 @@ public final class PackButtonTextureCache {
             try (InputStream input = zipFile.getInputStream(best.entry())) {
                 return NativeImage.read(input);
             }
+        }
+    }
+
+    private static NativeImage loadExactFallbackButtonFromDirectory(Path root, String modelId, String displayName) throws Exception {
+        for (String candidate : exactButtonCandidates(modelId, displayName)) {
+            Path resolved = resolveDirectoryTexture(root, candidate);
+            if (resolved != null) {
+                try (InputStream input = Files.newInputStream(resolved)) {
+                    return NativeImage.read(input);
+                }
+            }
+        }
+        return null;
+    }
+
+    private static NativeImage loadExactFallbackButtonFromArchive(ZipFile zipFile, String modelId, String displayName) throws Exception {
+        for (String candidate : exactButtonCandidates(modelId, displayName)) {
+            ZipEntry entry = findEntry(zipFile, candidate);
+            if (entry != null) {
+                try (InputStream input = zipFile.getInputStream(entry)) {
+                    return NativeImage.read(input);
+                }
+            }
+        }
+        return null;
+    }
+
+    private static List<String> exactButtonCandidates(String modelId, String displayName) {
+        List<String> candidates = new ArrayList<>();
+        for (String raw : new String[]{modelId, displayName}) {
+            String value = safe(raw).trim();
+            if (value.isBlank()) {
+                continue;
+            }
+            String leaf = value.replace(' ', '_');
+            String compactLeaf = compact(value);
+            int namespaceSeparator = leaf.indexOf(':');
+            if (namespaceSeparator >= 0) {
+                leaf = leaf.substring(namespaceSeparator + 1);
+            }
+            int slash = leaf.lastIndexOf('/');
+            if (slash >= 0) {
+                leaf = leaf.substring(slash + 1);
+            }
+            addExactButtonCandidate(candidates, "textures/train/button_" + leaf + ".png");
+            addExactButtonCandidate(candidates, "textures/vehicle/button_" + leaf + ".png");
+            addExactButtonCandidate(candidates, "textures/button/button_" + leaf + ".png");
+            addExactButtonCandidate(candidates, "textures/buttons/button_" + leaf + ".png");
+            addExactButtonCandidate(candidates, "textures/button/" + leaf + ".png");
+            addExactButtonCandidate(candidates, "textures/buttons/" + leaf + ".png");
+            addExactButtonCandidate(candidates, "button_" + leaf + ".png");
+            addExactButtonCandidate(candidates, leaf + ".png");
+            if (!compactLeaf.isBlank() && !compactLeaf.equals(leaf)) {
+                addExactButtonCandidate(candidates, "textures/train/button_" + compactLeaf + ".png");
+                addExactButtonCandidate(candidates, "textures/vehicle/button_" + compactLeaf + ".png");
+                addExactButtonCandidate(candidates, "textures/button/button_" + compactLeaf + ".png");
+                addExactButtonCandidate(candidates, "textures/buttons/button_" + compactLeaf + ".png");
+                addExactButtonCandidate(candidates, "button_" + compactLeaf + ".png");
+            }
+        }
+        return candidates;
+    }
+
+    private static void addExactButtonCandidate(List<String> candidates, String value) {
+        if (!candidates.contains(value)) {
+            candidates.add(value);
         }
     }
 
