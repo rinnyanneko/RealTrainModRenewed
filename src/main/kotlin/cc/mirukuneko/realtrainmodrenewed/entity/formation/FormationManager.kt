@@ -3,50 +3,36 @@ package cc.mirukuneko.realtrainmodrenewed.entity.formation
 import cc.mirukuneko.realtrainmodrenewed.entity.TrainEntity
 
 class FormationManager private constructor() {
-    private val formations: MutableMap<Long, Formation> = HashMap()
+    private val formations: MutableMap<String, Formation> = HashMap()
 
-    fun getFormation(id: Long): Formation? = formations[id]
+    fun getFormation(id: String): Formation? = formations[id]
 
-    fun register(id: Long, formation: Formation) {
+    fun register(id: String, formation: Formation) {
         formations[id] = formation
     }
 
-    fun remove(id: Long) {
+    fun remove(id: String) {
         formations.remove(id)
     }
 
-    fun getNewId(): Long {
-        var id = System.currentTimeMillis()
+    fun getNewId(): String {
+        var id = System.currentTimeMillis().toString()
         while (formations.containsKey(id)) {
-            id++
+            id = (id.toLongOrNull()?.plus(1) ?: System.currentTimeMillis()).toString()
         }
         return id
     }
 
-    fun createNewFormation(train: TrainEntity): Formation {
+    fun createNewFormation(train: TrainEntity?): Formation? {
+        if (train == null) return null
         val id = getNewId()
         val formation = Formation(id, 1)
         formation.entries[0] = FormationEntry(train, 0, 0)
-        train.setFormation(formation)
         return formation
     }
 
     companion object {
-        private var INSTANCE: FormationManager? = null
-
-        @JvmStatic
-        fun getInstance(): FormationManager {
-            var instance = INSTANCE
-            if (instance == null) {
-                instance = FormationManager()
-                INSTANCE = instance
-            }
-            return instance
-        }
-
-        @JvmStatic
-        fun reset() {
-            INSTANCE = null
-        }
+        @JvmField
+        val instance: FormationManager = FormationManager()
     }
 }

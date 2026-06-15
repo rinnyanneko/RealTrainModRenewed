@@ -1,21 +1,31 @@
-@file:JvmName("CurveMath")
-
 package cc.mirukuneko.realtrainmodrenewed.rail.math
 
-import kotlin.math.floor as kotlinFloor
+import kotlin.math.*
 
-/** Minimal math helpers matching legacy rail code usage. */
-fun wrapAngle(angle: Float): Float {
-    var wrapped = angle % 360.0f
-    if (wrapped >= 180.0f) wrapped -= 360.0f
-    if (wrapped < -180.0f) wrapped += 360.0f
-    return wrapped
-}
+object CurveMath {
+    @JvmStatic
+    fun floor(value: Float): Int = kotlin.math.floor(value.toDouble()).toInt()
 
-fun toRadians(degrees: Float): Double {
-    return Math.toRadians(degrees.toDouble())
-}
+    @JvmStatic
+    fun floor(value: Double): Int = kotlin.math.floor(value).toInt()
 
-fun floor(v: Double): Int {
-    return kotlinFloor(v).toInt()
+    @JvmStatic
+    fun wrapAngle(angle: Float): Float {
+        var a = angle % 360f
+        if (a < 0f) a += 360f
+        return a
+    }
+
+    @JvmStatic
+    fun wrapAngle(angle: Double): Double {
+        var a = angle % 360.0
+        if (a < 0.0) a += 360.0
+        return a
+    }
+
+    @JvmStatic
+    fun approxEqual(a: Float, b: Float, epsilon: Float = 1e-4f): Boolean = abs(a - b) < epsilon
+
+    @JvmStatic
+    fun approxEqual(a: Double, b: Double, epsilon: Double = 1e-8): Boolean = abs(a - b) < epsilon
 }

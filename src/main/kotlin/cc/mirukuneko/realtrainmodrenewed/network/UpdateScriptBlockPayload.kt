@@ -47,7 +47,8 @@ data class UpdateScriptBlockPayload(
                 val player = context.player() as? ServerPlayer ?: return@enqueueWork
                 val serverLevel = player.level()
                 val blockEntity = serverLevel.getBlockEntity(payload.pos) as? ScriptBlockEntity ?: return@enqueueWork
-                blockEntity.configure(payload.script, payload.runOnRedstone)
+                blockEntity.setScript(payload.script)
+                blockEntity.setRunOnRedstone(payload.runOnRedstone)
                 val executed = payload.executeNow && blockEntity.runScript(serverLevel)
                 serverLevel.sendBlockUpdated(payload.pos, blockEntity.blockState, blockEntity.blockState, 3)
                 player.sendOverlayMessage(

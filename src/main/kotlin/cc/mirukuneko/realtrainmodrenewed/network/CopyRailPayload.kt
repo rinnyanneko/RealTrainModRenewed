@@ -36,7 +36,7 @@ data class CopyRailPayload(val pos: BlockPos) : CustomPacketPayload {
                 val core = when (direct) {
                     is LargeRailCoreBlockEntity -> direct
                     is RailCollisionBlockEntity -> {
-                        corePos = direct.corePos
+                        direct.corePos?.let { corePos = it } ?: return@enqueueWork
                         player.level().getBlockEntity(corePos) as? LargeRailCoreBlockEntity
                     }
                     else -> null

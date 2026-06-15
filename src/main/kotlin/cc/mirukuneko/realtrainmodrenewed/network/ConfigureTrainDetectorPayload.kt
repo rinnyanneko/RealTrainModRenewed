@@ -42,7 +42,8 @@ data class ConfigureTrainDetectorPayload(
             context.enqueueWork {
                 val player = context.player() as? ServerPlayer ?: return@enqueueWork
                 val blockEntity = player.level().getBlockEntity(payload.pos) as? TrainDetectorBlockEntity ?: return@enqueueWork
-                blockEntity.configure(payload.channel, payload.range)
+                blockEntity.linkedChannel = payload.channel
+                blockEntity.detectionRange = payload.range
                 player.level().sendBlockUpdated(payload.pos, blockEntity.blockState, blockEntity.blockState, 3)
                 player.sendOverlayMessage(Component.literal("電車検知ブロックを更新しました"))
             }

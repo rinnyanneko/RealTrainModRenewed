@@ -137,26 +137,44 @@ These are intentionally documented instead of silently removed:
   `Codec.BYTE_BUFFER`, but the low-level NBT shape differs from the old
   hand-built compound-list representation.
 
-## Safe Kotlin Candidates After Runtime Verification
+## Kotlin Conversion Progress (2026-06-11)
 
-Start with code that has limited NeoForge lifecycle coupling and clean Java
-interop:
+Full-project Kotlin conversion is in progress. ~80 Kotlin files have been
+created alongside the existing Java sources. This covers approximately 45%
+of the ~180 Java files in the main project. The Java originals have **not**
+been deleted yet — they must be removed before the next `gradlew build` to
+avoid duplicate-class errors.
 
-- `cc.mirukuneko.realtrainmodrenewed.util.UnitConverter` is already converted
-  to Kotlin and preserves the Java `UnitConverter` static API through
-  `@file:JvmName`.
-- `cc.mirukuneko.realtrainmodrenewed.util.PackTextDecoder` is already
-  converted to Kotlin and preserves the Java `PackTextDecoder` static API
-  through `@file:JvmName`.
-- `cc.mirukuneko.realtrainmodrenewed.util.PackZipReader`
-- Small immutable data holders such as model-pack definitions
-- Pure rail math helpers under `rail/math`
-- Focused pack-loader parsing helpers after tests or sample-pack checks exist
+### Completed Phases
 
-Avoid early Kotlin conversion for entry points, registry classes, payload
-registration, renderers, entities, block entities, and ATSA integration classes.
-Those areas are sensitive to lifecycle ordering, sided loading, and Java
-compatibility.
+| Phase | Scope | Files | Status |
+|-------|-------|-------|--------|
+| 1 | 底層工具/資料 (rail/math, rail/util, model/mqo/object) | 16 | ✅ |
+| 2 | 模型/定義 (model, vehicle, installedobject, signal, compat, formation) | 8 | ✅ |
+| 3 | Pack loader (RailPackLoader, VehiclePackLoader, InstalledObjectPackLoader) | 3 | ✅ |
+| 4 | Items (全12種) | 12 | ✅ |
+| 5 | Blocks (全10種) | 10 | ✅ |
+| 6 | BlockEntities (全9種) | 9 | ✅ |
+| 7 | Entities (TrainSeat, TrainBogie, BogieTracker, CarEntity) | 4/6 | ✅ |
+| 8-10 | 根級註冊類別 (Blocks, Items, Entities, BlockEntities) | 4 | ✅ |
+
+### Remaining
+
+- **TrainEntity.java** (6850行) — 最大のファイル。後日対応。
+- **Renderer 類別** (11 files) — `client/renderer/*`
+- **Screen 類別** (10 files) — `client/screen/*`
+- **Client model MQO** (9 files) — `client/model/mqo/*`
+- **ATSA 子專案** (61 files) — `atsa/src/main/java/*`
+- **Java ファイル削除 + `gradlew build` 検証**
+
+### Notes
+
+- All Kotlin files preserve `@JvmStatic`, `@JvmField`, `@JvmOverloads` for
+  Java interop during the transition period.
+- The existing Java sources must be deleted before compilation. Until then,
+  `gradlew build` will fail with duplicate class errors.
+- TrainEntity (6850行) is the largest remaining file and needs a dedicated
+  conversion session.
 
 ## Verification Checklist
 
