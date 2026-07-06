@@ -111,6 +111,8 @@ class InstalledObjectBlockEntity(pos: BlockPos, state: BlockState) :
 
     // Legacy script accessors
     fun getSignal(): Int = max(0, signalAspect.let { SignalAspect.byId(it).legacyValue })
+    fun getLegacySignalState(): Int = getSignal()
+    fun getLightCount(): Int = if (powered) 1 else 0
     fun getResourceState(): ResourceStateCompat = ResourceStateCompat(this)
     fun getModelSet(): ModelSetCompat = ModelSetCompat(this)
     fun getRotation(): Float = 0f

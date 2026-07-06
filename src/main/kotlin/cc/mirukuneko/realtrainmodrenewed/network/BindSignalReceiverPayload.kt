@@ -46,11 +46,11 @@ data class BindSignalReceiverPayload(
                 }
                 when (val blockEntity = player.level().getBlockEntity(payload.pos)) {
                     is SignalRemoteBlockEntity -> {
-                        blockEntity.linkedChannel = payload.channel
+                        blockEntity.setLinkedChannel(payload.channel)
                         player.level().sendBlockUpdated(payload.pos, blockEntity.blockState, blockEntity.blockState, 3)
                     }
                     is SignalStateBlockEntity -> {
-                        blockEntity.linkedChannel = payload.channel
+                        blockEntity.setLinkedChannel(payload.channel)
                         player.level().sendBlockUpdated(payload.pos, blockEntity.blockState, blockEntity.blockState, 3)
                     }
                     else -> return@enqueueWork

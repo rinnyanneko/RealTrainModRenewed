@@ -92,9 +92,10 @@ class TrainItem : Item {
 
         val stack = context.itemInHand
         val selectedId = stack.get(RealTrainModRenewedComponents.SELECTED_MODEL_ID.get())
-        var def = VehicleRegistry.getById(selectedId)
+        var spawnVehicleId = selectedId
+        var def = VehicleRegistry.getById(spawnVehicleId)
         if (def == null || !accepts(def))
-            def = VehicleRegistry.getAll().firstOrNull { accepts(it) }
+            def = VehicleRegistry.getAll().firstOrNull { accepts(it) }?.also { spawnVehicleId = VehicleRegistry.getSelectionId(it) }
         if (def == null) return InteractionResult.PASS
 
         val spawnData = findNearestRailSpawn(level, context.clickedPos, context.clickLocation, player.yRot)
@@ -105,8 +106,12 @@ class TrainItem : Item {
             return InteractionResult.FAIL
         }
 
-        val train = TrainEntity.create(level, def.id, spawnData.x, spawnData.y, spawnData.z, spawnData.yaw, def.trainDistance)
-            ?: return InteractionResult.PASS
+        val train = TrainEntity.create(level, spawnVehicleId ?: def.id, spawnData.x, spawnData.y, spawnData.z, spawnData.yaw, def.trainDistance)
+            ?: run {
+                RealTrainModRenewed.LOGGER.warn("Train placement failed: could not create vehicle id={} display={} at ({}, {}, {})", spawnVehicleId ?: def.id, def.displayName, spawnData.x, spawnData.y, spawnData.z)
+                player.sendOverlayMessage(Component.literal("列車を生成できませんでした(モデルIDを確認)"))
+                return InteractionResult.FAIL
+            }
         train.initializeOnRail(spawnData.map, spawnData.split, spawnData.index)
         level.addFreshEntity(train)
         player.cooldowns.addCooldown(context.itemInHand, SPAWN_COOLDOWN_TICKS)

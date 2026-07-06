@@ -7,8 +7,10 @@ import net.minecraft.network.syncher.EntityDataAccessor;
 import net.minecraft.network.syncher.EntityDataSerializers;
 import net.minecraft.network.syncher.SynchedEntityData;
 import net.minecraft.server.level.ServerEntity;
+import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
+import net.minecraft.world.damagesource.DamageSource;
 import net.minecraft.world.entity.*;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.Level;
@@ -41,8 +43,8 @@ public class TrainSeatEntity extends Entity {
     public TrainEntity getTrain() {
         if (train != null) return train;
         if (level() == null) return null;
-        TrainEntity t = getVehicle();
-        if (t instanceof TrainEntity) {
+        Entity vehicle = getVehicle();
+        if (vehicle instanceof TrainEntity t) {
             train = t;
             return t;
         }
@@ -51,7 +53,6 @@ public class TrainSeatEntity extends Entity {
 
     public int getSeatIndex() { return entityData.get(SEAT_INDEX); }
 
-    @Override
     public double getPassengersRidingOffset() {
         return 0.7;
     }
@@ -59,8 +60,8 @@ public class TrainSeatEntity extends Entity {
     @Override
     public InteractionResult interact(Player player, InteractionHand hand, Vec3 location) {
         if (player.isCrouching()) return InteractionResult.PASS;
-        if (!level().isClientSide) {
-            player.startRiding(this, true);
+        if (!level().isClientSide()) {
+            player.startRiding(this, true, false);
             return InteractionResult.CONSUME;
         }
         return InteractionResult.SUCCESS;
@@ -69,7 +70,7 @@ public class TrainSeatEntity extends Entity {
     @Override
     public void tick() {
         super.tick();
-        if (level().isClientSide) {
+        if (level().isClientSide()) {
             TrainEntity t = getTrain();
             if (t != null) {
                 // Position follows train
@@ -84,7 +85,7 @@ public class TrainSeatEntity extends Entity {
 
     @Override
     public Packet<ClientGamePacketListener> getAddEntityPacket(ServerEntity entity) {
-        return new ClientboundAddEntityPacket(this, entity.getId());
+        return new ClientboundAddEntityPacket(this, entity);
     }
 
     @Override
@@ -96,8 +97,10 @@ public class TrainSeatEntity extends Entity {
     public boolean isPushable() { return false; }
     @Override
     public boolean isPickable() { return true; }
-    @Override
     public boolean canBeCollidedWith() { return false; }
+
+    public void attachToTrain(TrainEntity train, int seatIndex) { setTrain(train, seatIndex); }
+    public boolean belongsToTrain(int trainId) { return train != null && train.getId() == trainId; }
 
     @Override
     protected void addPassenger(Entity passenger) {
@@ -106,4 +109,7 @@ public class TrainSeatEntity extends Entity {
             passenger.setYRot(getYRot());
         }
     }
+
+    @Override
+    public boolean hurtServer(ServerLevel level, DamageSource source, float amount) { return false; }
 }

@@ -5,12 +5,14 @@ import java.util.Locale
 object VehicleRegistry {
     private val definitions: MutableList<VehicleDefinition> = ArrayList()
     private val byId: MutableMap<String, VehicleDefinition> = HashMap()
+    private val idCounts: MutableMap<String, Int> = HashMap()
     private var selectedIndex = 0
 
     @JvmStatic
     fun setDefinitions(defs: List<VehicleDefinition?>) {
         definitions.clear()
         byId.clear()
+        idCounts.clear()
         val unique = LinkedHashMap<String, VehicleDefinition>()
         for (definition in defs) {
             if (definition != null) {
@@ -18,8 +20,12 @@ object VehicleRegistry {
             }
         }
         for (definition in unique.values) {
+            idCounts[definition.id] = (idCounts[definition.id] ?: 0) + 1
+        }
+        for (definition in unique.values) {
             definitions.add(definition)
             byId.putIfAbsent(definition.id, definition)
+            byId[packScopedId(definition)] = definition
         }
         if (selectedIndex >= definitions.size || isHiddenDefault(getSelected())) {
             selectedIndex = firstUsableIndex()
@@ -31,6 +37,10 @@ object VehicleRegistry {
 
     @JvmStatic
     fun getById(id: String?): VehicleDefinition? = if (id == null) null else byId[id]
+
+    @JvmStatic
+    fun getSelectionId(definition: VehicleDefinition): String =
+        if ((idCounts[definition.id] ?: 0) > 1) packScopedId(definition) else definition.id
 
     @JvmStatic
     fun getSelected(): VehicleDefinition? {
@@ -74,13 +84,12 @@ object VehicleRegistry {
     private fun safe(value: String?): String = value ?: ""
 
     private fun dedupeKey(definition: VehicleDefinition): String {
-        val display = safe(definition.displayName)
-        val button = safe(definition.buttonTexture)
+        val id = safe(definition.id)
+        val pack = safe(definition.packName)
         val model = safe(definition.modelFile)
-        return if (display.isNotBlank() && button.isNotBlank()) {
-            "$display|$button".lowercase(Locale.ROOT)
-        } else {
-            "$display|$model".lowercase(Locale.ROOT)
-        }
+        return "$pack|$id|$model".lowercase(Locale.ROOT)
     }
+
+    private fun packScopedId(definition: VehicleDefinition): String =
+        "${definition.packName}:${definition.id}"
 }

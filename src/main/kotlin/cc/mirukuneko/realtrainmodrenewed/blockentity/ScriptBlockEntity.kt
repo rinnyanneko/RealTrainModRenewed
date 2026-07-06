@@ -21,6 +21,7 @@ class ScriptBlockEntity(pos: BlockPos, state: BlockState) :
     var lastError: String = ""
         private set
     var runOnRedstone: Boolean = true
+        private set
     var powered: Boolean = false
         private set
 
@@ -41,6 +42,7 @@ class ScriptBlockEntity(pos: BlockPos, state: BlockState) :
     }
 
     fun setScript(script: String) { this.script = script; setChanged() }
+    fun isRunOnRedstone(): Boolean = runOnRedstone
     fun setRunOnRedstone(run: Boolean) { runOnRedstone = run; setChanged() }
 
     fun runScript(level: ServerLevel): Boolean {

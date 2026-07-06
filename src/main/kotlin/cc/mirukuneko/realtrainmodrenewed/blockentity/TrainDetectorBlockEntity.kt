@@ -44,6 +44,8 @@ class TrainDetectorBlockEntity(pos: BlockPos, state: BlockState) :
         private set
     var releaseCooldown: Int = 0
 
+    fun isOccupied(): Boolean = occupied
+
     private fun setOccupied(level: ServerLevel, pos: BlockPos, state: BlockState, occupiedNow: Boolean) {
         if (occupied == occupiedNow && state.getValue(TrainDetectorBlock.POWERED) == occupiedNow) return
         occupied = occupiedNow

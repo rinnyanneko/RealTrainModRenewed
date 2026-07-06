@@ -37,6 +37,11 @@
 
   "tooltip.realtrainmodrenewed.model.selected": "已选择: %s",
   "tooltip.realtrainmodrenewed.model.none": "未选择模型（右键选择）",
+  "tooltip.realtrainmodrenewed.marker.place_pair": "放置两个以上标记器，再用轨道物品铺设轨道。",
+  "tooltip.realtrainmodrenewed.marker.configure": "用标记器右键已放置标记器可调整超高和曲线锚点。",
+  "tooltip.realtrainmodrenewed.marker.build": "道岔标记器与普通标记器连接时会建立道岔线路。",
+  "tooltip.realtrainmodrenewed.rail.marker_use": "对标记器组使用可铺设当前选择的轨道模型。",
+  "tooltip.realtrainmodrenewed.rail.preview_adjust": "复制的轨道预览可在放置前微调位置。",
   "tooltip.realtrainmodrenewed.selected_model": "已选模型: %s",
   "tooltip.realtrainmodrenewed.formation.size": "编组大小: %s",
   "tooltip.realtrainmodrenewed.formation.vehicles": "车辆: %s",
@@ -74,6 +79,9 @@
   "key.realtrainmodrenewed.play_announcement": "播放选择的车内广播",
   "key.realtrainmodrenewed.play_horn": "鸣笛",
   "key.realtrainmodrenewed.toggle_render_profiler": "切换RTMU渲染分析器",
+  "key.realtrainmodrenewed.marker_hud_previous": "铁路标记HUD上一个选项",
+  "key.realtrainmodrenewed.marker_hud_next": "铁路标记HUD下一个选项",
+  "key.realtrainmodrenewed.marker_hud_toggle": "铁路标记HUD切换选项",
 
   "realtrainmodrenewed.configuration.title": "RealTrainMod Renewed 配置",
   "realtrainmodrenewed.configuration.section.realtrainmodrenewed.common.toml": "RealTrainMod Renewed 配置",

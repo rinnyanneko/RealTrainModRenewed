@@ -1,9 +1,5 @@
 package cc.mirukuneko.realtrainmodrenewed.client.model.mqo;
 
-import cc.mirukuneko.realtrainmodrenewed.client.model.mqo.object.MQOFace;
-import cc.mirukuneko.realtrainmodrenewed.client.model.mqo.object.MQOObject;
-import cc.mirukuneko.realtrainmodrenewed.client.model.mqo.object.MQOVector;
-import cc.mirukuneko.realtrainmodrenewed.client.model.mqo.object.MQOVertex;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 

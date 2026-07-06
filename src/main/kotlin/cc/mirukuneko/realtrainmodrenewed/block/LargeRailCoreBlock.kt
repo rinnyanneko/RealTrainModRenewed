@@ -98,8 +98,12 @@ class LargeRailCoreBlock : BaseEntityBlock {
             val segments = ListTag()
             var i = 0
             while (i + 1 < positions.size) {
+                val start = positions[i] ?: run { i += 2; continue }
                 val end = positions[i + 1] ?: run { i += 2; continue }
-                val segment = CompoundTag(); segment.put("EndRP", end.writeToNBT()); segments.add(segment)
+                val segment = CompoundTag()
+                segment.put("StartRP", start.writeToNBT())
+                segment.put("EndRP", end.writeToNBT())
+                segments.add(segment)
                 i += 2
             }
             if (!segments.isEmpty) {

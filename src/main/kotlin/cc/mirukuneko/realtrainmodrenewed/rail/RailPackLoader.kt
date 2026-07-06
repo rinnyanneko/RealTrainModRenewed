@@ -193,7 +193,7 @@ object RailPackLoader {
                 }
             }
             if (ballast <= 0 && ballastBlockId.isEmpty()) {
-                val idLower = (id ?: "").lowercase(Locale.ROOT)
+                val idLower = id.lowercase(Locale.ROOT)
                 val fileLower = modelFile.lowercase(Locale.ROOT)
                 if (idLower.contains("1067mm") || idLower.contains("1435mm") || idLower.contains("1524mm")
                     || fileLower.contains("1067mm") || fileLower.contains("1435mm") || fileLower.contains("1524mm")
@@ -214,11 +214,32 @@ object RailPackLoader {
     private fun parseTextures(model: JsonObject): Map<String, String> {
         val tex = HashMap<String, String>()
         val textures = model.get("textures") ?: return tex
-        if (!textures.isJsonObject) return tex
-        for ((key, value) in textures.asJsonObject.entrySet()) {
-            if (value.isJsonPrimitive) tex[key] = value.asString
+        if (textures.isJsonObject) {
+            for ((key, value) in textures.asJsonObject.entrySet()) {
+                if (value.isJsonPrimitive) tex[key] = value.asString
+            }
+            return tex
+        }
+        if (!textures.isJsonArray) return tex
+        for (entry in textures.asJsonArray) {
+            if (!entry.isJsonArray) continue
+            val pair = entry.asJsonArray
+            if (pair.size() < 2) continue
+            val material = pair[0].asString
+            val texture = pair[1].asString
+            if (material.isNotBlank() && texture.isNotBlank()) tex[material] = encodeTextureDescriptor(pair)
         }
         return tex
+    }
+
+    private fun encodeTextureDescriptor(pair: JsonArray): String {
+        val texture = pair[1].asString
+        if (pair.size() < 3) return texture
+        val flags = (2 until pair.size()).mapNotNull { i ->
+            val option = pair[i]
+            if (option.isJsonPrimitive) option.asString.takeIf { it.isNotBlank() }?.trim() else null
+        }
+        return if (flags.isEmpty()) texture else "$texture|ptmeta=${flags.joinToString(",")}"
     }
 
     private fun parseVec3(obj: JsonObject, key: String, scale: Double): Vec3 {
@@ -287,10 +308,20 @@ object RailPackLoader {
     @JvmStatic
     fun resolvePackPath(packName: String): Path? {
         val gameDir = FMLPaths.GAMEDIR.get()
-        val candidates = listOf(
-            gameDir, gameDir.resolve("mods"), gameDir.resolve("content"),
-            gameDir.resolve("vehicle_packs"), gameDir.resolve("rail_packs")
-        )
+        val candidates = buildList {
+            add(gameDir)
+            add(gameDir.resolve("mods"))
+            add(gameDir.resolve("content"))
+            add(gameDir.resolve("vehicle_packs"))
+            add(gameDir.resolve("rail_packs"))
+            for (root in configRoots()) {
+                add(root)
+                add(root.resolve("packs"))
+                add(root.resolve("rail_packs"))
+                add(root.resolve("vehicle_packs"))
+                add(root.resolve("installed_object_packs"))
+            }
+        }
         for (dir in candidates) {
             if (!Files.isDirectory(dir)) continue
             try {

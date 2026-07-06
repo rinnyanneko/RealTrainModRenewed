@@ -53,5 +53,7 @@ class RailItem : Item {
         } else {
             lines.accept(Component.translatable("tooltip.realtrainmodrenewed.model.none").withStyle(ChatFormatting.DARK_GRAY))
         }
+        lines.accept(Component.translatable("tooltip.realtrainmodrenewed.rail.marker_use").withStyle(ChatFormatting.GRAY))
+        lines.accept(Component.translatable("tooltip.realtrainmodrenewed.rail.preview_adjust").withStyle(ChatFormatting.DARK_GRAY))
     }
 }

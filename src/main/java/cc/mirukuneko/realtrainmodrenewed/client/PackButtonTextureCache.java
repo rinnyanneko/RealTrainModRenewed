@@ -412,8 +412,10 @@ public final class PackButtonTextureCache {
         addArchiveChildren(gameDir.resolve("vehicle_packs"), seen, result);
         addDirectoryChildren(gameDir.resolve("config").resolve("realtrainmodrenewed"), seen, result);
         addArchiveChildren(gameDir.resolve("config").resolve("realtrainmodrenewed"), seen, result);
+        addPackRootChildren(gameDir.resolve("config").resolve("realtrainmodrenewed"), seen, result);
         addDirectoryChildren(gameDir.resolve("config").resolve("realtrainmodunofficial"), seen, result);
         addArchiveChildren(gameDir.resolve("config").resolve("realtrainmodunofficial"), seen, result);
+        addPackRootChildren(gameDir.resolve("config").resolve("realtrainmodunofficial"), seen, result);
         for (String category : new String[]{"vehicle", "rail", "installed_object", "official"}) {
             for (Path path : BundledPackStore.listBundledPacks(category)) {
                 if (seen.add(path)) {
@@ -422,6 +424,14 @@ public final class PackButtonTextureCache {
             }
         }
         return result;
+    }
+
+    private static void addPackRootChildren(Path root, Set<Path> seen, List<Path> result) {
+        for (String child : new String[]{"packs", "rail_packs", "vehicle_packs", "installed_object_packs"}) {
+            Path dir = root.resolve(child);
+            addDirectoryChildren(dir, seen, result);
+            addArchiveChildren(dir, seen, result);
+        }
     }
 
     private static void addArchiveChildren(Path dir, Set<Path> seen, List<Path> result) {

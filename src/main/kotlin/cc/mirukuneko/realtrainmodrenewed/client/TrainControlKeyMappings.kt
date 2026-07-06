@@ -20,6 +20,9 @@ object TrainControlKeyMappings {
     @JvmField val PLAY_ANNOUNCEMENT: KeyMapping = key("play_announcement", GLFW.GLFW_KEY_I)
     @JvmField val PLAY_HORN: KeyMapping = key("play_horn", GLFW.GLFW_KEY_P)
     @JvmField val TOGGLE_RENDER_PROFILER: KeyMapping = key("toggle_render_profiler", GLFW.GLFW_KEY_F8)
+    @JvmField val MARKER_HUD_PREVIOUS: KeyMapping = key("marker_hud_previous", GLFW.GLFW_KEY_UP)
+    @JvmField val MARKER_HUD_NEXT: KeyMapping = key("marker_hud_next", GLFW.GLFW_KEY_DOWN)
+    @JvmField val MARKER_HUD_TOGGLE: KeyMapping = key("marker_hud_toggle", GLFW.GLFW_KEY_ENTER)
 
     @JvmStatic
     fun register(event: RegisterKeyMappingsEvent) {
@@ -31,6 +34,9 @@ object TrainControlKeyMappings {
         event.register(PLAY_ANNOUNCEMENT)
         event.register(PLAY_HORN)
         event.register(TOGGLE_RENDER_PROFILER)
+        event.register(MARKER_HUD_PREVIOUS)
+        event.register(MARKER_HUD_NEXT)
+        event.register(MARKER_HUD_TOGGLE)
     }
 
     @JvmStatic

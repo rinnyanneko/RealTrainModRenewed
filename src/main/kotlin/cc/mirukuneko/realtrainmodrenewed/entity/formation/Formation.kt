@@ -14,6 +14,8 @@ class Formation(@JvmField var id: String, size: Int) {
         FormationManager.instance.register(id, this)
     }
 
+    constructor(id: Long, size: Int) : this(id.toString(), size)
+
     fun size(): Int = entries.size
 
     fun get(i: Int): FormationEntry? = entries[i]
@@ -45,10 +47,14 @@ class Formation(@JvmField var id: String, size: Int) {
         else entries.lastOrNull()
     }
 
+    fun getFrontEntry(): FormationEntry? = getFront()
+
     fun getRear(): FormationEntry? {
         return if (direction == 0) entries.lastOrNull()
         else entries.firstOrNull()
     }
+
+    fun getRearEntry(): FormationEntry? = getRear()
 
     fun getTrainList(): Stream<TrainEntity> = trainStream()
 
@@ -101,10 +107,14 @@ class Formation(@JvmField var id: String, size: Int) {
         return front.train === target
     }
 
+    fun isFrontCar(target: TrainEntity?): Boolean = isFront(target)
+
     fun isRear(target: TrainEntity?): Boolean {
         val rear = getRear() ?: return false
         return rear.train === target
     }
+
+    fun isRearCar(target: TrainEntity?): Boolean = isRear(target)
 
     fun getIndex(target: TrainEntity?): Int {
         if (target == null) return -1
@@ -128,6 +138,17 @@ class Formation(@JvmField var id: String, size: Int) {
 
     fun clear() {
         for (i in entries.indices) entries[i] = null
+    }
+
+    fun updateTrainMovement() {
+        val frontTrain = getFront()?.train ?: return
+        speed = frontTrain.speed
+        for (entry in entries) {
+            val train = entry?.train ?: continue
+            if (train !== frontTrain) {
+                train.speed = speed
+            }
+        }
     }
 
     override fun toString(): String = "Formation{id='$id', size=${entries.size}}"

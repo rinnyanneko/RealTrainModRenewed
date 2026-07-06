@@ -8,6 +8,8 @@ import net.minecraft.network.syncher.EntityDataAccessor;
 import net.minecraft.network.syncher.EntityDataSerializers;
 import net.minecraft.network.syncher.SynchedEntityData;
 import net.minecraft.server.level.ServerEntity;
+import net.minecraft.server.level.ServerLevel;
+import net.minecraft.world.damagesource.DamageSource;
 import net.minecraft.world.entity.*;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.storage.ValueInput;
@@ -68,13 +70,12 @@ public class TrainBogieEntity extends Entity {
     @Override
     public void tick() {
         super.tick();
-        if (!level().isClientSide) return;
+        if (!level().isClientSide()) return;
         TrainEntity t = getTrain();
         if (t == null) return;
         int idx = entityData.get(BOGIE_INDEX);
     }
 
-    @Override
     public AABB getBoundingBoxForCulling() {
         return getBoundingBox().inflate(2.0);
     }
@@ -86,7 +87,7 @@ public class TrainBogieEntity extends Entity {
 
     @Override
     public Packet<ClientGamePacketListener> getAddEntityPacket(ServerEntity entity) {
-        return new ClientboundAddEntityPacket(this, entity.getId());
+        return new ClientboundAddEntityPacket(this, entity);
     }
 
     @Override
@@ -98,9 +99,14 @@ public class TrainBogieEntity extends Entity {
     public boolean isPushable() { return false; }
     @Override
     public boolean isPickable() { return false; }
-    @Override
     public boolean canBeCollidedWith() { return false; }
 
     public boolean isActivated() { return entityData.get(ACTIVATED); }
+    public void setActivated(boolean activated) { entityData.set(ACTIVATED, activated); }
     public int getBogieIndex() { return entityData.get(BOGIE_INDEX); }
+    public void attachToTrain(TrainEntity train, int bogieIndex) { setTrain(train, bogieIndex); }
+    public boolean belongsToTrain(int trainId) { return entityData.get(TRAIN_ENTITY_ID) == trainId; }
+
+    @Override
+    public boolean hurtServer(ServerLevel level, DamageSource source, float amount) { return false; }
 }

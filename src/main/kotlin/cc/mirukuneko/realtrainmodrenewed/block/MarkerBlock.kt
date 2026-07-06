@@ -128,6 +128,15 @@ class MarkerBlock(val isSwitch: Boolean, properties: BlockBehaviour.Properties) 
         @JvmStatic fun placeCopiedRailAt(level: Level, placePos: BlockPos, player: Player, stack: ItemStack, selectedId: String?): Boolean =
             placeRailFromItem(level, placePos, player, stack, selectedId)
 
+        @JvmStatic
+        fun buildRailForScript(level: Level, railPositions: List<RailPosition>, selectedModelId: String?): Boolean {
+            if (railPositions.size < 2) return false
+            val prop = RailProperties.createDefault()
+            selectedModelId?.let { RailRegistry.getById(it) }?.let { prop.ballastWidth = it.ballastWidth }
+            val core = BlockPos(railPositions[0].blockX, railPositions[0].blockY, railPositions[0].blockZ)
+            return createRail(level, core, railPositions, prop, true, true, selectedModelId)
+        }
+
         private fun resolvePreviewStart(startBe: BlockEntity?, tag: CompoundTag): RailPosition? = when {
             startBe is MarkerBlockEntity -> startBe.markerRP
             startBe is LargeRailCoreBlockEntity -> startBe.firstRailPosition
@@ -143,6 +152,34 @@ class MarkerBlock(val isSwitch: Boolean, properties: BlockBehaviour.Properties) 
 
         private fun copyRailPosition(source: RailPosition): RailPosition = RailPosition.readFromNBT(source.writeToNBT())!!
 
+        private fun applyOffsetToRailPosition(rp: RailPosition, tag: CompoundTag): RailPosition {
+            val copy = copyRailPosition(rp)
+            val offX = NbtCompat.getInt(tag, "OffsetX")
+            val offY = NbtCompat.getInt(tag, "OffsetY")
+            val offZ = NbtCompat.getInt(tag, "OffsetZ")
+            // Apply the preview offset to posX/posY/posZ.
+            copy.posX += offX / 16.0
+            copy.posY += offY / 16.0
+            copy.posZ += offZ / 16.0
+            // Save the exact shifted positions before setHeight recomputes posY.
+            val shiftedPosX = copy.posX
+            val shiftedPosY = copy.posY
+            val shiftedPosZ = copy.posZ
+            // Shift block coordinates using floor so placementCorePos is correct.
+            copy.blockX = CurveMath.floor(shiftedPosX)
+            copy.blockY = CurveMath.floor(shiftedPosY)
+            copy.blockZ = CurveMath.floor(shiftedPosZ)
+            // Set height via setHeight() so the private field is updated correctly.
+            copy.setHeight(((shiftedPosY - copy.blockY) / 0.0625 - 1.0).let { Math.round(it).toInt().toByte() })
+            // Set precise overrides after setHeight so init() uses the exact shifted values.
+            copy.precisePosX = shiftedPosX
+            copy.precisePosY = shiftedPosY
+            copy.precisePosZ = shiftedPosZ
+            // init() respects precise overrides, keeping the exact shifted posX/Y/Z.
+            copy.init()
+            return copy
+        }
+
         private fun createRailProperties(player: Player, selectedModelId: String?): RailProperties {
             val prop = RailProperties.createDefault()
             val def = selectedModelId?.let { RailRegistry.getById(it) }
@@ -154,7 +191,15 @@ class MarkerBlock(val isSwitch: Boolean, properties: BlockBehaviour.Properties) 
             if (rps.size < 2) return false
             val maker = RailMaker(rps.toTypedArray())
             val switch = maker.getSwitch()
-            val maps = if (switch != null) switch.allRailMap.toList() else listOf(RailMapBasic(rps[0], rps[1]))
+            val maps = if (switch != null) switch.allRailMap.toList() else {
+                val result = mutableListOf<RailMap>()
+                var i = 0
+                while (i + 1 < rps.size) {
+                    result.add(RailMapBasic(rps[i], rps[i + 1]))
+                    i += 2
+                }
+                result
+            }
             for (map in maps) if (!map.canPlaceRail(level, isCreative, prop)) return false
             if (!setRail) return true
             val prev = RailMap.suppressRailRemoval.get(); RailMap.suppressRailRemoval.set(true)
@@ -162,6 +207,7 @@ class MarkerBlock(val isSwitch: Boolean, properties: BlockBehaviour.Properties) 
                 level.setBlock(corePos, RealTrainModRenewedBlocks.LARGE_RAIL_CORE.get().defaultBlockState(), Block.UPDATE_ALL)
                 val core = level.getBlockEntity(corePos) as? LargeRailCoreBlockEntity
                 if (core != null) {
+                    core.setRailPositions(rps.toTypedArray())
                     core.setRailMaps(maps.toTypedArray())
                     if (switch != null) core.setSwitchType(switch)
                     if (!selectedModelId.isNullOrBlank()) core.setRailDefinitionId(selectedModelId)
@@ -174,11 +220,9 @@ class MarkerBlock(val isSwitch: Boolean, properties: BlockBehaviour.Properties) 
         @JvmStatic fun createOrAppendBranchRail(level: Level, corePos: BlockPos, start: RailPosition, end: RailPosition, prop: RailProperties, isCreative: Boolean, selectedModelId: String?): Boolean {
             val existingCore = level.getBlockEntity(corePos) as? LargeRailCoreBlockEntity
             if (existingCore != null && existingCore.allRailMaps.isNotEmpty()) {
-                val existingMaps = existingCore.allRailMaps.toMutableList()
-                existingMaps.add(RailMapBasic(start, end))
                 val prev = RailMap.suppressRailRemoval.get(); RailMap.suppressRailRemoval.set(true)
                 try {
-                    existingCore.setRailMaps(existingMaps.toTypedArray())
+                    existingCore.appendRailSegment(start, end)
                     RailMapBasic(start, end).setRail(level, RealTrainModRenewedBlocks.BALLAST.get(), corePos.x, corePos.y, corePos.z, prop)
                 } finally { RailMap.suppressRailRemoval.set(prev) }
                 return true
@@ -188,10 +232,23 @@ class MarkerBlock(val isSwitch: Boolean, properties: BlockBehaviour.Properties) 
 
          @JvmStatic fun createRailsFromWrenchPreview(level: Level, corePos: BlockPos, start: RailPosition, tag: CompoundTag, prop: RailProperties, isCreative: Boolean, selectedModelId: String?): Boolean {
             val segments = WrenchItem.getSegmentList(tag)
-            if (segments.isEmpty()) return false
-            val allPositions = mutableListOf(start)
-            allPositions.addAll(segments)
-            return createRail(level, corePos, allPositions, prop, true, isCreative, selectedModelId)
+
+            // Apply offset to every copied RailPosition
+            val offsetSegments = segments.map { seg -> applyOffsetToRailPosition(seg, tag) }
+
+            if (offsetSegments.size >= 2) {
+                // Derive placement core position from shifted first start position
+                val shiftedFirst = offsetSegments[0]
+                val placementCorePos = BlockPos(shiftedFirst.blockX, shiftedFirst.blockY, shiftedFirst.blockZ)
+                return createRail(level, placementCorePos, offsetSegments, prop, true, isCreative, selectedModelId)
+            }
+
+            // Legacy fallback: no RailSegments — offset both start and EndRP, use shifted core pos
+            val legacyStart = applyOffsetToRailPosition(start, tag)
+            val legacyEnd = RailPosition.readFromNBT(NbtCompat.getCompound(tag, "EndRP"))
+            val legacyEndOffset = legacyEnd?.let { applyOffsetToRailPosition(it, tag) } ?: return false
+            val legacyCorePos = BlockPos(legacyStart.blockX, legacyStart.blockY, legacyStart.blockZ)
+            return createOrAppendBranchRail(level, legacyCorePos, legacyStart, legacyEndOffset, prop, isCreative, selectedModelId)
         }
     }
 

@@ -80,14 +80,29 @@ class LargeRailCoreBlockEntity(pos: BlockPos, state: BlockState) :
         invalidateCache(); clampActiveSegment()
     }
 
+    fun getRailPositions(): Array<RailPosition?>? = railPositions
+    fun getCachedRenderBounds(): AABB {
+        if (renderBoundsDirty || cachedRenderBounds == null) {
+            cachedRenderBounds = computeRenderBounds()
+            renderBoundsDirty = false
+        }
+        return cachedRenderBounds!!
+    }
+    fun getSwitchProgress(partialTick: Float): Float = switchProgress
+
     fun setRailMaps(maps: Array<RailMap>?) {
-        if (maps == null || maps.isEmpty()) { cachedAllRailMaps = emptyArray(); railMapCacheDirty = false; return }
+        if (maps == null || maps.isEmpty()) {
+            cachedAllRailMaps = emptyArray(); railMapCacheDirty = false
+            cachedRenderBounds = null; renderBoundsDirty = true
+            return
+        }
         cachedAllRailMaps = maps.clone(); railMapCacheDirty = false
         railMap = maps[0]
+        cachedRenderBounds = null; renderBoundsDirty = true
     }
 
     fun setRailDefinitionId(id: String?) { railDefinitionId = id ?: ""; setChanged() }
-    fun setSwitchType(type: SwitchType?) { switchType = type; switchStateDirty = true }
+    fun setSwitchType(type: SwitchType?) { switchType = type; switchStateDirty = true; cachedRenderBounds = null; renderBoundsDirty = true }
 
     private fun clearRailData() {
         railPositions = null; railMap = null; switchStateDirty = true; cachedAllRailMaps = emptyArray()
@@ -240,6 +255,40 @@ class LargeRailCoreBlockEntity(pos: BlockPos, state: BlockState) :
         var i = 0
         while (i + 1 < rp.size) { val s = rp[i]; val e = rp[i + 1]; if (s != null && e != null) maps.add(RailMapBasic(s, e)); i += 2 }
         return maps.toTypedArray()
+    }
+    private fun computeRenderBounds(): AABB {
+        val maps = allRailMaps
+        val positions = railPositions?.filterNotNull()
+        if (positions.isNullOrEmpty() && maps.isEmpty()) return AABB(worldPosition).inflate(4.0)
+
+        var minX = worldPosition.x.toDouble()
+        var minY = worldPosition.y.toDouble()
+        var minZ = worldPosition.z.toDouble()
+        var maxX = worldPosition.x.toDouble() + 1.0
+        var maxY = worldPosition.y.toDouble() + 1.0
+        var maxZ = worldPosition.z.toDouble() + 1.0
+        for (rp in positions.orEmpty()) {
+            minX = minOf(minX, rp.posX, rp.blockX.toDouble())
+            minY = minOf(minY, rp.posY, rp.blockY.toDouble())
+            minZ = minOf(minZ, rp.posZ, rp.blockZ.toDouble())
+            maxX = maxOf(maxX, rp.posX, rp.blockX.toDouble() + 1.0)
+            maxY = maxOf(maxY, rp.posY, rp.blockY.toDouble() + 1.0)
+            maxZ = maxOf(maxZ, rp.posZ, rp.blockZ.toDouble() + 1.0)
+        }
+        for (map in maps) {
+            val split = RailMap.curveSplitForLength(map.getHorizontalPathLength()).coerceIn(2, 512)
+            for (i in 0..split) {
+                val point = map.getRailPos(split, i)
+                val y = map.getRailHeight(split, i)
+                minX = minOf(minX, point[1])
+                minY = minOf(minY, y)
+                minZ = minOf(minZ, point[0])
+                maxX = maxOf(maxX, point[1])
+                maxY = maxOf(maxY, y)
+                maxZ = maxOf(maxZ, point[0])
+            }
+        }
+        return AABB(minX, minY, minZ, maxX, maxY, maxZ).inflate(6.0, 4.0, 6.0)
     }
     private fun detectSwitchLayout(): SwitchLayout {
         val rp = railPositions ?: return SwitchLayout.NONE

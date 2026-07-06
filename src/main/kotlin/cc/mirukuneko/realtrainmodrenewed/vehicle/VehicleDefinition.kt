@@ -53,6 +53,16 @@ class VehicleDefinition(
     ) {
         constructor(modelFile: String, textureOverrides: Map<String, String>, position: Vec3) :
             this(modelFile, textureOverrides, position, "")
+
+        fun getModelFile(): String = modelFile
+        fun getTextureOverrides(): Map<String, String> = textureOverrides
+        fun getPosition(): Vec3 = position
+        fun getScriptPath(): String = scriptPath
+
+        fun modelFile(): String = modelFile
+        fun textureOverrides(): Map<String, String> = textureOverrides
+        fun position(): Vec3 = position
+        fun scriptPath(): String = scriptPath
     }
 
     data class SeatMarker(
@@ -60,6 +70,13 @@ class VehicleDefinition(
         @JvmField val type: Int,
         @JvmField val driverCab: Boolean
     ) {
+        fun getPosition(): Vec3 = position
+        fun getType(): Int = type
+        fun isDriverCab(): Boolean = driverCab
+        fun position(): Vec3 = position
+        fun type(): Int = type
+        fun driverCab(): Boolean = driverCab
+
         fun isRideable(): Boolean = driverCab || type != SEAT_TYPE_DISABLED
     }
 
@@ -67,7 +84,14 @@ class VehicleDefinition(
         @JvmField val objects: List<String>,
         @JvmField val closedPosition: Vec3,
         @JvmField val openTranslation: Vec3
-    )
+    ) {
+        fun getObjects(): List<String> = objects
+        fun getClosedPosition(): Vec3 = closedPosition
+        fun getOpenTranslation(): Vec3 = openTranslation
+        fun objects(): List<String> = objects
+        fun closedPosition(): Vec3 = closedPosition
+        fun openTranslation(): Vec3 = openTranslation
+    }
 
     data class RollsignDefinition(
         @JvmField val uv: FloatArray,
@@ -75,6 +99,15 @@ class VehicleDefinition(
         @JvmField val doAnimation: Boolean,
         @JvmField val disableLighting: Boolean
     ) {
+        fun getUv(): FloatArray = uv
+        fun getPos(): Array<Array<FloatArray>> = pos
+        fun isDoAnimation(): Boolean = doAnimation
+        fun isDisableLighting(): Boolean = disableLighting
+        fun uv(): FloatArray = uv
+        fun pos(): Array<Array<FloatArray>> = pos
+        fun doAnimation(): Boolean = doAnimation
+        fun disableLighting(): Boolean = disableLighting
+
         override fun equals(other: Any?): Boolean {
             if (this === other) return true
             if (other !is RollsignDefinition) return false
@@ -96,7 +129,18 @@ class VehicleDefinition(
         @JvmField val position: Vec3,
         @JvmField val radius: Float,
         @JvmField val reverse: Boolean
-    )
+    ) {
+        fun getType(): Byte = type
+        fun getColor(): Int = color
+        fun getPosition(): Vec3 = position
+        fun getRadius(): Float = radius
+        fun isReverse(): Boolean = reverse
+        fun type(): Byte = type
+        fun color(): Int = color
+        fun position(): Vec3 = position
+        fun radius(): Float = radius
+        fun reverse(): Boolean = reverse
+    }
 
     companion object {
         const val SEAT_TYPE_DISABLED: Int = 0
@@ -129,6 +173,48 @@ class VehicleDefinition(
     @JvmField var soundAcceleration: String = ""
     @JvmField var soundDeceleration: String = ""
     @JvmField var soundDecelerationStop: String = ""
+
+    fun getId(): String = id
+    fun getDisplayName(): String = displayName
+    fun getPackName(): String = packName
+    fun getModelFile(): String = modelFile
+    fun getButtonTexture(): String = buttonTexture
+    fun getTextureOverrides(): Map<String, String> = textureOverrides
+    fun getModelOffset(): Vec3 = modelOffset
+    fun getModelScale(): Float = modelScale
+    fun getBogies(): List<BogieDefinition> = bogies
+    fun getSeatMarkers(): List<SeatMarker> = seatMarkers
+    fun getSeatPositions(): List<Vec3> = seatPositions
+    fun getPlayerPositions(): List<Vec3> = playerPositions
+    fun getSeatOffset(): Vec3 = seatOffset
+    fun getScriptPath(): String = scriptPath
+    fun getSoundScriptPath(): String = soundScriptPath
+    fun getVehicleType(): String = vehicleType
+    fun getDoorType(): String = doorType
+    fun getTrainDistance(): Float = trainDistance
+    fun getDriverSeatIndex(): Int = driverSeatIndex
+    fun getFrontDriverSeatIndex(): Int = frontDriverSeatIndex
+    fun getRearDriverSeatIndex(): Int = rearDriverSeatIndex
+    fun getLeftDoors(): List<DoorAnimationDefinition> = leftDoors
+    fun getRightDoors(): List<DoorAnimationDefinition> = rightDoors
+    fun getNotchMaxSpeeds(): List<Float> = notchMaxSpeeds
+    fun getBrakeDecelerations(): List<Float> = brakeDecelerations
+    fun getAcceleration(): Float = acceleration
+    fun isSmoothing(): Boolean = smoothing
+    fun getRollsignNames(): List<String> = rollsignNames
+    fun getCustomButtonNames(): List<String> = customButtonNames
+    fun getCustomButtonOptions(): List<List<String>> = customButtonOptions
+    fun getRollsignTexture(): String = rollsignTexture
+    fun getRollsigns(): List<RollsignDefinition> = rollsigns
+    fun getHeadLights(): List<LightDefinition> = headLights
+    fun getTailLights(): List<LightDefinition> = tailLights
+    fun getInteriorLights(): List<LightDefinition> = interiorLights
+    fun getHornSound(): String = hornSound
+    fun getAnnouncementSounds(): List<String> = announcementSounds
+    fun isDoCulling(): Boolean = doCulling
+    fun isRenderLight(): Boolean = renderLight
+    fun isNotDisplayCab(): Boolean = notDisplayCab
+    fun isSingleTrain(): Boolean = singleTrain
 
     fun getBogiePositions(): List<Vec3> = bogies.map { it.position }
 
@@ -211,6 +297,30 @@ class VehicleDefinition(
         seatOffset, scriptPath, soundScriptPath, vehicleType, doorType, trainDistance,
         driverSeatIndex, frontDriverSeatIndex, rearDriverSeatIndex, leftDoors, rightDoors,
         notchMaxSpeeds, emptyList(), acceleration, smoothing, rollsignNames,
+        customButtonNames, toImmutableNestedList(customButtonOptions), rollsignTexture, rollsigns,
+        headLights, tailLights, interiorLights, hornSound, announcementSounds,
+        doCulling, renderLight, notDisplayCab, singleTrain)
+
+    constructor(
+        id: String, displayName: String, packName: String, modelFile: String,
+        buttonTexture: String?, textureOverrides: Map<String, String>?, modelOffset: Vec3?,
+        modelScale: Float, bogies: List<BogieDefinition>, seatPositions: List<Vec3>,
+        playerPositions: List<Vec3>, seatOffset: Vec3?, scriptPath: String, soundScriptPath: String,
+        vehicleType: String, doorType: String, trainDistance: Float, driverSeatIndex: Int,
+        frontDriverSeatIndex: Int, rearDriverSeatIndex: Int, leftDoors: List<DoorAnimationDefinition>,
+        rightDoors: List<DoorAnimationDefinition>, notchMaxSpeeds: List<Float>,
+        brakeDecelerations: List<Float>, acceleration: Float, smoothing: Boolean,
+        rollsignNames: List<String>, customButtonNames: List<String>,
+        customButtonOptions: List<List<String>>?, rollsignTexture: String,
+        rollsigns: List<RollsignDefinition>, headLights: List<LightDefinition>,
+        tailLights: List<LightDefinition>, interiorLights: List<LightDefinition>,
+        hornSound: String, announcementSounds: List<String>, doCulling: Boolean,
+        renderLight: Boolean, notDisplayCab: Boolean, singleTrain: Boolean
+    ) : this(id, displayName, packName, modelFile, buttonTexture, textureOverrides, modelOffset, modelScale,
+        bogies, buildSeatMarkers(seatPositions, playerPositions), seatPositions, playerPositions,
+        seatOffset, scriptPath, soundScriptPath, vehicleType, doorType, trainDistance,
+        driverSeatIndex, frontDriverSeatIndex, rearDriverSeatIndex, leftDoors, rightDoors,
+        notchMaxSpeeds, brakeDecelerations, acceleration, smoothing, rollsignNames,
         customButtonNames, toImmutableNestedList(customButtonOptions), rollsignTexture, rollsigns,
         headLights, tailLights, interiorLights, hornSound, announcementSounds,
         doCulling, renderLight, notDisplayCab, singleTrain)

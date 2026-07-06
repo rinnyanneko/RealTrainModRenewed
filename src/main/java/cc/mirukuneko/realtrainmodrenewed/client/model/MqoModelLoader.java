@@ -1744,7 +1744,7 @@ public final class MqoModelLoader {
     private static String safeRead(Path path) {
         try {
             return PackTextDecoder.readText(path);
-        } catch (IOException e) {
+        } catch (Exception e) {
             return "";
         }
     }

@@ -54,12 +54,14 @@ object VehiclePackLoader {
     }
 
     private fun loadFromExternalDirectories() {
-        for (dirName in arrayOf("vehicle_packs", "packs", "")) {
-            try {
-                var externalDir = FMLPaths.GAMEDIR.get().resolve("config").resolve("realtrainmodunofficial")
-                if (dirName.isNotEmpty()) externalDir = externalDir.resolve(dirName)
-                if (Files.exists(externalDir)) scanPackRoot(externalDir)
-            } catch (e: Exception) { RealTrainModRenewed.LOGGER.warn("Could not scan external vehicle packs {}", dirName, e) }
+        for (configRoot in configRoots()) {
+            for (dirName in arrayOf("vehicle_packs", "packs", "")) {
+                try {
+                    var externalDir = configRoot
+                    if (dirName.isNotEmpty()) externalDir = externalDir.resolve(dirName)
+                    if (Files.exists(externalDir)) scanPackRoot(externalDir)
+                } catch (e: Exception) { RealTrainModRenewed.LOGGER.warn("Could not scan external vehicle packs {}", dirName, e) }
+            }
         }
     }
 
@@ -132,7 +134,7 @@ object VehiclePackLoader {
     private fun loadVehiclePackDirectory(packDir: Path) {
         val packName = packDir.fileName.toString()
         Files.walk(packDir).use { stream ->
-            stream.filter { Files.isRegularFile(it) && it.fileName.toString().lowercase().endsWith(".json") }
+            stream.filter { Files.isRegularFile(it) && isTrainJson(normalize(packDir.relativize(it).toString())) }
                 .forEach { path ->
                     try { parseTrainJson(Files.readAllBytes(path), packName, normalize(packDir.relativize(path).toString())) }
                     catch (e: Exception) { RealTrainModRenewed.LOGGER.warn("Failed to load vehicle pack json {} in {}", path, packName, e) }
@@ -171,7 +173,6 @@ object VehiclePackLoader {
         val leaf = normalized.substringAfterLast('/')
         return leaf.startsWith("modeltrain_") || leaf.startsWith("train_")
             || leaf.startsWith("modelvehicle_") || leaf.startsWith("vehicle_")
-            || normalized.contains("/json/") || normalized.contains("/models/json/")
     }
 
     private fun isArchiveName(name: String): Boolean {
@@ -186,7 +187,14 @@ object VehiclePackLoader {
             val obj = el.asJsonObject
             val lowerPath = path.lowercase(Locale.ROOT)
             val isCar = lowerPath.contains("modelvehicle_") || lowerPath.contains("vehicle_")
-            val trainModel = getObject(obj, "ModelTrain") ?: getObject(obj, "modelTrain") ?: getObject(obj, "model") ?: return
+            val modelObject = getObject(obj, "ModelTrain")
+                ?: getObject(obj, "modelTrain")
+                ?: getObject(obj, "trainModel3")
+                ?: getObject(obj, "trainModel2")
+                ?: getObject(obj, "modelTrain3")
+                ?: getObject(obj, "modelTrain2")
+                ?: if (isTrainJson(path)) getObject(obj, "model") else null
+            val trainModel = modelObject ?: return
 
             val modelFile = firstNonBlank(getString(trainModel, "modelFile"), getString(obj, "modelFile")) ?: return
             val displayName = firstNonBlank(
@@ -264,7 +272,10 @@ object VehiclePackLoader {
     private fun parseBogies(root: JsonObject, trainModel: JsonObject): List<VehicleDefinition.BogieDefinition> {
         val list = mutableListOf<VehicleDefinition.BogieDefinition>()
         val bogieArray = trainModel.get("bogies")?.takeIf { it.isJsonArray }?.asJsonArray
-            ?: root.get("bogies")?.takeIf { it.isJsonArray }?.asJsonArray ?: return list
+            ?: root.get("bogies")?.takeIf { it.isJsonArray }?.asJsonArray
+        if (bogieArray == null) {
+            return parseLegacyBogies(root, trainModel)
+        }
         for (e in bogieArray) {
             if (!e.isJsonObject) continue
             val b = e.asJsonObject
@@ -273,6 +284,26 @@ object VehiclePackLoader {
             val pos = parseVec3(b, "position", 1.0)
             val script = getString(b, "scriptPath") ?: ""
             list.add(VehicleDefinition.BogieDefinition(modelFile, tex, pos, script))
+        }
+        return list
+    }
+
+    private fun parseLegacyBogies(root: JsonObject, trainModel: JsonObject): List<VehicleDefinition.BogieDefinition> {
+        val models = firstJsonArray(root, trainModel, "bogieModel3", "bogieModel2", "bogieModel", "bogieModels")
+            ?: return emptyList()
+        val positions = parseVec3List(root, trainModel, "bogiePos", "bogiePositions")
+        val list = mutableListOf<VehicleDefinition.BogieDefinition>()
+        val count = maxOf(models.size(), positions.size)
+        for (i in 0 until count) {
+            if (models.size() <= 0) continue
+            val element = models[if (i < models.size()) i else models.size() - 1]
+            if (!element.isJsonObject) continue
+            val bogie = element.asJsonObject
+            val modelFile = getString(bogie, "modelFile") ?: continue
+            val textureOverrides = parseTextures(bogie)
+            val position = positions.getOrNull(i) ?: positions.lastOrNull() ?: Vec3.ZERO
+            val script = firstNonBlank(getString(bogie, "rendererPath"), getString(bogie, "scriptPath")) ?: ""
+            list.add(VehicleDefinition.BogieDefinition(modelFile, textureOverrides, position, script))
         }
         return list
     }
@@ -297,6 +328,16 @@ object VehiclePackLoader {
             if (list.isNotEmpty()) return list
         }
         return emptyList()
+    }
+
+    private fun firstJsonArray(root: JsonObject, trainModel: JsonObject, vararg keys: String): JsonArray? {
+        for (key in keys) {
+            val element = trainModel.get(key) ?: root.get(key)
+            if (element != null && element.isJsonArray) {
+                return element.asJsonArray
+            }
+        }
+        return null
     }
 
     private fun parseDoorAnimations(root: JsonObject, trainModel: JsonObject, key: String): List<VehicleDefinition.DoorAnimationDefinition> {
@@ -479,4 +520,12 @@ object VehiclePackLoader {
     }
 
     private fun normalize(value: String): String = value.replace('\\', '/')
+
+    private fun configRoot(): Path = FMLPaths.GAMEDIR.get().resolve("config").resolve(RealTrainModRenewed.MODID)
+
+    private fun configRoots(): List<Path> {
+        val renewed = configRoot()
+        val legacy = FMLPaths.GAMEDIR.get().resolve("config").resolve("realtrainmodunofficial")
+        return if (renewed == legacy) listOf(renewed) else listOf(renewed, legacy)
+    }
 }

@@ -42,6 +42,29 @@ class InstalledObjectDefinition(
     @JvmField val scriptBodyPos: Vec3 = scriptBodyPos ?: Vec3.ZERO
     @JvmField val signFrame: Int = max(1, signFrame)
 
+    fun getId(): String = id
+    fun getDisplayName(): String = displayName
+    fun getPackName(): String = packName
+    fun getCategory(): InstalledObjectCategory = category
+    fun getModelFile(): String = modelFile
+    fun getScriptPath(): String = scriptPath
+    fun getButtonTexture(): String = buttonTexture
+    fun getTextureOverrides(): Map<String, String> = textureOverrides
+    fun getModelOffset(): Vec3 = modelOffset
+    fun getModelScale(): Float = modelScale
+    fun isSmoothing(): Boolean = smoothing
+    fun getWidth(): Float = width
+    fun getHeight(): Float = height
+    fun getDepth(): Float = depth
+    fun getSignTexture(): String = signTexture
+    fun getEmissiveTexture(): String = emissiveTexture
+    fun getRunningSound(): String = runningSound
+    fun getSignalLightGroups(): Map<Int, List<String>> = signalLightGroups
+    fun getRenderObjects(): List<String> = renderObjects
+    fun getScriptBodyPos(): Vec3 = scriptBodyPos
+    fun getSignFrame(): Int = signFrame
+    fun getBackTexture(): Int = backTexture
+
     var wireAttachPos: Vec3 = Vec3.ZERO
         private set
 

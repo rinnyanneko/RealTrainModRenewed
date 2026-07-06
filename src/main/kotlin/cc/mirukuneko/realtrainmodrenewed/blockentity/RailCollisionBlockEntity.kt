@@ -21,7 +21,9 @@ class RailCollisionBlockEntity(pos: BlockPos, state: BlockState) :
     var surfaceY: Float = 0f
 
     fun setCorePos(corePos: BlockPos?) { this.corePos = corePos; setChanged() }
+    fun getCorePos(): BlockPos? = corePos
     fun setSurfaceY(surfaceY: Float) { this.surfaceY = max(0f, min(1f, surfaceY)); setChanged() }
+    fun getSurfaceY(): Float = surfaceY
 
     override fun saveAdditional(tag: ValueOutput) {
         super.saveAdditional(tag)

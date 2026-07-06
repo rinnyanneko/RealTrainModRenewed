@@ -42,6 +42,11 @@ class RailPosition(
             rp.constLimitHN = NbtCompat.getFloat(nbt, "Const_Limit_HN")
             rp.constLimitWP = NbtCompat.getFloat(nbt, "Const_Limit_WP")
             rp.constLimitWN = NbtCompat.getFloat(nbt, "Const_Limit_WN")
+            // Restore precise position overrides before init() so copy-preview offsets survive load.
+            // NbtCompat.getDouble returns 0.0 for missing keys; the contains guard ensures we only override when present.
+            if (nbt.contains("PosX")) rp.precisePosX = NbtCompat.getDouble(nbt, "PosX")
+            if (nbt.contains("PosY")) rp.precisePosY = NbtCompat.getDouble(nbt, "PosY")
+            if (nbt.contains("PosZ")) rp.precisePosZ = NbtCompat.getDouble(nbt, "PosZ")
             rp.init()
             return rp
         }
@@ -49,6 +54,7 @@ class RailPosition(
 
     @JvmField var direction: Byte = dir.toByte()
     var height: Byte = 0
+        private set
     @JvmField var anchorYaw: Float = CurveMath.wrapAngle(dir.toFloat() * 45.0F)
     @JvmField var anchorPitch: Float = 0f
     @JvmField var anchorLengthHorizontal: Float = -1.0F
@@ -63,20 +69,31 @@ class RailPosition(
     @JvmField var posX: Double = 0.0
     @JvmField var posY: Double = 0.0
     @JvmField var posZ: Double = 0.0
+    @JvmField var precisePosX: Double? = null
+    @JvmField var precisePosY: Double? = null
+    @JvmField var precisePosZ: Double? = null
 
     init {
         init()
     }
 
+    constructor(blockX: Int, blockY: Int, blockZ: Int, dir: Int, switchType: Int) :
+        this(blockX, blockY, blockZ, dir, switchType.toByte())
+
     fun init() {
-        posX = blockX.toDouble() + 0.5 + REVISION[direction.toInt() and 7][0].toDouble()
-        posY = blockY.toDouble() + (height + 1).toDouble() * 0.0625
-        posZ = blockZ.toDouble() + 0.5 + REVISION[direction.toInt() and 7][1].toDouble()
+        posX = precisePosX ?: (blockX.toDouble() + 0.5 + REVISION[direction.toInt() and 7][0].toDouble())
+        posY = precisePosY ?: (blockY.toDouble() + (height + 1).toDouble() * 0.0625)
+        posZ = precisePosZ ?: (blockZ.toDouble() + 0.5 + REVISION[direction.toInt() and 7][1].toDouble())
     }
 
     fun addHeight(par1: Double) {
         val h2 = (par1 / 0.0625).toInt()
         height = (height + h2).toByte()
+        if (precisePosY != null) {
+            // Preserve the existing sub-block Y offset by adding the delta directly.
+            precisePosY = precisePosY!! + par1
+            posY = precisePosY!!
+        }
         init()
     }
 
@@ -97,12 +114,27 @@ class RailPosition(
         nbt.putFloat("Const_Limit_HN", constLimitHN)
         nbt.putFloat("Const_Limit_WP", constLimitWP)
         nbt.putFloat("Const_Limit_WN", constLimitWN)
+        // Persist precise position overrides so copy-preview offsets survive save/load.
+        precisePosX?.let { nbt.putDouble("PosX", it) }
+        precisePosY?.let { nbt.putDouble("PosY", it) }
+        precisePosZ?.let { nbt.putDouble("PosZ", it) }
         return nbt
     }
 
     fun setHeight(par1: Byte) {
+        // Preserve the existing sub-block fractional Y offset when a precise override is active.
+        // Without this, setHeight would snap precisePosY to the canonical Y at the new height,
+        // destroying any exact offset from copy-paste preview or other precise placement.
+        val oldHeight = height
         height = par1
-        posY = blockY.toDouble() + (par1 + 1).toDouble() * 0.0625
+        if (precisePosY != null) {
+            val oldCanonicalY = blockY.toDouble() + (oldHeight + 1).toDouble() * 0.0625
+            val offset = precisePosY!! - oldCanonicalY
+            precisePosY = blockY.toDouble() + (par1 + 1).toDouble() * 0.0625 + offset
+            posY = precisePosY!!
+        } else {
+            posY = blockY.toDouble() + (par1 + 1).toDouble() * 0.0625
+        }
     }
 
     fun getNeighborBlockPos(): BlockPos {

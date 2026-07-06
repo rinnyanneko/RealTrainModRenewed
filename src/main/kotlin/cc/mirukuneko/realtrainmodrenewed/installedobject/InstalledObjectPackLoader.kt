@@ -38,6 +38,15 @@ object InstalledObjectPackLoader {
             if (Files.isDirectory(modsDir)) { loadDirectoryPacks(modsDir); loadArchiveDirectory(modsDir) }
             val contentDir = FMLPaths.GAMEDIR.get().resolve("content")
             if (Files.isDirectory(contentDir)) { loadDirectoryPacks(contentDir); loadArchiveDirectory(contentDir) }
+            for (root in configRoots()) {
+                loadDirectoryPacks(root)
+                loadArchiveDirectory(root)
+                for (child in arrayOf("packs", "installed_object_packs", "rail_packs", "vehicle_packs")) {
+                    val dir = root.resolve(child)
+                    loadDirectoryPacks(dir)
+                    loadArchiveDirectory(dir)
+                }
+            }
         } catch (e: Exception) {
             RealTrainModRenewed.LOGGER.warn("Could not scan installed object packs", e)
         }
@@ -340,6 +349,14 @@ object InstalledObjectPackLoader {
     private fun normalize(value: String): String = value.replace('\\', '/')
     private fun leaf(value: String): String = value.substringAfterLast('/')
     private fun firstNonBlank(vararg values: String?): String? = values.firstOrNull { !it.isNullOrBlank() }
+
+    private fun configRoot(): Path = FMLPaths.GAMEDIR.get().resolve("config").resolve(RealTrainModRenewed.MODID)
+
+    private fun configRoots(): List<Path> {
+        val renewed = configRoot()
+        val legacy = FMLPaths.GAMEDIR.get().resolve("config").resolve("realtrainmodunofficial")
+        return if (renewed == legacy) listOf(renewed) else listOf(renewed, legacy)
+    }
 
     private fun getObject(obj: JsonObject?, key: String): JsonObject? =
         obj?.get(key)?.takeIf { it.isJsonObject }?.asJsonObject

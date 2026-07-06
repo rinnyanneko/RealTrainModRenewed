@@ -19,6 +19,7 @@ class SignalStateBlockEntity(pos: BlockPos, state: BlockState) :
     BlockEntity(RealTrainModRenewedBlockEntities.SIGNAL_STATE.get(), pos, state) {
 
     var linkedChannel: Int = -1
+        private set
     var aspectId: Int = SignalAspect.STOP.id
 
     companion object {

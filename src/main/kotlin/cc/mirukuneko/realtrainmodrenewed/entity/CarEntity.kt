@@ -85,10 +85,9 @@ class CarEntity(type: EntityType<out CarEntity>, level: Level) : Entity(type, le
     private var isReversalLocked: Boolean = false
     private var deltaYaw: Float = 0f
 
-    var vehicleId: String
+    val vehicleId: String
         get() = entityData.get(DATA_VEHICLE_ID)
-        set(value) { entityData.set(DATA_VEHICLE_ID, value) }
-    fun setVehicleId(id: String?) { vehicleId = id ?: "" }
+    fun setVehicleId(id: String?) { entityData.set(DATA_VEHICLE_ID, id ?: "") }
 
     fun getScriptDataValue(key: String): String = scriptData[key] ?: ""
     fun setScriptDataValue(key: String?, value: String?) {

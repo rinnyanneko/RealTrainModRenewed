@@ -794,8 +794,8 @@ public class InstalledObjectBlockEntityRenderer implements BlockEntityRenderer<I
     private static void line(VertexConsumer consumer, PoseStack.Pose pose,
                              double x1, double y1, double z1, double x2, double y2, double z2,
                              float r, float g, float b, float a) {
-        consumer.addVertex(pose.pose(), (float) x1, (float) y1, (float) z1).setColor(r, g, b, a).setNormal(0.0F, 1.0F, 0.0F);
-        consumer.addVertex(pose.pose(), (float) x2, (float) y2, (float) z2).setColor(r, g, b, a).setNormal(0.0F, 1.0F, 0.0F);
+        consumer.addVertex(pose.pose(), (float) x1, (float) y1, (float) z1).setColor(r, g, b, a).setLineWidth(1.0F).setNormal(0.0F, 1.0F, 0.0F);
+        consumer.addVertex(pose.pose(), (float) x2, (float) y2, (float) z2).setColor(r, g, b, a).setLineWidth(1.0F).setNormal(0.0F, 1.0F, 0.0F);
     }
 
     private static void addSignVertex(VertexConsumer consumer, PoseStack.Pose pose,

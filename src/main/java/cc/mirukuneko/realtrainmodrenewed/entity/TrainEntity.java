@@ -5254,7 +5254,7 @@ public class TrainEntity extends Entity {
         }
 
         public byte getDirection() {
-            return train.formation != null ? train.formation.getDirection() : 0;
+            return (byte) (train.formation != null ? train.formation.getDirection() : 0);
         }
 
         private TrainEntity frontTrain() {

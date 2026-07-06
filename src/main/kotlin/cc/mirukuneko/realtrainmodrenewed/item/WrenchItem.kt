@@ -51,14 +51,23 @@ class WrenchItem : Item {
         fun getSegmentList(tag: CompoundTag): List<RailPosition> {
             val list = NbtCompat.getList(tag, "RailSegments")
             val segments = mutableListOf<RailPosition>()
+            var prevEnd: RailPosition? = null
+            val globalStart = RailPosition.readFromNBT(NbtCompat.getCompound(tag, "StartRP"))
             for (i in 0 until list.size) {
                 val seg = NbtCompat.getCompound(list, i)
-                val start = NbtCompat.getCompound(seg, "StartRP")
-                val end = NbtCompat.getCompound(seg, "EndRP")
-                val s = RailPosition.readFromNBT(start) ?: continue
-                val e = RailPosition.readFromNBT(end) ?: continue
+                val startTag = NbtCompat.getCompound(seg, "StartRP")
+                val endTag = NbtCompat.getCompound(seg, "EndRP")
+
+                var s = RailPosition.readFromNBT(startTag)
+                if (s == null) {
+                    // Backward-compat: older segment entries only carry EndRP.
+                    // Use the previous segment end, or the global preview StartRP.
+                    s = prevEnd ?: globalStart ?: continue
+                }
+                val e = RailPosition.readFromNBT(endTag) ?: continue
                 segments.add(s)
                 segments.add(e)
+                prevEnd = e
             }
             return segments
         }

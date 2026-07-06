@@ -15,17 +15,17 @@ class FormationManager private constructor() {
         formations.remove(id)
     }
 
-    fun getNewId(): String {
-        var id = System.currentTimeMillis().toString()
-        while (formations.containsKey(id)) {
-            id = (id.toLongOrNull()?.plus(1) ?: System.currentTimeMillis()).toString()
+    fun getNewId(): Long {
+        var id = System.currentTimeMillis()
+        while (formations.containsKey(id.toString())) {
+            id++
         }
         return id
     }
 
     fun createNewFormation(train: TrainEntity?): Formation? {
         if (train == null) return null
-        val id = getNewId()
+        val id = getNewId().toString()
         val formation = Formation(id, 1)
         formation.entries[0] = FormationEntry(train, 0, 0)
         return formation
@@ -34,5 +34,8 @@ class FormationManager private constructor() {
     companion object {
         @JvmField
         val instance: FormationManager = FormationManager()
+
+        @JvmStatic
+        fun getInstance(): FormationManager = instance
     }
 }

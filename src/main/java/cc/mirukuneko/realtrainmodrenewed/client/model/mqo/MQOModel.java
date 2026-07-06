@@ -1,6 +1,5 @@
 package cc.mirukuneko.realtrainmodrenewed.client.model.mqo;
 
-import cc.mirukuneko.realtrainmodrenewed.client.model.mqo.object.MQOObject;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.Arrays;

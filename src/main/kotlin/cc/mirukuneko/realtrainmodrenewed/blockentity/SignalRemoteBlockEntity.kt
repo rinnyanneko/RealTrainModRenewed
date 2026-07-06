@@ -15,6 +15,7 @@ class SignalRemoteBlockEntity(pos: BlockPos, state: BlockState) :
 
     @JvmField var linkedChannel: Int = -1
 
+    fun getLinkedChannel(): Int = linkedChannel
     fun setLinkedChannel(channel: Int) { linkedChannel = channel; setChanged() }
 
     override fun saveAdditional(tag: ValueOutput) { super.saveAdditional(tag); tag.putInt("LinkedChannel", linkedChannel) }
