@@ -42,3 +42,5 @@ __pycache__
 .codex_tmp/
 .codex-tmp/
 local.properties
+.kotlin/
+.codewhale/
