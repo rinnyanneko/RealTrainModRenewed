@@ -53,6 +53,10 @@
   "message.realtrainmodrenewed.train.must_be_on_rail": "列车只能放置在轨道上",
   "message.realtrainmodrenewed.train.already_exists": "该位置已存在列车",
   "message.realtrainmodrenewed.formation.empty": "没有已保存的编组",
+  "message.realtrainmodrenewed.reload_packs.reloading": "正在重新加载 RTM 附加包...",
+  "message.realtrainmodrenewed.reload_packs.done": "已重新加载 RTM 附加包",
+  "message.realtrainmodrenewed.reload_packs.failed": "重新加载 RTM 附加包失败",
+  "button.realtrainmodrenewed.reload_packs": "重新加载附加包",
 
   "screen.realtrainmodrenewed.select_train": "选择列车模型",
   "screen.realtrainmodrenewed.select_rail": "选择轨道模型",

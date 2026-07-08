@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-3.0-or-later
+// Copyright © 2026 mirukuneko and RealTrainModRenewed contributors
 package jp.kaiz.atsassistmod.network.payload;
 
 import jp.kaiz.atsassistmod.ATSAssistMod;

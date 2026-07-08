@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-3.0-or-later
+// Copyright © 2026 mirukuneko and RealTrainModRenewed contributors
 package cc.mirukuneko.realtrainmodrenewed.rail.util
 
 import net.minecraft.world.level.Level

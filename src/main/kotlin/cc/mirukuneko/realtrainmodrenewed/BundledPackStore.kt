@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-3.0-or-later
+// Copyright © 2026 mirukuneko and RealTrainModRenewed contributors
 package cc.mirukuneko.realtrainmodrenewed
 
 import net.neoforged.fml.ModList
@@ -11,6 +13,7 @@ import java.nio.file.StandardCopyOption
 import java.util.ArrayList
 import java.util.LinkedHashSet
 import java.util.Locale
+import java.util.concurrent.ConcurrentHashMap
 
 /**
  * Resolves pack archives bundled inside the mod jar and materializes them into a private cache
@@ -18,9 +21,15 @@ import java.util.Locale
  */
 object BundledPackStore {
     private const val ROOT = "bundled_packs"
+    private val bundledPackCache: MutableMap<String, List<Path>> = ConcurrentHashMap()
 
     @JvmStatic
     fun listBundledPacks(category: String?): List<Path> {
+        val cacheKey = category.orEmpty()
+        return bundledPackCache.computeIfAbsent(cacheKey) { buildBundledPackList(category) }
+    }
+
+    private fun buildBundledPackList(category: String?): List<Path> {
         val result = LinkedHashSet<Path>()
         addBundledPacks(category, result)
         if (category != "official") {

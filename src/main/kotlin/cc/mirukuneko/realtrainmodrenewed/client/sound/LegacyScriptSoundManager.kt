@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-3.0-or-later
+// Copyright © 2026 mirukuneko and RealTrainModRenewed contributors
 package cc.mirukuneko.realtrainmodrenewed.client.sound
 
 import cc.mirukuneko.realtrainmodrenewed.RealTrainModRenewed
@@ -18,6 +20,7 @@ import java.util.concurrent.ConcurrentHashMap
 import kotlin.math.abs
 import kotlin.math.floor
 import kotlin.math.max
+import kotlin.math.sqrt
 
 object LegacyScriptSoundManager {
     private val ACTIVE = ConcurrentHashMap<String, LoopingTrainSound>()
@@ -102,6 +105,77 @@ object LegacyScriptSoundManager {
             minecraft.soundManager.play(sound)
         } else {
             sound.update(volume, pitch)
+        }
+    }
+
+    @JvmStatic
+    fun playWithRange(
+        train: TrainEntity?,
+        namespace: String?,
+        soundName: String?,
+        volume: Float,
+        pitch: Float,
+        soundRange: Float,
+        looping: Boolean,
+    ) {
+        if (train == null || !train.level().isClientSide) {
+            return
+        }
+        if (!looping) {
+            val rangedVolume = calcVolumeForRange(volume, soundRange, train.x.toFloat(), train.y.toFloat(), train.z.toFloat())
+            play(train, namespace, soundName, rangedVolume, pitch, false)
+            return
+        }
+        val soundId = toSoundId(namespace, soundName) ?: return
+        if (volume <= 0.001f) {
+            stop(train, soundId)
+            return
+        }
+        val minecraft = Minecraft.getInstance()
+        if (minecraft.soundManager == null) {
+            return
+        }
+        val key = key(train.uuid, soundId)
+        var sound = ACTIVE[key]
+        if (sound == null || sound.isStopped) {
+            if (sound != null) {
+                ACTIVE.remove(key, sound)
+            }
+            sound = LoopingTrainSound(train, soundId)
+            sound.update(volume, pitch, soundRange)
+            ACTIVE[key] = sound
+            minecraft.soundManager.play(sound)
+        } else {
+            sound.update(volume, pitch, soundRange)
+        }
+    }
+
+    @JvmStatic
+    fun calcVolumeForRange(baseVolume: Float, soundRange: Float, x: Float, y: Float, z: Float): Float {
+        if (!baseVolume.isFinite() || baseVolume <= 0.0f) {
+            return 0.0f
+        }
+        if (!soundRange.isFinite() || soundRange <= 0.0f) {
+            return baseVolume
+        }
+        val minecraft = Minecraft.getInstance()
+        val listener = minecraft.cameraEntity ?: minecraft.player ?: return baseVolume
+        val dx = listener.x.toFloat() - x
+        val dy = listener.y.toFloat() - y
+        val dz = listener.z.toFloat() - z
+        val distance = sqrt(dx * dx + dy * dy + dz * dz)
+        if (distance >= soundRange) {
+            return 0.0f
+        }
+        val defaultRange = 16.0f
+        return if (soundRange >= defaultRange) {
+            if (distance <= defaultRange) {
+                baseVolume
+            } else {
+                baseVolume * (soundRange - distance) / (soundRange - defaultRange)
+            }
+        } else {
+            baseVolume * (soundRange - distance) / soundRange
         }
     }
 
@@ -455,6 +529,9 @@ object LegacyScriptSoundManager {
             SoundSource.NEUTRAL,
             SoundInstance.createUnseededRandom(),
         ) {
+        private var baseVolume: Float = 0.0f
+        private var soundRange: Float? = null
+
         init {
             looping = true
             delay = 0
@@ -467,8 +544,20 @@ object LegacyScriptSoundManager {
         }
 
         fun update(volume: Float, pitch: Float) {
-            this.volume = Mth.clamp(volume, 0.0f, 8.0f)
             this.pitch = Mth.clamp(pitch, 0.05f, 4.0f)
+            baseVolume = Mth.clamp(volume, 0.0f, 8.0f)
+            soundRange = null
+            updateVolumeForPosition()
+            x = train.x
+            y = train.y
+            z = train.z
+        }
+
+        fun update(volume: Float, pitch: Float, soundRange: Float) {
+            this.pitch = Mth.clamp(pitch, 0.05f, 4.0f)
+            baseVolume = Mth.clamp(volume, 0.0f, 8.0f)
+            this.soundRange = soundRange.takeIf { it.isFinite() && it > 0.0f }
+            updateVolumeForPosition()
             x = train.x
             y = train.y
             z = train.z
@@ -488,6 +577,20 @@ object LegacyScriptSoundManager {
             x = train.x
             y = train.y
             z = train.z
+            updateVolumeForPosition()
+        }
+
+        private fun updateVolumeForPosition() {
+            val range = soundRange
+            volume = if (range == null) {
+                baseVolume
+            } else {
+                Mth.clamp(
+                    calcVolumeForRange(baseVolume, range, train.x.toFloat(), train.y.toFloat(), train.z.toFloat()),
+                    0.0f,
+                    8.0f,
+                )
+            }
         }
     }
 }

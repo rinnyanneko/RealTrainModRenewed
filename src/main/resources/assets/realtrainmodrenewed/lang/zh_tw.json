@@ -46,6 +46,10 @@
 
   "message.realtrainmodrenewed.train.must_be_on_rail": "列車只能放置在軌道上!",
   "message.realtrainmodrenewed.train.already_exists": "該位置已存在列車!",
+  "message.realtrainmodrenewed.reload_packs.reloading": "正在重新載入 RTM 追加包...",
+  "message.realtrainmodrenewed.reload_packs.done": "已重新載入 RTM 追加包",
+  "message.realtrainmodrenewed.reload_packs.failed": "重新載入 RTM 追加包失敗",
+  "button.realtrainmodrenewed.reload_packs": "重新載入追加包",
 
   "screen.realtrainmodrenewed.select_train": "選擇列車模型",
   "screen.realtrainmodrenewed.select_rail": "選擇軌道模型",

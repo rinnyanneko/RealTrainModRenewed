@@ -1,3 +1,7 @@
+<!--
+  SPDX-License-Identifier: LGPL-3.0-or-later
+  Copyright © 2026 mirukuneko and RealTrainModRenewed contributors
+-->
 # Notices and Attribution
 
 RealTrainModRenewed is a modernization fork intended to preserve compatibility
@@ -45,20 +49,36 @@ https://github.com/Kai-Z-JP/KaizPatchX
 When functionality is implemented with reference to KaizPatchX behavior, preserve
 applicable notices and document material code or asset reuse separately.
 
+## AppleExtended
+
+AppleExtended is an unofficial modification of RTM, NGTLib, and MCTE for legacy
+Forge-era RTM environments. RealTrainModRenewed uses it only as a behavioral and
+compatibility reference for add-on pack quality-of-life features unless a
+specific copied or derived file is documented separately.
+
+Reference repository:
+
+https://github.com/ringo-1234/AppleExtended
+
+When functionality is inspired by AppleExtended behavior, preserve applicable
+notices and document material code or asset reuse separately.
+
 ## ATSAssistMod
 
-ATSAssistMod-derived ATSA functionality is included in this project. Those
-components are based on GPL-3.0-licensed work and retain the applicable GPL-3.0
-license obligations and attribution requirements.
+The ATSA (ATS Assist) companion module in this repository was inherited through
+RealTrainModUnofficial under LGPL-3.0-or-later terms. It is not directly derived
+from the current GPL-3.0 upstream of ATSAssistMod.
+
+ATSAssistMod is an important behavioral reference for ATS, ATC, railway
+signaling, automation, IFTTT-style integration, web integration, and related
+legacy compatibility behavior.
 
 Reference repository:
 
 https://github.com/Kai-Z-JP/ATSAssistMod
 
-ATSAssistMod is also an important behavioral reference for ATS, ATC, railway
-signaling, automation, IFTTT-style integration, web integration, and related
-legacy compatibility behavior. Preserve applicable notices and document material
-code or asset reuse separately.
+When functionality is implemented with reference to ATSAssistMod behavior,
+preserve applicable notices and document material code or asset reuse separately.
 
 ## Add-on Packs and Third-Party Assets
 

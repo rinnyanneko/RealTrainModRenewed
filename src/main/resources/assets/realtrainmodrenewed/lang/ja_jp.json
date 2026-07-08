@@ -49,6 +49,10 @@
 
   "message.realtrainmodrenewed.train.must_be_on_rail": "列車はレール上にのみ設置できます",
   "message.realtrainmodrenewed.train.already_exists": "その場所には既に列車があります",
+  "message.realtrainmodrenewed.reload_packs.reloading": "RTM追加パックを再読み込み中...",
+  "message.realtrainmodrenewed.reload_packs.done": "RTM追加パックを再読み込みしました",
+  "message.realtrainmodrenewed.reload_packs.failed": "RTM追加パックの再読み込みに失敗しました",
+  "button.realtrainmodrenewed.reload_packs": "追加パック再読込",
 
   "screen.realtrainmodrenewed.select_train": "列車モデル選択",
   "screen.realtrainmodrenewed.select_rail": "レール選択",

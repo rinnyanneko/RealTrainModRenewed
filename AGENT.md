@@ -100,6 +100,7 @@ The following projects are ecosystem-critical:
 
 * RealTrainModUnofficial
 * KaizPatchX
+* AppleExtended
 * ATSAssistMod
 
 Whenever practical, preserve ecosystem compatibility.
@@ -142,6 +143,21 @@ Use as a reference for:
 
 When implementing functionality previously supported by KaizPatchX, inspect existing implementations before designing new systems.
 
+### AppleExtended
+
+Repository:
+
+https://github.com/ringo-1234/AppleExtended
+
+Use as a reference for:
+
+* Add-on pack quality-of-life behavior
+* Sound range and sound suppression expectations
+* Driver-facing safety notifications
+* Legacy RTM/NGTLib/MCTE compatibility details
+
+Treat AppleExtended as a behavioral reference unless copied or derived code is explicitly documented with applicable notices.
+
 ### ATSAssistMod
 
 Repository:
@@ -167,9 +183,10 @@ When determining expected behavior:
 1. Current repository implementation
 2. RealTrainModUnofficial
 3. KaizPatchX
-4. ATSAssistMod
-5. Original RTM behavior
-6. New implementation
+4. AppleExtended
+5. ATSAssistMod
+6. Original RTM behavior
+7. New implementation
 
 ---
 

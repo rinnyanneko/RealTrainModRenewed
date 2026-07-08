@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-3.0-or-later
+// Copyright © 2026 mirukuneko and RealTrainModRenewed contributors
 package cc.mirukuneko.realtrainmodrenewed.script
 
 import cc.mirukuneko.realtrainmodrenewed.BundledPackStore
@@ -413,6 +415,42 @@ class TrainScriptSystem private constructor() {
             )
         }
 
+        fun playSoundAtRange(
+            namespace: String?,
+            soundName: String?,
+            volume: Double = 1.0,
+            pitch: Double = 1.0,
+            soundRange: Double = 16.0,
+            looping: Boolean = true
+        ) {
+            invokeLegacySoundManagerWithRange(
+                namespace,
+                soundName,
+                volume.toFloat(),
+                pitch.toFloat(),
+                soundRange.toFloat(),
+                looping
+            )
+        }
+
+        fun playSoundAtRange(
+            namespace: String?,
+            soundName: String?,
+            volume: Any?,
+            pitch: Any?,
+            soundRange: Any?,
+            looping: Any?
+        ) {
+            playSoundAtRange(
+                namespace,
+                soundName,
+                toSoundDouble(volume, 1.0),
+                toSoundDouble(pitch, 1.0),
+                toSoundDouble(soundRange, 16.0),
+                toSoundBoolean(looping, true)
+            )
+        }
+
         fun stopSound(namespace: String?, soundName: String?) {
             invokeLegacySoundManager("stop", namespace, soundName, 0.0f, 0.0f, false)
         }
@@ -448,6 +486,35 @@ class TrainScriptSystem private constructor() {
                 }
             } catch (e: Exception) {
                 RealTrainModRenewed.LOGGER.debug("Legacy sound bridge failed for {}:{}", namespace, soundName, e)
+            }
+        }
+
+        private fun invokeLegacySoundManagerWithRange(
+            namespace: String?,
+            soundName: String?,
+            volume: Float,
+            pitch: Float,
+            soundRange: Float,
+            looping: Boolean
+        ) {
+            if (this.vehicle == null || !vehicle.level().isClientSide()) {
+                return
+            }
+            try {
+                val managerClass =
+                    Class.forName("cc.mirukuneko.realtrainmodrenewed.client.sound.LegacyScriptSoundManager")
+                managerClass.getMethod(
+                    "playWithRange",
+                    TrainEntity::class.java,
+                    String::class.java,
+                    String::class.java,
+                    Float::class.javaPrimitiveType,
+                    Float::class.javaPrimitiveType,
+                    Float::class.javaPrimitiveType,
+                    Boolean::class.javaPrimitiveType
+                ).invoke(null, this.vehicle, namespace, soundName, volume, pitch, soundRange, looping)
+            } catch (e: Exception) {
+                RealTrainModRenewed.LOGGER.debug("Legacy ranged sound bridge failed for {}:{}", namespace, soundName, e)
             }
         }
 
@@ -984,8 +1051,21 @@ class TrainScriptSystem private constructor() {
     class LegacySoundBridge(private val executor: LegacyScriptExecutor?) {
         fun playSound(namespace: String?, soundName: String?, volume: Double, pitch: Double) {
             if (executor != null) {
-                STATES.put(soundKey(namespace, soundName), SoundState(volume, pitch))
+                STATES.put(soundKey(namespace, soundName), SoundState(volume, pitch, null))
                 executor.playSound(namespace, soundName, volume, pitch)
+            }
+        }
+
+        fun playSoundAtRange(
+            namespace: String?,
+            soundName: String?,
+            volume: Double,
+            pitch: Double,
+            soundRange: Double
+        ) {
+            if (executor != null) {
+                STATES.put(soundKey(namespace, soundName), SoundState(volume, pitch, soundRange))
+                executor.playSoundAtRange(namespace, soundName, volume, pitch, soundRange)
             }
         }
 
@@ -999,18 +1079,42 @@ class TrainScriptSystem private constructor() {
         fun setSoundVolume(namespace: String?, soundName: String?, volume: Double) {
             if (executor != null) {
                 val state: SoundState =
-                    STATES.computeIfAbsent(soundKey(namespace, soundName)) { ignored: String? -> SoundState(1.0, 1.0) }
+                    STATES.computeIfAbsent(soundKey(namespace, soundName)) {
+                        ignored: String? -> SoundState(1.0, 1.0, null)
+                    }
                 state.volume = volume
-                executor.playSound(namespace, soundName, state.volume, state.pitch)
+                playState(namespace, soundName, state)
             }
         }
 
         fun setSoundPitch(namespace: String?, soundName: String?, pitch: Double) {
             if (executor != null) {
                 val state: SoundState =
-                    STATES.computeIfAbsent(soundKey(namespace, soundName)) { ignored: String? -> SoundState(1.0, 1.0) }
+                    STATES.computeIfAbsent(soundKey(namespace, soundName)) {
+                        ignored: String? -> SoundState(1.0, 1.0, null)
+                    }
                 state.pitch = pitch
-                executor.playSound(namespace, soundName, state.volume, state.pitch)
+                playState(namespace, soundName, state)
+            }
+        }
+
+        fun setSoundRange(namespace: String?, soundName: String?, soundRange: Double) {
+            if (executor != null) {
+                val state: SoundState =
+                    STATES.computeIfAbsent(soundKey(namespace, soundName)) {
+                        ignored: String? -> SoundState(1.0, 1.0, null)
+                    }
+                state.soundRange = if (soundRange.isFinite() && soundRange > 0.0) soundRange else null
+                playState(namespace, soundName, state)
+            }
+        }
+
+        private fun playState(namespace: String?, soundName: String?, state: SoundState) {
+            val soundRange = state.soundRange
+            if (soundRange != null) {
+                executor!!.playSoundAtRange(namespace, soundName, state.volume, state.pitch, soundRange)
+            } else {
+                executor!!.playSound(namespace, soundName, state.volume, state.pitch)
             }
         }
 
@@ -1019,7 +1123,7 @@ class TrainScriptSystem private constructor() {
             return trainKey.toString() + "|" + namespace.toString() + ":" + soundName.toString()
         }
 
-        private class SoundState(var volume: Double, var pitch: Double)
+        private class SoundState(var volume: Double, var pitch: Double, var soundRange: Double?)
         companion object {
             private val STATES: MutableMap<String?, SoundState> = ConcurrentHashMap<String?, SoundState>()
         }
@@ -4897,7 +5001,7 @@ class TrainScriptSystem private constructor() {
                 // 定義は見えないため)。getMinecraft は __RTMU_MC__(クライアント実体)へ橋渡し。
                 "function __rtmuMcShim() { return { field_71462_r: ((typeof __RTMU_MC__ !== 'undefined' && __RTMU_MC__) ? __RTMU_MC__.getCurrentScreen() : null), func_135016_M: function() { return { func_135041_c: function() { return { func_135034_a: function() { return ((typeof __RTMU_MC__ !== 'undefined' && __RTMU_MC__) ? __RTMU_MC__.getLanguageCode() : 'en_us'); } }; } }; } }; }\n" +
                 "var NGTUtilClient = { getMinecraft: function() { return __rtmuMcShim(); }, getPlayer: function() { try { return (typeof __RTMU_MC__ !== 'undefined' && __RTMU_MC__) ? __RTMU_MC__.getPlayer() : null; } catch (e) { return null; } }, bindTexture: function(t) { try { if (typeof renderer !== 'undefined' && renderer) renderer.bindTexture(t); } catch(e){} } };\n" +
-                "var MCWrapperClient = { getPlayer: function() { try { return (typeof __RTMU_MC__ !== 'undefined' && __RTMU_MC__) ? __RTMU_MC__.getPlayer() : null; } catch (e) { return null; } }, getMinecraft: function() { return __rtmuMcShim(); } };\n" +  // RTM 共通ラッパー/レール系グローバルも user script eval で定義(別 eval の定義は見えないため)。
+                "var MCWrapperClient = { getPlayer: function() { try { return (typeof __RTMU_MC__ !== 'undefined' && __RTMU_MC__) ? __RTMU_MC__.getPlayer() : null; } catch (e) { return null; } }, getMinecraft: function() { return __rtmuMcShim(); }, playSound: function(domain, name, volume, pitch) { if (typeof __RTMU_SoundBridge__ !== 'undefined') __RTMU_SoundBridge__.playSound(domain, name, volume == null ? 1.0 : volume, pitch == null ? 1.0 : pitch); }, playSoundAtRange: function(domain, name, volume, pitch, range) { if (typeof __RTMU_SoundBridge__ !== 'undefined') __RTMU_SoundBridge__.playSoundAtRange(domain, name, volume == null ? 1.0 : volume, pitch == null ? 1.0 : pitch, range == null ? 16.0 : range); } };\n" +  // RTM 共通ラッパー/レール系グローバルも user script eval で定義(別 eval の定義は見えないため)。
                 // entity 位置などは null 安全に。レール系は SRB の preview/敷設で参照される。
                 "function __srbNum(v){ return (v==null)?0:(v.doubleValue?v.doubleValue():v); }\n" +  // マーカー描画の基準 entityX は entity のレンダー補間位置(renderPosX)。PoseStack の原点も
                 // 同じ補間位置なので相殺し、固定マーカーは真のワールド座標に完全固定される(移動・補間でブレない)。
@@ -5612,15 +5716,19 @@ class TrainScriptSystem private constructor() {
                             "if (typeof BlockScaffoldStairs === 'undefined') BlockScaffoldStairs = { getConnectionType: function() { return 0; } };\n" +
                             "if (typeof MCWrapperClient === 'undefined') MCWrapperClient = { getPlayer: function() { return null; }, bindTexture: function() {} };\n" +
                             "MCWrapperClient.playSound = function(domain, name, volume, pitch) { if (typeof __RTMU_SoundBridge__ !== 'undefined') __RTMU_SoundBridge__.playSound(domain, name, volume == null ? 1.0 : volume, pitch == null ? 1.0 : pitch); };\n" +  // NGTText: Packages プロキシで undefined ではなくなる場合があるので、readText が
+                            "MCWrapperClient.playSoundAtRange = function(domain, name, volume, pitch, range) { if (typeof __RTMU_SoundBridge__ !== 'undefined') __RTMU_SoundBridge__.playSoundAtRange(domain, name, volume == null ? 1.0 : volume, pitch == null ? 1.0 : pitch, range == null ? 16.0 : range); };\n" +
                             // 関数として呼べるかも確認して、無理なら自前のスタブで上書きする。
                             "if (typeof NGTText === 'undefined' || typeof NGTText.readText !== 'function') {\n" +
                             "  NGTText = { createText: function() { return ''; }, getText: function() { return ''; }, getFormattedText: function() { return ''; }, getString: function() { return ''; }, appendSibling: function() {}, appendText: function() {}, applyTextStyles: function() {}, readText: function() { return ''; }, writeText: function() {}, loadText: function() { return ''; } };\n" +
                             "}\n" +
                             "if (typeof NGTSound === 'undefined') NGTSound = {};\n" +
                             "NGTSound.playSound = function(domain, name, volume, pitch) { if (typeof __RTMU_SoundBridge__ !== 'undefined') __RTMU_SoundBridge__.playSound(domain, name, volume == null ? 1.0 : volume, pitch == null ? 1.0 : pitch); };\n" +
+                            "NGTSound.playSoundAtRange = function(domain, name, volume, pitch, range) { if (typeof __RTMU_SoundBridge__ !== 'undefined') __RTMU_SoundBridge__.playSoundAtRange(domain, name, volume == null ? 1.0 : volume, pitch == null ? 1.0 : pitch, range == null ? 16.0 : range); };\n" +
+                            "NGTSound.playSoundRange = NGTSound.playSoundAtRange;\n" +
                             "NGTSound.stopSound = function(domain, name) { if (typeof __RTMU_SoundBridge__ !== 'undefined') __RTMU_SoundBridge__.stopSound(domain, name); };\n" +
                             "NGTSound.setSoundVolume = function(domain, name, volume) { if (typeof __RTMU_SoundBridge__ !== 'undefined') __RTMU_SoundBridge__.setSoundVolume(domain, name, volume == null ? 0.0 : volume); };\n" +
                             "NGTSound.setSoundPitch = function(domain, name, pitch) { if (typeof __RTMU_SoundBridge__ !== 'undefined') __RTMU_SoundBridge__.setSoundPitch(domain, name, pitch == null ? 1.0 : pitch); };\n" +
+                            "NGTSound.setSoundRange = function(domain, name, range) { if (typeof __RTMU_SoundBridge__ !== 'undefined') __RTMU_SoundBridge__.setSoundRange(domain, name, range == null ? 16.0 : range); };\n" +
                             "if (typeof BlockHandler === 'undefined') BlockHandler = { getBlock: function() { return null; }, getTileEntity: function() { return null; } };\n" +  // SoundState: ANSL系スクリプトで使われるサウンド状態クラス
                             "if (typeof SoundState === 'undefined') SoundState = function(su, trackData) {\n" +
                             "  this.su = su; this.trackData = trackData || {};\n" +

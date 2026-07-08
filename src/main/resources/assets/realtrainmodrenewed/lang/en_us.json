@@ -47,6 +47,10 @@
 
   "message.realtrainmodrenewed.train.must_be_on_rail": "Train can only be placed on rails",
   "message.realtrainmodrenewed.train.already_exists": "A train already exists at that location",
+  "message.realtrainmodrenewed.reload_packs.reloading": "Reloading RTM add-on packs...",
+  "message.realtrainmodrenewed.reload_packs.done": "Reloaded RTM add-on packs",
+  "message.realtrainmodrenewed.reload_packs.failed": "Failed to reload RTM add-on packs",
+  "button.realtrainmodrenewed.reload_packs": "Reload Packs",
 
   "screen.realtrainmodrenewed.select_train": "Select Train Model",
   "screen.realtrainmodrenewed.select_rail": "Select Rail",

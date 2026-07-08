@@ -1,119 +1,101 @@
+<!--
+  SPDX-License-Identifier: LGPL-3.0-or-later
+  Copyright © 2026 mirukuneko and RealTrainModRenewed contributors
+-->
 # RealTrainModRenewed
 
-RealTrainModRenewed is a modernization fork of [RealTrainModUnofficial](https://github.com/325-Sunnygo/RealTrainModUnofficial).
+[![License: LGPL v3](https://img.shields.io/badge/License-LGPL%20v3-blue.svg)](./LICENSE)
+[![Minecraft](https://img.shields.io/badge/Minecraft-26.1.2-brightgreen)](https://minecraft.net)
+[![NeoForge](https://img.shields.io/badge/NeoForge-26.1.2.73-orange)](https://neoforged.net)
 
-The goal of this project is to make RealTrainMod easier to maintain, more developer-friendly, and compatible with modern Minecraft and NeoForge versions, while preserving compatibility with the original RTM ecosystem as much as possible.
+RealTrainModRenewed is a modernization fork of
+[RealTrainModUnofficial](https://github.com/325-Sunnygo/RealTrainModUnofficial)
+for Minecraft Java Edition 26.1 with NeoForge, written in Kotlin and Java.
+
+It brings Japanese trains, tracks, signals, and railway systems to modern
+Minecraft while maintaining compatibility with the existing RTM ecosystem.
+
+---
 
 ## Repositories
 
-- **Main repository:** https://code.mirukuneko.cc/mirukuneko/RealTrainModRenewed
-- **Issues and pull requests:** https://codeberg.org/mirukuneko/RealTrainModRenewed
-- **GitHub mirror:** https://github.com/rinnyanneko/RealTrainModRenewed
+- **Main:** https://code.mirukuneko.cc/mirukuneko/RealTrainModRenewed
+- **Issues & PRs:** https://codeberg.org/mirukuneko/RealTrainModRenewed
+- **Mirror:** https://github.com/rinnyanneko/RealTrainModRenewed
 
-## About RealTrainMod
+---
 
-RealTrainMod, originally created by NGT5479, is a Minecraft mod that adds Japanese trains, tracks, signals, railway-related blocks, and other railway systems to Minecraft.
+## Goals
 
-The original RTM mainly targeted older Minecraft versions such as 1.7.10 and 1.12.2.  
-RealTrainModRenewed aims to bring the RTM experience to newer Minecraft versions and keep it maintainable for future development.
+- [x] Port RealTrainMod to modern Minecraft with NeoForge
+- [ ] Maintain compatibility with legacy RTM model packs, vehicles, rails, signals
+- [x] Gradually rewrite the codebase in Kotlin
+- [ ] Improve maintainability and developer experience
+- [ ] Target the next NeoForge LTS when available
+- [ ] New feature...?
 
-## Project Goals
+---
 
-- Port RealTrainMod to modern Minecraft versions.
-- Support Minecraft Java Edition 26.1 with NeoForge as the initial modernization target.
-- Migrate to the next NeoForge LTS version when it becomes available and is suitable for long-term mod support.
-- Keep compatibility with original RTM content where possible.
-- Improve code maintainability and developer experience.
-- Gradually rewrite suitable parts of the codebase in Kotlin.
-- Provide a cleaner foundation for future features.
+## Build
 
-## Milestones
+| Component | Version |
+|-----------|---------|
+| Minecraft | 26.1.2 |
+| NeoForge  | 26.1.2.73 |
+| Java      | 25 |
+| Kotlin    | 2.4.0 |
+| Gradle    | 9.1 |
 
-- [x] Upgrade to Minecraft Java Edition 26.1 / NeoForge 26.1
-- [x] Make the mod compile and run on the new target version
-- [x] Preserve compatibility with existing RTM models, packs, and content where possible
-- [ ] **Gradually rewrite the codebase with Kotlin**
-- [ ] FIX BUUUUUUGS
-- [ ] Improve documentation for users and developers
-- [ ] Evaluate migration to the next NeoForge LTS version when available
-- [ ] Add new features where appropriate
+```bash
+./gradlew build
+```
 
-Have an idea or found a problem?  
-Please open an issue on [Codeberg](https://codeberg.org/mirukuneko/RealTrainModRenewed/issues).
-
-## Development Status
-
-This project is currently in early development.
-
-The current priority is to continue the Kotlin rewrite while keeping the existing Minecraft Java Edition 26.1 / NeoForge 26.1 runtime path buildable.
-
-Minecraft 26.1 is used as the initial modernization target.  
-When the next NeoForge LTS version becomes available, this project may migrate to it as the new long-term target.
-
-Breaking changes may happen during this stage.
+---
 
 ## Known Issues
 
-These are known runtime issues observed during compatibility testing with legacy RTM packs. They are intentionally deferred until after more of the codebase has been rewritten in Kotlin.
+- Train movement jitter during interpolation
+- Legacy model scripts need compatibility work (RTM/KaizPatchX helper APIs)
+- Some sound scripts need exact mapping verification
 
-- EV-E300 / EV-E301 compatibility is incomplete:
-  - Stationary and running sounds still do not fully match the original RTM behavior.
-  - Headlights, tail lights, and interior lights still do not render correctly.
-  - Passenger/entity visibility through train glass is still unreliable.
-- Moving trains can visibly jitter forward/back. This appears to affect multiple vehicles, not only EV-E301, and is likely in the common train movement/interpolation path.
-- Some legacy model scripts still need compatibility work around RTM/KaizPatchX helper APIs, render passes, and fullbright/emissive group behavior.
-- Some legacy sound scripts still need exact sound-event mapping and lifecycle behavior verification against original RTM packs.
-- Model selection still uses improved icon lookup rather than a complete stable 3D preview path.
+These are deferred until the Kotlin rewrite progresses further, unless they
+block compiling, launching, or basic vehicle placement.
 
-Current policy: do not continue deep runtime compatibility debugging until the Kotlin rewrite has advanced further, unless the issue blocks compiling, launching, or basic placement of vehicles.
+---
 
-## Current Port Notes
+## License
 
-The active target is Minecraft Java Edition `26.1.2` with NeoForge `26.1.2.73`
-on Java `25`. Keep the Java port stable before starting broad Kotlin work.
+This project is licensed under the **GNU Lesser General Public License v3.0
+or later**. See [LICENSE](./LICENSE) and [NOTICE.md](./NOTICE.md) for full
+terms and attribution.
 
-Recent compatibility work focuses on preserving legacy RTM add-on behavior while migrating implementation code to Kotlin:
+RealTrainModRenewed is a fork of
+[RealTrainModUnofficial](https://github.com/325-Sunnygo/RealTrainModUnofficial)
+and is based on the original RealTrainMod by NGT5479. Compatibility behavior is
+also checked against ecosystem references such as
+[KaizPatchX](https://github.com/Kai-Z-JP/KaizPatchX) and
+[AppleExtended](https://github.com/ringo-1234/AppleExtended).
 
-- Legacy rail, vehicle, installed-object, model, texture, and sound packs can be
-  read with common old ZIP entry-name encodings such as MS932 and Shift_JIS.
-- The model-selection UI, add-on `buttonTexture` icons, train cab HUD readouts,
-  train acceleration/braking, coupling distance, and Graal.js script-engine
-  fallback have active 26.1 compatibility fixes.
-- Kotlin support is now wired into the root Gradle build. Early conversions
-  include low-risk utilities and data carriers such as `Config`,
-  `SelectableModelInfo`, `Point`, `CurveMath`, `SignalAspect`,
-  `RealTrainModRenewedConstants`, `UnitConverter`, `PackTextDecoder`,
-  `LegacyResourcePathUtil`, and `PackZipReader`, while Java-facing static APIs
-  are preserved for existing callers.
-- Some old RTM/ATSA APIs are still compatibility stubs and need runtime
-  verification with representative add-on packs before release.
+```
+SPDX-License-Identifier: LGPL-3.0-or-later
+Copyright © 2026 mirukuneko and RealTrainModRenewed contributors
+```
 
-Next Kotlin candidates are small utility, enum, immutable data, payload, and registry-adjacent classes that can be migrated without changing runtime behavior. Avoid converting the largest entity, renderer, script, loader, and ATSA integration classes until enough supporting code has already moved to Kotlin.
+---
 
 ## Contributing
-
-Contributions are welcome.
 
 Please use the Codeberg repository for issues and pull requests:
 
 https://codeberg.org/mirukuneko/RealTrainModRenewed
 
-Before making large architectural changes, please open an issue first so the direction can be discussed.
+Before making large architectural changes, open an issue first to discuss the
+direction.
 
-## License and Attribution
-
-This project is licensed under the GNU Lesser General Public License v3.0 or later.
-
-RealTrainModRenewed is a fork of [RealTrainModUnofficial](https://github.com/325-Sunnygo/RealTrainModUnofficial) and is based on the original RealTrainMod project by NGT5479.
-
-Original copyright notices, license files, and attribution are preserved where applicable.
-
-See [LICENSE](./LICENSE) for details.
+---
 
 ## Support
 
-If you enjoy this project, please consider giving it a star.
+⭐ Star the project if you enjoy it — it helps!
 
-You can also support development here:
-
-https://mirukuneko.cc/donate
+You can also support development at https://mirukuneko.cc/donate

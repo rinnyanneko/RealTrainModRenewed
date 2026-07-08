@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-3.0-or-later
+// Copyright © 2026 mirukuneko and RealTrainModRenewed contributors
 package cc.mirukuneko.realtrainmodrenewed.client
 
 import cc.mirukuneko.realtrainmodrenewed.BundledPackStore
@@ -15,6 +17,7 @@ import java.util.zip.ZipFile
 
 object PackRequirementWarnings {
     private val warnings: MutableList<String> = ArrayList()
+    private val archiveInfoCache: MutableMap<Path, CachedArchiveInfo> = HashMap()
     private val readmeCharsets: List<Charset> = listOf(
         StandardCharsets.UTF_8,
         Charset.forName("MS932"),
@@ -31,9 +34,10 @@ object PackRequirementWarnings {
             for (archiveInfo in archiveInfos) {
                 availableNames.addAll(archiveInfo.aliases)
             }
+            val normalizedAvailableNames = availableNames.mapTo(LinkedHashSet(), ::normalizeName)
             val missing = LinkedHashSet<String>()
             for (archiveInfo in archiveInfos) {
-                inspectArchive(archiveInfo, availableNames, missing)
+                inspectArchive(archiveInfo, normalizedAvailableNames, missing)
             }
             warnings.addAll(missing)
         } catch (e: Exception) {
@@ -75,6 +79,12 @@ object PackRequirementWarnings {
     }
 
     private fun readArchiveInfo(archive: Path): ArchiveInfo {
+        val cacheKey = archive.toAbsolutePath().normalize()
+        val stamp = fileStamp(cacheKey)
+        val cached = archiveInfoCache[cacheKey]
+        if (cached != null && cached.stamp == stamp) {
+            return cached.info
+        }
         val aliases = LinkedHashSet<String>()
         aliases.add(cleanDisplayName(archive.fileName.toString()))
         val prerequisites = LinkedHashSet<String>()
@@ -94,17 +104,20 @@ object PackRequirementWarnings {
             }
         } catch (_: Exception) {
         }
-        return ArchiveInfo(archive, aliases.toList(), prerequisites.toList())
+        val info = ArchiveInfo(archive, aliases.toList(), prerequisites.toList())
+        if (archiveInfoCache.size > 512) {
+            archiveInfoCache.clear()
+        }
+        archiveInfoCache[cacheKey] = CachedArchiveInfo(stamp, info)
+        return info
     }
 
-    private fun inspectArchive(archiveInfo: ArchiveInfo, availableNames: Set<String>, missing: MutableSet<String>) {
+    private fun inspectArchive(archiveInfo: ArchiveInfo, normalizedAvailableNames: Set<String>, missing: MutableSet<String>) {
         for (prerequisitePack in archiveInfo.prerequisites) {
             if (prerequisitePack.isBlank()) {
                 continue
             }
-            val present = availableNames
-                .map(::normalizeName)
-                .any { name -> matchesPackName(name, prerequisitePack) }
+            val present = normalizedAvailableNames.any { name -> matchesPackName(name, prerequisitePack) }
             if (!present) {
                 missing.add("前提パックの $prerequisitePack が入ってません！")
             }
@@ -201,4 +214,22 @@ object PackRequirementWarnings {
         val aliases: List<String>,
         val prerequisites: List<String>,
     )
+
+    private data class CachedArchiveInfo(
+        val stamp: FileStamp,
+        val info: ArchiveInfo,
+    )
+
+    private data class FileStamp(
+        val size: Long,
+        val modifiedMillis: Long,
+    )
+
+    private fun fileStamp(path: Path): FileStamp {
+        return try {
+            FileStamp(Files.size(path), Files.getLastModifiedTime(path).toMillis())
+        } catch (_: Exception) {
+            FileStamp(-1L, -1L)
+        }
+    }
 }

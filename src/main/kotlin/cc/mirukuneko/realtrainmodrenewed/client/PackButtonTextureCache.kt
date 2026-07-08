@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-3.0-or-later
+// Copyright © 2026 mirukuneko and RealTrainModRenewed contributors
 package cc.mirukuneko.realtrainmodrenewed.client
 
 import cc.mirukuneko.realtrainmodrenewed.BundledPackStore
@@ -13,6 +15,7 @@ import net.neoforged.fml.loading.FMLPaths
 import java.io.InputStream
 import java.nio.file.Files
 import java.nio.file.Path
+import java.security.MessageDigest
 import java.util.Locale
 import java.util.concurrent.ConcurrentHashMap
 import java.util.zip.ZipEntry
@@ -32,7 +35,32 @@ object PackButtonTextureCache {
         val sourceHeight: Int,
     )
 
+    private val cacheLock = Any()
     private val CACHE = ConcurrentHashMap<String, ButtonTextureInfo?>()
+    private val DYNAMIC_TEXTURES = ConcurrentHashMap<Identifier, DynamicTexture>()
+    @Volatile
+    private var packCandidates: List<Path>? = null
+
+    @JvmStatic
+    fun clear() {
+        synchronized(cacheLock) {
+            CACHE.clear()
+            packCandidates = null
+            val textureManager = Minecraft.getInstance().textureManager
+            for ((location, texture) in DYNAMIC_TEXTURES) {
+                try {
+                    textureManager.release(location)
+                } catch (exception: Exception) {
+                    RealTrainModRenewed.LOGGER.debug("Failed to close cached button texture", exception)
+                    try {
+                        texture.close()
+                    } catch (_: Exception) {
+                    }
+                }
+            }
+            DYNAMIC_TEXTURES.clear()
+        }
+    }
 
     @JvmStatic
     fun get(packName: String?, texturePath: String?): ButtonTextureInfo? {
@@ -41,17 +69,33 @@ object PackButtonTextureCache {
 
     @JvmStatic
     fun get(packName: String?, texturePath: String?, modelId: String?, displayName: String?): ButtonTextureInfo? {
-        if (packName == null || packName.isBlank() || texturePath == null || texturePath.isBlank()) {
-            if (packName == null || packName.isBlank()) {
-                return null
-            }
-            val fallbackKey = "$packName|fallback|${safe(modelId)}|${safe(displayName)}"
-            return CACHE.computeIfAbsent(fallbackKey) { loadFallbackForModel(packName, modelId, displayName) }
+        if (packName == null || packName.isBlank()) {
+            return null
         }
-        val key = "$packName|$texturePath|${safe(modelId)}|${safe(displayName)}"
-        return CACHE.computeIfAbsent(key) {
-            val direct = load(packName, texturePath)
-            direct ?: loadFallbackForModel(packName, modelId, displayName)
+        val key = if (texturePath == null || texturePath.isBlank()) {
+            "$packName|fallback|${safe(modelId)}|${safe(displayName)}"
+        } else {
+            "$packName|$texturePath|${safe(modelId)}|${safe(displayName)}"
+        }
+        synchronized(cacheLock) {
+            val cached = CACHE[key]
+            if (cached != null) {
+                return cached
+            }
+            val loaded = if (texturePath == null || texturePath.isBlank()) {
+                loadFallbackForModel(packName, modelId, displayName)
+            } else {
+                try {
+                    load(packName, texturePath) ?: loadFallbackForModel(packName, modelId, displayName)
+                } catch (exception: Exception) {
+                    RealTrainModRenewed.LOGGER.debug("Could not resolve buttonTexture {} from {}", texturePath, packName, exception)
+                    null
+                }
+            }
+            if (loaded != null) {
+                CACHE[key] = loaded
+            }
+            return loaded
         }
     }
 
@@ -88,14 +132,28 @@ object PackButtonTextureCache {
     private fun registerDynamicTexture(packName: String, texturePath: String, image: NativeImage): ButtonTextureInfo {
         val location = Identifier.fromNamespaceAndPath(
             RealTrainModRenewed.MODID,
-            "dynamic/button/" + sanitize(packName) + "/" + sanitize(texturePath),
+            "dynamic/button/" + uniquePathSegment(packName) + "/" + uniquePathSegment(texturePath),
         )
         val width = image.width
         val height = image.height
         val bounds = detectContentBounds(image, texturePath)
-        Minecraft.getInstance().textureManager.register(
+        val texture = DynamicTexture({ "realtrainmodrenewed button texture" }, image)
+        val textureManager = Minecraft.getInstance().textureManager
+        val previous = DYNAMIC_TEXTURES.put(location, texture)
+        if (previous != null) {
+            try {
+                textureManager.release(location)
+            } catch (exception: Exception) {
+                RealTrainModRenewed.LOGGER.debug("Failed to release previous button texture {}", location, exception)
+                try {
+                    previous.close()
+                } catch (_: Exception) {
+                }
+            }
+        }
+        textureManager.register(
             location,
-            DynamicTexture({ "realtrainmodrenewed button texture" }, image),
+            texture,
         )
         return ButtonTextureInfo(location, width, height, bounds[0], bounds[1], bounds[2], bounds[3])
     }
@@ -123,7 +181,11 @@ object PackButtonTextureCache {
                     }
                 }
             }
-            if (image == null) null else registerDynamicTexture(packName, "fallback/" + safe(modelId), image)
+            if (image == null) {
+                null
+            } else {
+                registerDynamicTexture(packName, "fallback/" + safe(modelId) + "/" + safe(displayName), image)
+            }
         } catch (exception: Exception) {
             RealTrainModRenewed.LOGGER.debug("Could not resolve fallback buttonTexture for {} in {}", modelId, packName, exception)
             null
@@ -348,6 +410,18 @@ object PackButtonTextureCache {
             .replace(Regex("[^a-z0-9/._-]"), "_")
             .replaceFirst(Regex("^[/_]+"), "")
 
+    private fun uniquePathSegment(raw: String): String {
+        val readable = sanitize(raw).ifBlank { "blank" }.take(96)
+        return "$readable-${stableHash(raw)}"
+    }
+
+    private fun stableHash(raw: String): String {
+        val digest = MessageDigest.getInstance("SHA-1").digest(raw.toByteArray(Charsets.UTF_8))
+        return digest.take(8).joinToString("") { byte ->
+            String.format(Locale.ROOT, "%02x", byte.toInt() and 0xFF)
+        }
+    }
+
     private fun isPng(path: String?): Boolean = path != null && path.lowercase(Locale.ROOT).endsWith(".png")
 
     private fun scoreButtonCandidate(path: String, modelId: String?, displayName: String?): Int {
@@ -392,6 +466,21 @@ object PackButtonTextureCache {
     private data class ButtonCandidate(val score: Int, val path: Path?, val entry: ZipEntry?)
 
     private fun listAllPackCandidates(): List<Path> {
+        val cached = packCandidates
+        if (cached != null) {
+            return cached
+        }
+        return synchronized(cacheLock) {
+            val current = packCandidates
+            if (current != null) {
+                current
+            } else {
+                collectAllPackCandidates().also { packCandidates = it }
+            }
+        }
+    }
+
+    private fun collectAllPackCandidates(): List<Path> {
         val seen = LinkedHashSet<Path>()
         val result = ArrayList<Path>()
         val gameDir = FMLPaths.GAMEDIR.get()
