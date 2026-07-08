@@ -156,12 +156,12 @@ object LegacyScriptSoundManager {
         if (train == null || !train.level().isClientSide) {
             return
         }
-        val definition = VehicleRegistry.getById(train.getVehicleId())
+        val definition = VehicleRegistry.getById(train.vehicleId)
         if (definition == null) {
             stopAutoRunningSound(train)
             return
         }
-        if (definition.hasSoundScript() && train.soundScriptEngine != null) {
+        if (definition.hasSoundScript() && train.getSoundScriptEngine() != null) {
             stopAutoRunningSound(train)
             return
         }
@@ -491,3 +491,4 @@ object LegacyScriptSoundManager {
         }
     }
 }
+

@@ -351,3 +351,4 @@ class VehicleDefinition(
         headLights, tailLights, interiorLights, hornSound, announcementSounds,
         doCulling, renderLight, notDisplayCab, singleTrain)
 }
+

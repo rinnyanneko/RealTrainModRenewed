@@ -294,13 +294,14 @@ open class ModelSelectScreen @JvmOverloads constructor(
         }
         try {
             val minecraft = Minecraft.getInstance()
-            if (minecraft.level == null) {
+            val level = minecraft.level
+            if (level == null) {
                 return null
             }
-            val entity = TrainEntity.create(minecraft.level, definition.id, 0.0, 0.0, 0.0, 0.0f, definition.getTrainDistance())
+            val entity = TrainEntity.create(level, definition.id, 0.0, 0.0, 0.0, 0.0f, definition.trainDistance)
                 ?: return null
             if (model.getScriptEngine() != null) {
-                entity.setScriptEngine(model.getScriptEngine())
+                entity.scriptEngine = model.getScriptEngine()
             }
             previewEntity = entity
             previewEntityId = definition.id
@@ -562,3 +563,4 @@ open class ModelSelectScreen @JvmOverloads constructor(
         }
     }
 }
+

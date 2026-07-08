@@ -36,9 +36,9 @@ open class TrainControlScreen(private val train: TrainEntity) : Screen(Component
             addButton(left + 4, top + 4, 82, interiorLightLabel(), "toggle_interior_light", 0)
             addButton(left + 90, top + 4, 82, lightLabel(), "set_light_mode", nextLightMode())
             addButton(left + 4, top + 28, 82, pantographLabel(), "toggle_pantograph", 0)
-            addButton(left + 90, top + 28, 27, "前", "set_reverser", 1).active = train.getReverser() != 1
-            addButton(left + 117, top + 28, 28, "中", "set_reverser", 0).active = train.getReverser() != 0
-            addButton(left + 145, top + 28, 27, "後", "set_reverser", -1).active = train.getReverser() != -1
+            addButton(left + 90, top + 28, 27, "前", "set_reverser", 1).active = train.reverser != 1
+            addButton(left + 117, top + 28, 28, "中", "set_reverser", 0).active = train.reverser != 0
+            addButton(left + 145, top + 28, 27, "後", "set_reverser", -1).active = train.reverser != -1
             addArrowButton(left + 4, top + 52, "<", "noop")
             addButton(left + 28, top + 52, 120, "チャンクロード", "noop", 0)
             addArrowButton(left + 152, top + 52, ">", "noop")
@@ -46,10 +46,10 @@ open class TrainControlScreen(private val train: TrainEntity) : Screen(Component
             addButton(left + 28, top + 76, 120, destinationLabel(), "next_destination", 0)
             addArrowButton(left + 152, top + 76, ">", "next_destination")
             addArrowButton(left + 4, top + 100, "<", "prev_sound")
-            addButton(left + 28, top + 100, 120, "アナウンス ${train.getSoundIndex() + 1}", "next_sound", 0)
+            addButton(left + 28, top + 100, 120, "アナウンス ${train.soundIndex + 1}", "next_sound", 0)
             addArrowButton(left + 152, top + 100, ">", "next_sound")
         } else if (selectedTab == ControlTab.FUNCTION) {
-            val definition = VehicleRegistry.getById(train.getVehicleId())
+            val definition = VehicleRegistry.getById(train.vehicleId)
             val options = resolveCustomButtonOptions(definition)
             val labels = resolveCustomButtonLabels(definition, options)
             for (i in 0 until min(18, labels.size)) {
@@ -122,7 +122,7 @@ open class TrainControlScreen(private val train: TrainEntity) : Screen(Component
         if (labels.isEmpty()) {
             var count = 0
             for (i in 0 until 31) {
-                if (train.getCustomButtonValue(i) != 0 || train.getScriptDataValue("Button$i").isNotBlank()) {
+                if (train.getCustomButtonValue(i) != 0 || train.getScriptDataValue("Button$i").orEmpty().isNotBlank()) {
                     count = i + 1
                 }
             }
@@ -157,29 +157,29 @@ open class TrainControlScreen(private val train: TrainEntity) : Screen(Component
     }
 
     private fun lightLabel(): String =
-        when (train.getLightMode()) {
+        when (train.lightMode) {
             1 -> "前照灯"
             2 -> "前照灯・尾灯"
             else -> "消灯"
         }
 
     private fun interiorLightLabel(): String =
-        if (train.isInteriorLightOn()) "室内灯 ON" else "室内灯 OFF"
+        if (train.isInteriorLightOn) "室内灯 ON" else "室内灯 OFF"
 
     private fun nextLightMode(): Int =
-        when (train.getLightMode()) {
+        when (train.lightMode) {
             0 -> 1
             1 -> 2
             else -> 0
         }
 
     private fun pantographLabel(): String =
-        if (train.isPantographUp()) "パンタ 上" else "パンタ 下"
+        if (train.isPantographUp) "パンタ 上" else "パンタ 下"
 
     private fun destinationLabel(): String {
-        val rollsignNames = train.getResourceState().getResourceSet().getConfig().rollsignNames
+        val rollsignNames = train.resourceState.resourceSet.config.rollsignNames ?: emptyArray()
         val count = max(1, rollsignNames.size)
-        val name = if (rollsignNames.isEmpty()) "なし" else rollsignNames[Math.floorMod(train.getDestinationIndex(), count)]
+        val name = if (rollsignNames.isEmpty()) "なし" else rollsignNames[Math.floorMod(train.destinationIndex, count)]
         return "方向幕 $name"
     }
 
@@ -197,31 +197,31 @@ open class TrainControlScreen(private val train: TrainEntity) : Screen(Component
 
     private fun applyLocal(action: String, value: Int) {
         when (action) {
-            "set_light_mode" -> train.setLightMode(value)
-            "toggle_interior_light" -> train.setInteriorLightOn(!train.isInteriorLightOn())
-            "toggle_door" -> train.setDoorOpen(!train.isDoorOpen())
-            "toggle_door_left" -> train.setDoorLeftOpen(!train.isDoorLeftOpen())
-            "toggle_door_right" -> train.setDoorRightOpen(!train.isDoorRightOpen())
-            "toggle_pantograph" -> train.setPantographUp(!train.isPantographUp())
-            "set_reverser" -> train.setReverser(value)
-            "mascon_neutral" -> train.setNotch(0)
+            "set_light_mode" -> train.lightMode = value
+            "toggle_interior_light" -> train.isInteriorLightOn = !train.isInteriorLightOn
+            "toggle_door" -> train.isDoorOpen = !train.isDoorOpen
+            "toggle_door_left" -> train.isDoorLeftOpen = !train.isDoorLeftOpen
+            "toggle_door_right" -> train.isDoorRightOpen = !train.isDoorRightOpen
+            "toggle_pantograph" -> train.isPantographUp = !train.isPantographUp
+            "set_reverser" -> train.reverser = value
+            "mascon_neutral" -> train.notch = 0
             "mascon_power" -> train.stepMascon(1)
             "mascon_brake" -> train.stepMascon(-1)
             "next_destination" -> {
-                val count = max(1, train.getResourceState().getResourceSet().getConfig().rollsignNames.size)
-                train.setDestinationIndex((train.getDestinationIndex() + 1) % count)
+                val count = max(1, (train.resourceState.resourceSet.config.rollsignNames ?: emptyArray()).size)
+                train.destinationIndex = (train.destinationIndex + 1) % count
             }
             "prev_destination" -> {
-                val count = max(1, train.getResourceState().getResourceSet().getConfig().rollsignNames.size)
-                train.setDestinationIndex(Math.floorMod(train.getDestinationIndex() - 1, count))
+                val count = max(1, (train.resourceState.resourceSet.config.rollsignNames ?: emptyArray()).size)
+                train.destinationIndex = Math.floorMod(train.destinationIndex - 1, count)
             }
-            "next_sound" -> train.setSoundIndex(resolveNextSoundIndex(1))
-            "prev_sound" -> train.setSoundIndex(resolveNextSoundIndex(-1))
+            "next_sound" -> train.soundIndex = resolveNextSoundIndex(1)
+            "prev_sound" -> train.soundIndex = resolveNextSoundIndex(-1)
             "toggle_custom_button" -> train.toggleCustomButton(value)
             "cycle_custom_button" -> {
                 val index = (value ushr 8) and 0xFF
                 val currentValue = value and 0xFF
-                val definition = VehicleRegistry.getById(train.getVehicleId())
+                val definition = VehicleRegistry.getById(train.vehicleId)
                 val options = resolveCustomButtonOptions(definition)
                 val nextValue = if (index >= 0 && index < options.size && options[index].isNotEmpty()) {
                     (currentValue + 1) % options[index].size
@@ -234,12 +234,12 @@ open class TrainControlScreen(private val train: TrainEntity) : Screen(Component
     }
 
     private fun resolveNextSoundIndex(delta: Int): Int {
-        val definition = VehicleRegistry.getById(train.getVehicleId())
+        val definition = VehicleRegistry.getById(train.vehicleId)
         val size = definition?.getAnnouncementSounds()?.size ?: 0
         if (size <= 0) {
-            return max(0, train.getSoundIndex() + delta)
+            return max(0, train.soundIndex + delta)
         }
-        return Math.floorMod(train.getSoundIndex() + delta, size)
+        return Math.floorMod(train.soundIndex + delta, size)
     }
 
     override fun mouseClicked(event: MouseButtonEvent, doubleClick: Boolean): Boolean {
@@ -297,13 +297,13 @@ open class TrainControlScreen(private val train: TrainEntity) : Screen(Component
         if (selectedTab != ControlTab.FORMATION) {
             return
         }
-        val trains = train.getFormationTrainsForDisplay()
+        val trains = train.formationTrainsForDisplay
         val count = max(1, trains.size)
         graphics.text(font, Component.literal("${count}両編成"), left + 8, top + 10, 0x404040, false)
         for (i in 0 until min(6, count)) {
             val entry = if (i < trains.size) trains[i] else train
-            val definition = VehicleRegistry.getById(entry.getVehicleId())
-            val name = definition?.getDisplayName() ?: entry.getVehicleId()
+            val definition = VehicleRegistry.getById(entry?.vehicleId)
+            val name = definition?.getDisplayName() ?: entry?.vehicleId.orEmpty()
             val y = top + 30 + i * 18
             graphics.fakeItem(ItemStack(RealTrainModRenewedItems.TRAIN_ITEM.get()), left + 10, y - 4)
             graphics.text(font, Component.literal("${i + 1}  $name"), left + 30, y, 0x404040, false)
@@ -408,7 +408,7 @@ open class TrainControlScreen(private val train: TrainEntity) : Screen(Component
             mouseY: Int,
             partialTick: Float,
         ) {
-            val opened = if (leftDoor) train.isDoorLeftOpen() else train.isDoorRightOpen()
+            val opened = if (leftDoor) train.isDoorLeftOpen else train.isDoorRightOpen
             val sliderOffset = if (opened) -10 else -4
             graphics.blit(
                 RenderPipelines.GUI_TEXTURED,
@@ -464,3 +464,4 @@ open class TrainControlScreen(private val train: TrainEntity) : Screen(Component
             action != null && (action.startsWith("mascon_") || action == "set_reverser")
     }
 }
+

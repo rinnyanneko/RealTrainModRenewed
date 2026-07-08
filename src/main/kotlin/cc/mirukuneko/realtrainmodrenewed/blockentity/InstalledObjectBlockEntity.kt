@@ -168,3 +168,4 @@ class InstalledObjectBlockEntity(pos: BlockPos, state: BlockState) :
     override fun getUpdatePacket(): ClientboundBlockEntityDataPacket = ClientboundBlockEntityDataPacket.create(this)
     override fun getUpdateTag(registries: HolderLookup.Provider): CompoundTag = saveWithoutMetadata(registries)
 }
+

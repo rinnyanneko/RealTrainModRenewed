@@ -153,3 +153,4 @@ class Formation(@JvmField var id: String, size: Int) {
 
     override fun toString(): String = "Formation{id='$id', size=${entries.size}}"
 }
+

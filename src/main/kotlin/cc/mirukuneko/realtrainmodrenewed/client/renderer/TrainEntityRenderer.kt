@@ -46,7 +46,7 @@ open class TrainEntityRenderer(context: EntityRendererProvider.Context) :
         shadowRadius = 0.0f
     }
 
-    fun getTextureLocation(entity: TrainEntity): Identifier = Identifier.withDefaultNamespace("missingno")
+    open fun getTextureLocation(entity: TrainEntity): Identifier = Identifier.withDefaultNamespace("missingno")
 
     override fun createRenderState(): LegacyEntityRenderState<TrainEntity> = LegacyEntityRenderState()
 
@@ -57,7 +57,7 @@ open class TrainEntityRenderer(context: EntityRendererProvider.Context) :
     }
 
     override fun shouldRender(entity: TrainEntity, frustum: Frustum, camX: Double, camY: Double, camZ: Double): Boolean {
-        val halfLength = max(3.0, entity.getTrainDistance() + 3.0)
+        val halfLength = max(3.0, entity.trainDistance + 3.0)
         val renderBounds = AABB(
             entity.x - halfLength,
             entity.y - 1.5,
@@ -104,8 +104,8 @@ open class TrainEntityRenderer(context: EntityRendererProvider.Context) :
             return
         }
 
-        if (model.getScriptEngine() != null && entity.getScriptEngine() !== model.getScriptEngine()) {
-            entity.setScriptEngine(model.getScriptEngine())
+        if (model.getScriptEngine() != null && entity.scriptEngine !== model.getScriptEngine()) {
+            entity.scriptEngine = model.getScriptEngine()
         }
         if (entity.getSoundScriptEngine() == null && definition.hasSoundScript()) {
             entity.setSoundScriptEngine(MqoModelLoader.loadSoundScriptForVehicle(definition))
@@ -199,8 +199,8 @@ open class TrainEntityRenderer(context: EntityRendererProvider.Context) :
                 }
             }
 
-            if (LOGGED_VEHICLES.add(entity.vehicleId)) {
-                val allGroups = model.getAllNormalizedGroupNames()
+            if (LOGGED_VEHICLES.add(entity.vehicleId ?: "")) {
+                val allGroups = model.allNormalizedGroupNames
                 RealTrainModRenewed.LOGGER.info(
                     "[Render] vehicle={} script={} scriptRunning={} bogies={} groupsCount={}",
                     entity.vehicleId,
@@ -432,7 +432,7 @@ open class TrainEntityRenderer(context: EntityRendererProvider.Context) :
             val destinationIndex = Math.floorMod(entity.destinationIndex, count)
             val segmentV0 = destinationIndex / count.toFloat()
             val segmentV1 = (destinationIndex + 1.0f) / count.toFloat()
-            val consumer = buffer.getBuffer(RenderTypes.entityCutout(texture))
+            val consumer = buffer.getBuffer(RenderTypes.entityCutout(texture ?: return))
             val pose = poseStack.last()
             val matrix = pose.pose()
             val normalMatrix = pose.normal()
@@ -688,9 +688,9 @@ open class TrainEntityRenderer(context: EntityRendererProvider.Context) :
             if (definition == null || model == null) {
                 return false
             }
-            val translucentBatches = model.getTranslucentBatchCount()
-            val totalVertices = model.getTotalVertexCount()
-            val batchCount = model.getBatchCount()
+            val translucentBatches = model.translucentBatchCount
+            val totalVertices = model.totalVertexCount
+            val batchCount = model.batchCount
             val hasLegacyScript = !definition.scriptPath.isNullOrBlank()
             val hasManyOverlayFeatures = definition.rollsigns.isNotEmpty() ||
                 definition.headLights.isNotEmpty() ||
@@ -767,7 +767,7 @@ open class TrainEntityRenderer(context: EntityRendererProvider.Context) :
             billRight: Vector3f,
             billUp: Vector3f,
         ) {
-            val halfLength = max(3.5f, entity.getTrainDistance() - 0.45f)
+            val halfLength = max(3.5f, entity.trainDistance - 0.45f)
             val lampY = 1.52f
             val lampX = 0.58f
             if (mode == 1 || mode == 2 || mode == 3) {
@@ -898,3 +898,4 @@ open class TrainEntityRenderer(context: EntityRendererProvider.Context) :
         }
     }
 }
+

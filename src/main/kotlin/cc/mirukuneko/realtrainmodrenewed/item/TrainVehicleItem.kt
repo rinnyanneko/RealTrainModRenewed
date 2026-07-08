@@ -45,7 +45,7 @@ class TrainVehicleItem(properties: Properties) : Item(properties) {
         val entity = TrainEntity(RealTrainModRenewedEntities.TRAIN.get(), level)
         entity.setPos(spawnPos.x + 0.5, spawnPos.y.toDouble(), spawnPos.z + 0.5)
         entity.yRot = player.yRot
-        entity.setVehicleId(selectedId)
+        entity.vehicleId = selectedId
         level.addFreshEntity(entity)
 
         if (!player.abilities.instabuild) stack.shrink(1)

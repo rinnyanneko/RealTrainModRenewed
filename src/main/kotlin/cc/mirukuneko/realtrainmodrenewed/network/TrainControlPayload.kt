@@ -120,7 +120,7 @@ data class TrainControlPayload(
                         sourceTrain.clearSeatAssignment(player.uuid)
                     }
 
-                    "toggle_headlight" -> controlTrain.setHeadlightOn(!controlTrain.isHeadlightOn)
+                    "toggle_headlight" -> controlTrain.isHeadlightOn = !controlTrain.isHeadlightOn
                     "set_light_mode" -> controlTrain.setLightModeForFormation(payload.value)
                     "toggle_interior_light" -> controlTrain.setInteriorLightOnForFormation(!controlTrain.isInteriorLightOn)
                     "toggle_door" -> {
@@ -142,15 +142,15 @@ data class TrainControlPayload(
                     }
 
                     "toggle_pantograph" -> controlTrain.setPantographUpForFormation(!controlTrain.isPantographUp)
-                    "toggle_reverse" -> controlTrain.setReverse(!controlTrain.isReverse)
+                    "toggle_reverse" -> controlTrain.isReverse = !controlTrain.isReverse
                     "set_reverser" -> controlTrain.reverser = payload.value
                     "next_destination" -> {
-                        val count = max(1, controlTrain.resourceState.resourceSet.config.rollsignNames.size)
+                        val count = max(1, (controlTrain.resourceState.resourceSet.config.rollsignNames ?: emptyArray()).size)
                         controlTrain.setDestinationIndexForFormation((controlTrain.destinationIndex + 1) % count)
                     }
 
                     "prev_destination" -> {
-                        val count = max(1, controlTrain.resourceState.resourceSet.config.rollsignNames.size)
+                        val count = max(1, (controlTrain.resourceState.resourceSet.config.rollsignNames ?: emptyArray()).size)
                         controlTrain.setDestinationIndexForFormation(Math.floorMod(controlTrain.destinationIndex - 1, count))
                     }
 

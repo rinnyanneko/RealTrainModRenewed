@@ -740,10 +740,13 @@ open class RailCoreBlockEntityRenderer(
         private fun computeRenderStride(cameraDistanceSq: Double, compatibilityHeavy: Boolean): Int = 1
 
         private fun railModelHasSwitchParts(model: MqoModelLoader.MqoModel): Boolean {
-            val groups = model.getAllNormalizedGroupNames() ?: return false
+            val groups = model.allNormalizedGroupNames
             var hasTong = false
             var hasRail = false
             for (group in groups) {
+                if (group == null) {
+                    continue
+                }
                 val normalized = group.lowercase(Locale.ROOT)
                 if (normalized == "l0" || normalized == "l1" || normalized == "r0" || normalized == "r1") hasTong = true
                 if (normalized == "raill" || normalized == "railr") hasRail = true
@@ -980,9 +983,9 @@ open class RailCoreBlockEntityRenderer(
             if (definition == null || model == null) {
                 return false
             }
-            return model.getTotalVertexCount() >= 9_000 ||
-                model.getBatchCount() >= 72 ||
-                model.getTranslucentBatchCount() >= 10
+            return model.totalVertexCount >= 9_000 ||
+                model.batchCount >= 72 ||
+                model.translucentBatchCount >= 10
         }
 
         private fun parseTrailingNumber(value: String): Int {
