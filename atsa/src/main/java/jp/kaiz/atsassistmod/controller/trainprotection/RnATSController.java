@@ -3,10 +3,8 @@ package jp.kaiz.atsassistmod.controller.trainprotection;
 import cc.mirukuneko.realtrainmodrenewed.entity.TrainEntity;
 
 /**
- * Rn-ATS uses the signal aspect ahead of the train. RTM's old {@code getSignal()}
- * is a stub in RealTrainModRenewed (returns 0), so until the new signal network
- * is bridged the aspect resolves to the default branch (25 km/h). Behaviour is
- * otherwise faithful to the original.
+ * Rn-ATS uses the signal aspect ahead of the train through RTM's legacy
+ * {@code getSignal()} compatibility API.
  */
 public class RnATSController extends TrainProtection {
     private int limitSpeed;

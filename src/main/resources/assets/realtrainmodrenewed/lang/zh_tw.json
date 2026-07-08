@@ -38,6 +38,11 @@
 
   "tooltip.realtrainmodrenewed.model.selected": "已選擇: %s",
   "tooltip.realtrainmodrenewed.model.none": "尚未選擇模型(點右鍵選擇樣式)",
+  "tooltip.realtrainmodrenewed.marker.place_pair": "放置兩個以上鐵道標記，再用軌道物品鋪設軌道。",
+  "tooltip.realtrainmodrenewed.marker.configure": "用鐵道標記右鍵已放置標記可調整超高與曲線錨點。",
+  "tooltip.realtrainmodrenewed.marker.build": "分叉標記與一般標記連接時會建立轉轍路線。",
+  "tooltip.realtrainmodrenewed.rail.marker_use": "對鐵道標記組使用可鋪設目前選取的軌道模型。",
+  "tooltip.realtrainmodrenewed.rail.preview_adjust": "複製的軌道預覽可在放置前微調位置。",
 
   "message.realtrainmodrenewed.train.must_be_on_rail": "列車只能放置在軌道上!",
   "message.realtrainmodrenewed.train.already_exists": "該位置已存在列車!",
@@ -77,6 +82,9 @@
   "key.realtrainmodrenewed.play_announcement": "播放選擇的車內廣播",
   "key.realtrainmodrenewed.play_horn": "鳴笛",
   "key.realtrainmodrenewed.toggle_render_profiler": "切換RTMU渲染分析器",
+  "key.realtrainmodrenewed.marker_hud_previous": "鐵道標記HUD上一個選項",
+  "key.realtrainmodrenewed.marker_hud_next": "鐵道標記HUD下一個選項",
+  "key.realtrainmodrenewed.marker_hud_toggle": "鐵道標記HUD切換選項",
 
   "realtrainmodrenewed.configuration.title": "RealTrainMod Renewed 配置",
   "realtrainmodrenewed.configuration.section.realtrainmodrenewed.common.toml": "RealTrainMod Renewed 配置",

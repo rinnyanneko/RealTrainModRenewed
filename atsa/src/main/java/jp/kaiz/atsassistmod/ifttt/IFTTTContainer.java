@@ -403,7 +403,9 @@ public abstract class IFTTTContainer implements Serializable {
                 public String[] getExplanation() { return new String[]{"SetSignal:" + signal}; }
                 public void setFromGui(IftttEditView gui) { setSignal(gui.getTextFieldInt(0)); }
                 public void doThat(IftttBlockEntity tile, TrainEntity train, boolean first) {
-                    // RTM's new API has no train signal setter (getSignal is a stub); no-op.
+                    if (train != null) {
+                        train.setSignal2(signal);
+                    }
                 }
             }
         }

@@ -38,6 +38,9 @@ tools/convert_bbmodel_to_rtmu_pack.py
 __pycache__
 *.pyc
 .codex-tmp/
-docs/
 .deepseek/
 .codex_tmp/
+.codex-tmp/
+local.properties
+.kotlin/
+.codewhale/

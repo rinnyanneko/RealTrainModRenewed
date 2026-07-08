@@ -56,13 +56,16 @@ dependencies {
     implementation "com.fasterxml.jackson.core:jackson-databind:2.15.2"
 }
 
-def modrinthModsDir = file("${System.properties['user.home']}/Library/Application Support/ModrinthApp/profiles/Server test/mods")
+def modrinthModsDirProperty = project.findProperty('modrinthModsDir')
+def modrinthModsDir = modrinthModsDirProperty ? file(modrinthModsDirProperty) : null
 
 tasks.register('copyJarToModrinthMods', Copy) {
     dependsOn tasks.named('jar')
-    onlyIf { modrinthModsDir.isDirectory() }
+    onlyIf { modrinthModsDir != null && modrinthModsDir.isDirectory() }
     from(tasks.named('jar').flatMap { it.archiveFile })
-    into(modrinthModsDir)
+    if (modrinthModsDir != null) {
+        into(modrinthModsDir)
+    }
 }
 
 tasks.named('jar').configure {

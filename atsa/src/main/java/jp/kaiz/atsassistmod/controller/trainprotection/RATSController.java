@@ -3,9 +3,8 @@ package jp.kaiz.atsassistmod.controller.trainprotection;
 import cc.mirukuneko.realtrainmodrenewed.entity.TrainEntity;
 
 /**
- * R-ATS uses the signal aspect ahead of the train. RTM's old {@code getSignal()}
- * is a stub in RealTrainModRenewed (returns 0), so until the new signal network
- * is bridged this resolves to "no limit". Behaviour is otherwise faithful.
+ * R-ATS uses the signal aspect ahead of the train through RTM's legacy
+ * {@code getSignal()} compatibility API.
  */
 public class RATSController extends TrainProtection {
     private int limitSpeed;

@@ -1,0 +1,494 @@
+package cc.mirukuneko.realtrainmodrenewed.client.sound
+
+import cc.mirukuneko.realtrainmodrenewed.RealTrainModRenewed
+import cc.mirukuneko.realtrainmodrenewed.entity.TrainEntity
+import cc.mirukuneko.realtrainmodrenewed.vehicle.VehicleDefinition
+import cc.mirukuneko.realtrainmodrenewed.vehicle.VehicleRegistry
+import net.minecraft.client.Minecraft
+import net.minecraft.client.resources.sounds.AbstractTickableSoundInstance
+import net.minecraft.client.resources.sounds.SimpleSoundInstance
+import net.minecraft.client.resources.sounds.SoundInstance
+import net.minecraft.resources.Identifier
+import net.minecraft.sounds.SoundEvent
+import net.minecraft.sounds.SoundSource
+import net.minecraft.util.Mth
+import java.util.Locale
+import java.util.UUID
+import java.util.concurrent.ConcurrentHashMap
+import kotlin.math.abs
+import kotlin.math.floor
+import kotlin.math.max
+
+object LegacyScriptSoundManager {
+    private val ACTIVE = ConcurrentHashMap<String, LoopingTrainSound>()
+    private val AUTO_RUNNING = ConcurrentHashMap<UUID, AutoRunningSoundState>()
+    private val ONE_SHOT_LAST_PLAY_TICK = ConcurrentHashMap<String, Long>()
+    private val SPEAKER_SOUNDS = ConcurrentHashMap<String, SimpleSoundInstance>()
+    private const val ONE_SHOT_DEBOUNCE_MS = 180L
+    private const val LEVER_CLICK_DEBOUNCE_MS = 70L
+    private var lastLeverClickMs = 0L
+
+    @JvmStatic
+    fun play(train: TrainEntity?, namespace: String?, soundName: String?, volume: Float, pitch: Float) {
+        play(train, namespace, soundName, volume, pitch, true)
+    }
+
+    @JvmStatic
+    fun playLegacyId(train: TrainEntity?, legacySoundId: String?, volume: Float, pitch: Float, looping: Boolean) {
+        if (legacySoundId == null || legacySoundId.isBlank()) {
+            return
+        }
+        var namespace = "rtm"
+        var soundName = legacySoundId
+        val separator = legacySoundId.indexOf(':')
+        if (separator >= 0) {
+            namespace = legacySoundId.substring(0, separator)
+            soundName = legacySoundId.substring(separator + 1)
+        }
+        play(train, namespace, soundName, volume, pitch, looping)
+    }
+
+    @JvmStatic
+    fun play(train: TrainEntity?, namespace: String?, soundName: String?, volume: Float, pitch: Float, looping: Boolean) {
+        if (train == null || !train.level().isClientSide) {
+            return
+        }
+        val soundId = toSoundId(namespace, soundName) ?: return
+        if (volume <= 0.001f) {
+            if (looping) {
+                stop(train, soundId)
+            }
+            return
+        }
+        val minecraft = Minecraft.getInstance()
+        if (minecraft.soundManager == null) {
+            return
+        }
+        if (!looping) {
+            val oneShotKey = key(train.uuid, soundId)
+            val now = System.currentTimeMillis()
+            val lastPlay = ONE_SHOT_LAST_PLAY_TICK[oneShotKey]
+            if (lastPlay != null && now - lastPlay < ONE_SHOT_DEBOUNCE_MS) {
+                return
+            }
+            ONE_SHOT_LAST_PLAY_TICK[oneShotKey] = now
+            minecraft.soundManager.play(
+                SimpleSoundInstance(
+                    soundId,
+                    SoundSource.NEUTRAL,
+                    Mth.clamp(volume, 0.0f, 8.0f),
+                    Mth.clamp(pitch, 0.05f, 4.0f),
+                    SoundInstance.createUnseededRandom(),
+                    false,
+                    0,
+                    SoundInstance.Attenuation.LINEAR,
+                    train.x,
+                    train.y,
+                    train.z,
+                    false,
+                ),
+            )
+            return
+        }
+        val key = key(train.uuid, soundId)
+        var sound = ACTIVE[key]
+        if (sound == null || sound.isStopped) {
+            if (sound != null) {
+                ACTIVE.remove(key, sound)
+            }
+            sound = LoopingTrainSound(train, soundId)
+            sound.update(volume, pitch)
+            ACTIVE[key] = sound
+            minecraft.soundManager.play(sound)
+        } else {
+            sound.update(volume, pitch)
+        }
+    }
+
+    @JvmStatic
+    fun playAt(x: Double, y: Double, z: Double, soundIdStr: String?, volume: Float, pitch: Float) {
+        if (soundIdStr == null || soundIdStr.isBlank()) {
+            return
+        }
+        val soundId = Identifier.tryParse(soundIdStr.trim().lowercase(Locale.ROOT)) ?: return
+        val minecraft = Minecraft.getInstance()
+        if (minecraft.soundManager == null) {
+            return
+        }
+        val instance = SimpleSoundInstance(
+            soundId,
+            SoundSource.RECORDS,
+            Mth.clamp(volume, 0.0f, 16.0f),
+            Mth.clamp(pitch, 0.05f, 4.0f),
+            SoundInstance.createUnseededRandom(),
+            false,
+            0,
+            SoundInstance.Attenuation.LINEAR,
+            x,
+            y,
+            z,
+            false,
+        )
+        val key = posKey(x, y, z)
+        val previous = SPEAKER_SOUNDS.put(key, instance)
+        if (previous != null) {
+            minecraft.soundManager.stop(previous)
+        }
+        minecraft.soundManager.play(instance)
+    }
+
+    private fun posKey(x: Double, y: Double, z: Double): String =
+        "${floor(x).toInt()},${floor(y).toInt()},${floor(z).toInt()}"
+
+    @JvmStatic
+    fun stopAt(x: Double, y: Double, z: Double) {
+        val sound = SPEAKER_SOUNDS.remove(posKey(x, y, z))
+        if (sound != null) {
+            val minecraft = Minecraft.getInstance()
+            if (minecraft.soundManager != null) {
+                minecraft.soundManager.stop(sound)
+            }
+        }
+    }
+
+    @JvmStatic
+    fun tickJsonRunningSound(train: TrainEntity?) {
+        if (train == null || !train.level().isClientSide) {
+            return
+        }
+        val definition = VehicleRegistry.getById(train.vehicleId)
+        if (definition == null) {
+            stopAutoRunningSound(train)
+            return
+        }
+        if (definition.hasSoundScript() && train.getSoundScriptEngine() != null) {
+            stopAutoRunningSound(train)
+            return
+        }
+        if (definition.hasSoundScript() && !definition.hasJsonRunningSounds()) {
+            tickScriptFallbackRunningSound(train, definition)
+            return
+        }
+        if (!definition.hasJsonRunningSounds()) {
+            stopAutoRunningSound(train)
+            return
+        }
+
+        val state = AUTO_RUNNING.computeIfAbsent(train.uuid) { AutoRunningSoundState() }
+        val speed = abs(train.speed)
+        val moving = speed > 0.0025f
+        val powering = train.notch > 0
+        val accelerating = powering || speed > state.previousSpeed + 0.0005f
+        val sound = selectJsonRunningSound(definition, train, speed, moving, accelerating)
+        state.previousSpeed = speed
+
+        if (sound == null || sound.isBlank()) {
+            stopAutoRunningSound(train)
+            return
+        }
+        val soundId = toSoundIdFromLegacyString(sound)
+        if (soundId == null) {
+            stopAutoRunningSound(train)
+            return
+        }
+        if (state.currentSoundId != null && state.currentSoundId != soundId) {
+            stop(train, state.currentSoundId)
+        }
+        state.currentSoundId = soundId
+
+        val volume = if (moving) Mth.clamp(0.45f + speed * 7.5f, 0.35f, 1.35f) else 0.55f
+        val pitch = if (shouldPitchJsonRunningSound(definition, speed)) {
+            Mth.clamp(0.65f + speed * 5.0f, 0.65f, 1.75f)
+        } else {
+            1.0f
+        }
+        play(train, soundId.namespace, soundId.path, volume, pitch, true)
+    }
+
+    private fun selectJsonRunningSound(
+        definition: VehicleDefinition,
+        train: TrainEntity,
+        speed: Float,
+        moving: Boolean,
+        accelerating: Boolean,
+    ): String? {
+        if (!moving) {
+            return definition.soundStop
+        }
+        val startSpeed = getFirstConfiguredMaxSpeed(definition)
+        if (speed < startSpeed) {
+            return if (accelerating) {
+                firstNonBlank(definition.soundStartAcceleration, definition.soundAcceleration)
+            } else {
+                firstNonBlank(definition.soundDecelerationStop, definition.soundDeceleration, definition.soundStop)
+            }
+        }
+        return if (accelerating) {
+            firstNonBlank(definition.soundAcceleration, definition.soundStartAcceleration)
+        } else {
+            firstNonBlank(definition.soundDeceleration, definition.soundDecelerationStop, definition.soundStop)
+        }
+    }
+
+    private fun shouldPitchJsonRunningSound(definition: VehicleDefinition, speed: Float): Boolean {
+        val startSpeed = getFirstConfiguredMaxSpeed(definition)
+        return speed >= startSpeed
+    }
+
+    private fun getFirstConfiguredMaxSpeed(definition: VehicleDefinition?): Float {
+        if (definition == null || definition.getNotchMaxSpeeds().isEmpty()) {
+            return 0.06f
+        }
+        for (speed in definition.getNotchMaxSpeeds()) {
+            if (speed != null && speed > 0.0f) {
+                return max(0.005f, speed / 72.0f)
+            }
+        }
+        return 0.06f
+    }
+
+    private fun firstNonBlank(vararg values: String?): String {
+        for (value in values) {
+            if (value != null && value.isNotBlank()) {
+                return value
+            }
+        }
+        return ""
+    }
+
+    private fun tickScriptFallbackRunningSound(train: TrainEntity, definition: VehicleDefinition) {
+        val scriptPath = definition.soundScriptPath.lowercase(Locale.ROOT).replace('\\', '/')
+        if (scriptPath.contains("sound_223")) {
+            tickFallback223Sound(train)
+        } else if (scriptPath.contains("sound_o220")) {
+            tickFallbackTsurikakeSound(train)
+        } else if (scriptPath.contains("sound_trailer")) {
+            tickFallbackTrailerSound(train)
+        } else {
+            tickFallbackTrailerSound(train)
+        }
+    }
+
+    private fun tickFallback223Sound(train: TrainEntity) {
+        val speedKmh = abs(train.speed) * 72.0f
+        val powering = train.notch != 0
+        if (!powering) {
+            stop(train, "rtm", "train.223_air")
+            stop(train, "rtm", "train.223_s0")
+            stop(train, "rtm", "train.223_s1")
+            stop(train, "rtm", "train.223_s2")
+            stop(train, "rtm", "train.223_run")
+            stop(train, "rtm", "train.223_run_tunnel")
+            return
+        }
+        if (speedKmh <= 0.1f) {
+            stop(train, "rtm", "train.223_s0")
+            stop(train, "rtm", "train.223_s1")
+            stop(train, "rtm", "train.223_s2")
+            stop(train, "rtm", "train.223_run")
+            play(train, "rtm", "train.223_air", 1.0f, 1.0f, true)
+            return
+        }
+        stop(train, "rtm", "train.223_air")
+        if (speedKmh < 20.0f) {
+            val volume = if (speedKmh < 5.0f) speedKmh / 5.0f else if (speedKmh > 10.0f) (20.0f - speedKmh) / 10.0f else 1.0f
+        } else {
+            stop(train, "rtm", "train.223_s0")
+        }
+        if (speedKmh >= 8.0f) {
+            val volume = if (speedKmh < 12.0f) (speedKmh - 8.0f) / 4.0f else 1.0f
+            val pitch = (speedKmh - 8.0f) / (120.0f - 8.0f) + 0.8f
+        } else {
+            stop(train, "rtm", "train.223_s1")
+        }
+        if (speedKmh >= 12.0f) {
+            val pitch = (speedKmh - 12.0f) / (120.0f - 12.0f) + 0.9f
+            val runVolume = Mth.clamp((speedKmh - 12.0f) / (120.0f - 12.0f), 0.0f, 1.0f)
+            play(train, "rtm", "train.223_run", runVolume, 1.0f, true)
+        } else {
+            stop(train, "rtm", "train.223_s2")
+            stop(train, "rtm", "train.223_run")
+        }
+        stop(train, "rtm", "train.223_run_tunnel")
+    }
+
+    private fun tickFallbackTsurikakeSound(train: TrainEntity) {
+        val speedKmh = abs(train.speed) * 72.0f
+        val powering = train.notch != 0
+        if (speedKmh <= 0.1f) {
+            play(train, "rtm", "train.223_air", 1.0f, 1.0f, true)
+            stop(train, "rtm", "train.tsurikake")
+            stop(train, "rtm", "train.tsurikake_x2")
+            stop(train, "rtm", "train.tsurikake_n")
+            return
+        }
+        stop(train, "rtm", "train.223_air")
+        val neutralVolume = if (speedKmh > 10.0f) (speedKmh / 62.0f) * 0.5f + 0.5f else (speedKmh / 10.0f) * 0.5f
+        play(train, "rtm", "train.tsurikake_n", Mth.clamp(neutralVolume, 0.0f, 1.25f), (speedKmh / 72.0f) * 0.25f + 1.0f, true)
+        if (!powering) {
+            stop(train, "rtm", "train.tsurikake")
+            stop(train, "rtm", "train.tsurikake_x2")
+            return
+        }
+        val volume = if (speedKmh < 10.0f) speedKmh / 10.0f else 1.0f
+        if (speedKmh >= 36.0f) {
+            stop(train, "rtm", "train.tsurikake")
+            play(train, "rtm", "train.tsurikake_x2", Mth.clamp(volume, 0.0f, 1.0f), speedKmh / 36.0f, true)
+        } else {
+            stop(train, "rtm", "train.tsurikake_x2")
+            play(train, "rtm", "train.tsurikake", Mth.clamp(volume, 0.0f, 1.0f), speedKmh / 36.0f + 1.0f, true)
+        }
+    }
+
+    private fun tickFallbackTrailerSound(train: TrainEntity) {
+        val speedKmh = abs(train.speed) * 72.0f
+        if (speedKmh <= 1.0f) {
+            stop(train, "rtm", "train.run_trailer")
+            return
+        }
+        play(
+            train,
+            "rtm",
+            "train.run_trailer",
+            Mth.clamp(speedKmh / 80.0f, 0.15f, 1.0f),
+            Mth.clamp(0.8f + speedKmh / 120.0f, 0.8f, 1.6f),
+            true,
+        )
+    }
+
+    @JvmStatic
+    fun stop(train: TrainEntity?, namespace: String?, soundName: String?) {
+        if (train == null) {
+            return
+        }
+        val soundId = toSoundId(namespace, soundName) ?: return
+        val sound = ACTIVE.remove(key(train.uuid, soundId))
+        sound?.requestStop()
+    }
+
+    private fun stop(train: TrainEntity?, soundId: Identifier?) {
+        if (train == null || soundId == null) {
+            return
+        }
+        val sound = ACTIVE.remove(key(train.uuid, soundId))
+        sound?.requestStop()
+    }
+
+    @JvmStatic
+    fun stopAutoRunningSound(train: TrainEntity?) {
+        if (train == null) {
+            return
+        }
+        val state = AUTO_RUNNING.remove(train.uuid)
+        if (state != null && state.currentSoundId != null) {
+            stop(train, state.currentSoundId)
+        }
+    }
+
+    @JvmStatic
+    fun playLeverClick() {
+        val minecraft = Minecraft.getInstance()
+        if (minecraft.soundManager == null) {
+            return
+        }
+        val now = System.currentTimeMillis()
+        if (now - lastLeverClickMs < LEVER_CLICK_DEBOUNCE_MS) {
+            return
+        }
+        lastLeverClickMs = now
+        val soundId = Identifier.fromNamespaceAndPath("rtm", "train.lever")
+        minecraft.soundManager.play(SimpleSoundInstance.forUI(SoundEvent.createVariableRangeEvent(soundId), 1.0f, 0.55f))
+    }
+
+    private fun key(trainId: UUID, soundId: Identifier): String = "$trainId|$soundId"
+
+    private fun toSoundId(namespace: String?, soundName: String?): Identifier? {
+        if (soundName == null || soundName.isBlank()) {
+            return null
+        }
+        var resolvedNamespace = if (namespace == null || namespace.isBlank()) "minecraft" else namespace.lowercase(Locale.ROOT)
+        var resolvedPath = soundName.trim().replace('\\', '/').lowercase(Locale.ROOT)
+        if (resolvedPath.startsWith("sounds/")) {
+            resolvedPath = resolvedPath.substring("sounds/".length)
+        }
+        if (resolvedPath.endsWith(".ogg")) {
+            resolvedPath = resolvedPath.substring(0, resolvedPath.length - ".ogg".length)
+        }
+        if (resolvedNamespace == "rtm" &&
+            (resolvedPath == "train.223_air" || resolvedPath == "train.223_run" || resolvedPath == "train.223_run_tunnel")
+        ) {
+            resolvedNamespace = "sound_rtm"
+            resolvedPath = resolvedPath.substring("train.".length)
+        } else if (resolvedNamespace == "rtm" && resolvedPath.indexOf('/') >= 0) {
+            resolvedPath = resolvedPath.replace('/', '.')
+        }
+        return try {
+            Identifier.fromNamespaceAndPath(resolvedNamespace, resolvedPath)
+        } catch (exception: Exception) {
+            RealTrainModRenewed.LOGGER.warn("Invalid legacy sound id {}:{}", resolvedNamespace, soundName)
+            null
+        }
+    }
+
+    private fun toSoundIdFromLegacyString(legacySoundId: String?): Identifier? {
+        if (legacySoundId == null || legacySoundId.isBlank()) {
+            return null
+        }
+        var namespace = "rtm"
+        var soundName = legacySoundId
+        val separator = legacySoundId.indexOf(':')
+        if (separator >= 0) {
+            namespace = legacySoundId.substring(0, separator)
+            soundName = legacySoundId.substring(separator + 1)
+        }
+        return toSoundId(namespace, soundName)
+    }
+
+    private class AutoRunningSoundState {
+        var currentSoundId: Identifier? = null
+        var previousSpeed: Float = 0.0f
+    }
+
+    private class LoopingTrainSound(private val train: TrainEntity, private val soundId: Identifier) :
+        AbstractTickableSoundInstance(
+            SoundEvent.createVariableRangeEvent(soundId),
+            SoundSource.NEUTRAL,
+            SoundInstance.createUnseededRandom(),
+        ) {
+        init {
+            looping = true
+            delay = 0
+            volume = 0.0f
+            pitch = 1.0f
+            relative = false
+            x = train.x
+            y = train.y
+            z = train.z
+        }
+
+        fun update(volume: Float, pitch: Float) {
+            this.volume = Mth.clamp(volume, 0.0f, 8.0f)
+            this.pitch = Mth.clamp(pitch, 0.05f, 4.0f)
+            x = train.x
+            y = train.y
+            z = train.z
+        }
+
+        fun requestStop() {
+            stop()
+        }
+
+        override fun tick() {
+            if (!train.isAlive) {
+                ACTIVE.remove(key(train.uuid, soundId), this)
+                AUTO_RUNNING.remove(train.uuid)
+                stop()
+                return
+            }
+            x = train.x
+            y = train.y
+            z = train.z
+        }
+    }
+}
+

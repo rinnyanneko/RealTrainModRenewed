@@ -41,6 +41,11 @@
 
   "tooltip.realtrainmodrenewed.model.selected": "選択中: %s",
   "tooltip.realtrainmodrenewed.model.none": "モデル未選択（右クリックで選択）",
+  "tooltip.realtrainmodrenewed.marker.place_pair": "2個以上のマーカーを置き、レールアイテムで軌道を敷設します。",
+  "tooltip.realtrainmodrenewed.marker.configure": "設置済みマーカーをマーカーアイテムで右クリックするとカントと曲線アンカーを調整できます。",
+  "tooltip.realtrainmodrenewed.marker.build": "分岐マーカーを通常マーカーと接続すると分岐ルートを作成します。",
+  "tooltip.realtrainmodrenewed.rail.marker_use": "マーカー同士に使うと選択中のレールモデルで敷設します。",
+  "tooltip.realtrainmodrenewed.rail.preview_adjust": "コピーしたレールプレビューは設置前に位置を微調整できます。",
 
   "message.realtrainmodrenewed.train.must_be_on_rail": "列車はレール上にのみ設置できます",
   "message.realtrainmodrenewed.train.already_exists": "その場所には既に列車があります",
@@ -84,6 +89,9 @@
   "key.realtrainmodrenewed.play_announcement": "選択中の車内放送を再生",
   "key.realtrainmodrenewed.play_horn": "警笛を鳴らす",
   "key.realtrainmodrenewed.toggle_render_profiler": "RTMU描画プロファイラを切り替える",
+  "key.realtrainmodrenewed.marker_hud_previous": "マーカーHUD 前の項目",
+  "key.realtrainmodrenewed.marker_hud_next": "マーカーHUD 次の項目",
+  "key.realtrainmodrenewed.marker_hud_toggle": "マーカーHUD 項目切替",
 
   "realtrainmodrenewed.configuration.title": "RealTrainMod Renewedコンフィグ",
   "realtrainmodrenewed.configuration.section.realtrainmodrenewed.common.toml": "RealTrainMod Renewed Configs",
