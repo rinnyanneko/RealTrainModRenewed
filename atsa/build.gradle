@@ -1,5 +1,6 @@
 plugins {
     id 'java-library'
+    id 'org.jetbrains.kotlin.jvm' version '2.4.0'
     id 'net.neoforged.moddev' version '2.0.141'
 }
 
@@ -10,11 +11,25 @@ repositories {
     mavenCentral()
 }
 
+configurations {
+    kotlinRuntime
+}
+
 base {
     archivesName = 'atsassistmod'
 }
 
 java.toolchain.languageVersion = JavaLanguageVersion.of(25)
+
+kotlin {
+    jvmToolchain(25)
+}
+
+tasks.withType(org.jetbrains.kotlin.gradle.tasks.KotlinCompile).configureEach {
+    compilerOptions {
+        jvmTarget = org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_25
+    }
+}
 
 neoForge {
     enable {
@@ -52,6 +67,8 @@ dependencies {
     // ATSA は RTMU の公開クラス(TrainEntity 等)を参照する。コンパイル時のみ依存し、
     // jar には含めない(実行時は RTMU 本体 jar が提供)。
     compileOnly project(':')
+    implementation "org.jetbrains.kotlin:kotlin-stdlib"
+    kotlinRuntime "org.jetbrains.kotlin:kotlin-stdlib"
     // IFTTT ルールのシリアライズに Jackson を使用。
     implementation "com.fasterxml.jackson.core:jackson-databind:2.15.2"
 }
@@ -70,6 +87,13 @@ tasks.register('copyJarToModrinthMods', Copy) {
 
 tasks.named('jar').configure {
     finalizedBy(tasks.named('copyJarToModrinthMods'))
+    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+    from {
+        configurations.kotlinRuntime
+                .collect { it.isDirectory() ? it : zipTree(it) }
+    } {
+        exclude 'META-INF/*.SF', 'META-INF/*.DSA', 'META-INF/*.RSA', 'module-info.class'
+    }
 }
 tasks.named('build').configure {
     finalizedBy(tasks.named('copyJarToModrinthMods'))

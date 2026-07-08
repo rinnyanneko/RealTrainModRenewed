@@ -28,9 +28,9 @@ Minecraft while maintaining compatibility with the existing RTM ecosystem.
 ## Goals
 
 - [x] Port RealTrainMod to modern Minecraft with NeoForge
-- [ ] Maintain compatibility with legacy RTM model packs, vehicles, rails, signals
+- [ ] **Maintain compatibility with legacy RTM model packs, vehicles, rails, signals**
 - [x] Gradually rewrite the codebase in Kotlin
-- [ ] Improve maintainability and developer experience
+- [ ] **Improve maintainability and developer experience**
 - [ ] Target the next NeoForge LTS when available
 - [ ] New feature...?
 
