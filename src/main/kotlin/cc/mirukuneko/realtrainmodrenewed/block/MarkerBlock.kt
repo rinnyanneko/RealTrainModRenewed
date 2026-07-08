@@ -62,7 +62,7 @@ class MarkerBlock(val isSwitch: Boolean, properties: BlockBehaviour.Properties) 
         }
         val FACING: IntegerProperty = IntegerProperty.create("facing", 0, 7)
         private val SHAPE: VoxelShape = box(0.0, 0.0, 0.0, 16.0, 2.0, 16.0)
-        const val SEARCH_DISTANCE = 50
+        const val SEARCH_DISTANCE = 80
         const val SEARCH_HEIGHT = 10
 
         @JvmStatic fun computeFacing(player: Player): Int = computeFacing(player, false)

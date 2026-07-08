@@ -11,6 +11,7 @@ import net.minecraft.client.Minecraft
 import net.minecraft.client.input.KeyEvent
 import net.minecraft.world.InteractionHand
 import net.minecraft.world.phys.EntityHitResult
+import net.minecraft.world.phys.HitResult
 import net.neoforged.api.distmarker.Dist
 import net.neoforged.bus.api.SubscribeEvent
 import net.neoforged.fml.common.EventBusSubscriber
@@ -185,9 +186,15 @@ object TrainControlKeyHandler {
         if (mc.screen != null || player.vehicle != null) return
         if (mc.hitResult is EntityHitResult) return
 
+        val holdingTrainPlacementItem = player.mainHandItem.`is`(RealTrainModRenewedItems.TRAIN_ITEM.get()) ||
+            player.offhandItem.`is`(RealTrainModRenewedItems.TRAIN_ITEM.get()) ||
+            player.mainHandItem.`is`(RealTrainModRenewedItems.TRAIN_VEHICLE_ITEM.get()) ||
+            player.offhandItem.`is`(RealTrainModRenewedItems.TRAIN_VEHICLE_ITEM.get())
+        if (holdingTrainPlacementItem) return
+
         val holdingCrowbar = player.mainHandItem.`is`(RealTrainModRenewedItems.CROWBAR_ITEM.get()) ||
             player.offhandItem.`is`(RealTrainModRenewedItems.CROWBAR_ITEM.get())
-        if (!holdingCrowbar) return
+        if (!holdingCrowbar && mc.hitResult?.type == HitResult.Type.BLOCK) return
 
         ClientNetworkHelper.sendToServer(MountTrainPayload.INSTANCE)
     }

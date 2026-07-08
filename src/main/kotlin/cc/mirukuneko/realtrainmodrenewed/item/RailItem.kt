@@ -3,6 +3,7 @@ package cc.mirukuneko.realtrainmodrenewed.item
 import cc.mirukuneko.realtrainmodrenewed.RealTrainModRenewedComponents
 import cc.mirukuneko.realtrainmodrenewed.ClientHooks
 import cc.mirukuneko.realtrainmodrenewed.block.MarkerBlock
+import cc.mirukuneko.realtrainmodrenewed.blockentity.MarkerBlockEntity
 import cc.mirukuneko.realtrainmodrenewed.rail.RailDefinition
 import cc.mirukuneko.realtrainmodrenewed.rail.RailRegistry
 import net.minecraft.ChatFormatting
@@ -30,12 +31,21 @@ class RailItem : Item {
 
     override fun useOn(context: UseOnContext): InteractionResult {
         val stack = context.itemInHand
-        if (stack.get(RealTrainModRenewedComponents.RAIL_PREVIEW_START.get()) == null)
-            return InteractionResult.PASS
         val level = context.level
         val player = context.player ?: return InteractionResult.PASS
+        val selectedId = stack.get(RealTrainModRenewedComponents.SELECTED_MODEL_ID.get())
+        if (level.getBlockEntity(context.clickedPos) is MarkerBlockEntity) {
+            if (!level.isClientSide) {
+                val created = MarkerBlock.placeRailFromItem(level, context.clickedPos, player, stack, selectedId)
+                if (created && !player.abilities.instabuild) stack.shrink(1)
+                return if (created) InteractionResult.SUCCESS_SERVER else InteractionResult.FAIL
+            }
+            return InteractionResult.SUCCESS
+        }
+
+        if (stack.get(RealTrainModRenewedComponents.RAIL_PREVIEW_START.get()) == null)
+            return InteractionResult.PASS
         if (!level.isClientSide) {
-            val selectedId = stack.get(RealTrainModRenewedComponents.SELECTED_MODEL_ID.get())
             val placePos = context.clickedPos.relative(context.clickedFace)
             val created = MarkerBlock.placeCopiedRailAt(level, placePos, player, stack, selectedId)
             if (created && !player.abilities.instabuild) stack.shrink(1)

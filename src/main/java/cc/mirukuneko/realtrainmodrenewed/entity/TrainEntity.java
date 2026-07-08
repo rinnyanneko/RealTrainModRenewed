@@ -84,6 +84,12 @@ public class TrainEntity extends Entity {
         SynchedEntityData.defineId(TrainEntity.class, EntityDataSerializers.INT);
     private static final EntityDataAccessor<Float> BODY_ROLL =
         SynchedEntityData.defineId(TrainEntity.class, EntityDataSerializers.FLOAT);
+    private static final EntityDataAccessor<Float> MAIN_RESERVOIR_PRESSURE =
+        SynchedEntityData.defineId(TrainEntity.class, EntityDataSerializers.FLOAT);
+    private static final EntityDataAccessor<Float> BRAKE_PIPE_PRESSURE =
+        SynchedEntityData.defineId(TrainEntity.class, EntityDataSerializers.FLOAT);
+    private static final EntityDataAccessor<Float> BRAKE_CYLINDER_PRESSURE =
+        SynchedEntityData.defineId(TrainEntity.class, EntityDataSerializers.FLOAT);
     private static final EntityDataAccessor<Integer> CUSTOM_BUTTON_BITS =
         SynchedEntityData.defineId(TrainEntity.class, EntityDataSerializers.INT);
     private static final EntityDataAccessor<Float> RAIL_PROGRESS =
@@ -161,6 +167,8 @@ public class TrainEntity extends Entity {
     private static final double DEFAULT_HALF_HEIGHT = 2.2D;
     private static final double TRAIN_BODY_MARGIN = 1.2D;
     private static final double COUPLED_CLEARANCE = 0.18D;
+    private static final double COUPLER_CONTACT_DISTANCE = 0.9D;
+    private static final double COUPLER_CONTACT_SCAN_MARGIN = 6.0D;
     private static final double BOGIE_SPAN_TOLERANCE = 1.75D;
     private static final double RAIL_CONNECTION_MAX_DISTANCE_SQ = 0.25D;
     private static final float RAIL_CONNECTION_MAX_YAW_DIFF = 20.0F;
@@ -342,6 +350,9 @@ public class TrainEntity extends Entity {
         builder.define(DESTINATION_INDEX, 0);
         builder.define(SOUND_INDEX, 0);
         builder.define(BODY_ROLL, 0.0F);
+        builder.define(MAIN_RESERVOIR_PRESSURE, MAIN_RESERVOIR_NORMAL);
+        builder.define(BRAKE_PIPE_PRESSURE, BRAKE_PIPE_NORMAL);
+        builder.define(BRAKE_CYLINDER_PRESSURE, 0.0F);
         builder.define(CUSTOM_BUTTON_BITS, 0);
         builder.define(RAIL_PROGRESS, 0.0F);
         builder.define(SIGNAL, 0);
@@ -373,9 +384,21 @@ public class TrainEntity extends Entity {
     public void setNotch(int notch) { entityData.set(NOTCH, Mth.clamp(notch, -getMaxBrakeNotch(), getMaxPowerNotch())); }
     public int getMaxPowerNotch() { return getMaxPowerNotch(VehicleRegistry.getById(getVehicleId())); }
     public int getMaxBrakeNotch() { return getMaxBrakeNotch(VehicleRegistry.getById(getVehicleId())); }
-    public float getMainReservoirPressure() { return mainReservoirPressure; }
-    public float getBrakePipePressure() { return brakePipePressure; }
-    public float getBrakeCylinderPressure() { return brakeCylinderPressure; }
+    public float getMainReservoirPressure() { return entityData.get(MAIN_RESERVOIR_PRESSURE); }
+    public float getBrakePipePressure() { return entityData.get(BRAKE_PIPE_PRESSURE); }
+    public float getBrakeCylinderPressure() { return entityData.get(BRAKE_CYLINDER_PRESSURE); }
+    private void setMainReservoirPressure(float pressure) {
+        mainReservoirPressure = Mth.clamp(pressure, 0.0F, MAIN_RESERVOIR_NORMAL);
+        entityData.set(MAIN_RESERVOIR_PRESSURE, mainReservoirPressure);
+    }
+    private void setBrakePipePressure(float pressure) {
+        brakePipePressure = Mth.clamp(pressure, 0.0F, BRAKE_PIPE_NORMAL);
+        entityData.set(BRAKE_PIPE_PRESSURE, brakePipePressure);
+    }
+    private void setBrakeCylinderPressure(float pressure) {
+        brakeCylinderPressure = Mth.clamp(pressure, 0.0F, BRAKE_CYLINDER_EMERGENCY_MAX);
+        entityData.set(BRAKE_CYLINDER_PRESSURE, brakeCylinderPressure);
+    }
     public boolean isHeadlightOn() { return entityData.get(HEADLIGHT_ON); }
     public void setHeadlightOn(boolean value) { setLightMode(value ? 1 : 0); }
     public int getLightMode() { return entityData.get(LIGHT_MODE); }
@@ -621,9 +644,6 @@ public class TrainEntity extends Entity {
             for (VehicleDefinition.BogieDefinition bogie : def.getBogies()) {
                 maxZ = Math.max(maxZ, Math.abs(bogie.position().z) + 0.95D);
             }
-            for (Vec3 seat : def.getAllSeatPositions()) {
-                maxZ = Math.max(maxZ, Math.abs(seat.z) + 0.95D);
-            }
         }
         return maxZ;
     }
@@ -632,9 +652,6 @@ public class TrainEntity extends Entity {
         VehicleDefinition def = VehicleRegistry.getById(getVehicleId());
         double maxX = DEFAULT_HALF_WIDTH;
         if (def != null) {
-            for (Vec3 seat : def.getAllSeatPositions()) {
-                maxX = Math.max(maxX, Math.abs(seat.x) + 0.55D);
-            }
             for (VehicleDefinition.BogieDefinition bogie : def.getBogies()) {
                 maxX = Math.max(maxX, Math.abs(bogie.position().x) + 1.0D);
             }
@@ -725,10 +742,11 @@ public class TrainEntity extends Entity {
             );
         }
 
-        if (interactionHitboxRefreshCooldown-- <= 0) {
+        boolean movingEnoughToMissInteractionHitboxes = Math.abs(getSpeed()) > 0.02F;
+        if (movingEnoughToMissInteractionHitboxes || interactionHitboxRefreshCooldown-- <= 0) {
             ensureBogieHitboxes();
             ensureSeatHitboxes();
-            interactionHitboxRefreshCooldown = Math.abs(getSpeed()) > 0.02F ? 10 : 20;
+            interactionHitboxRefreshCooldown = movingEnoughToMissInteractionHitboxes ? 0 : 20;
         }
 
         if (!level().isClientSide()) {
@@ -818,6 +836,7 @@ public class TrainEntity extends Entity {
                 formation.updateTrainMovement();
             }
             updateLegacySignalFromRail();
+            scanNearbyCouplerContacts();
             tryCompletePendingCoupling();
 
             // 端台車のワールド位置をクライアントへ同期(カーブで台車をレール上に正確に描くため)。
@@ -828,13 +847,23 @@ public class TrainEntity extends Entity {
     }
 
     public void lerpTo(double x, double y, double z, float yRot, float xRot, int steps) {
+        double dx = x - getX();
+        double dy = y - getY();
+        double dz = z - getZ();
+        double distanceSq = dx * dx + dy * dy + dz * dz;
         clientLerpX = x;
         clientLerpY = y;
         clientLerpZ = z;
         clientLerpYRot = yRot;
         clientLerpXRot = xRot;
-        clientLerpSteps = Math.max(2, Math.min(4, steps));
-        setDeltaMovement(Vec3.ZERO);
+        if (distanceSq > 16.0D) {
+            clientLerpSteps = 1;
+        } else if (Math.abs(getSpeed()) > 0.02F) {
+            clientLerpSteps = Math.max(4, Math.min(6, steps + 2));
+        } else {
+            clientLerpSteps = Math.max(2, Math.min(4, steps));
+            setDeltaMovement(Vec3.ZERO);
+        }
     }
 
     private boolean isLocalPlayerOnThisTrain() {
@@ -905,7 +934,7 @@ public class TrainEntity extends Entity {
             float maxPressure = (-notch >= getMaxBrakeNotch(def))
                 ? BRAKE_CYLINDER_EMERGENCY_MAX
                 : BRAKE_CYLINDER_SERVICE_MAX;
-            float ratio = Mth.clamp(brakeCylinderPressure / Math.max(1.0F, maxPressure), 0.0F, 1.0F);
+            float ratio = Mth.clamp(getBrakeCylinderPressure() / Math.max(1.0F, maxPressure), 0.0F, 1.0F);
             float serviceDecel = getConfiguredBrakeDeceleration(def, -notch);
             float decel = Math.max(0.00018F, serviceDecel * ratio);
             return approachZero(speed, decel);
@@ -956,7 +985,7 @@ public class TrainEntity extends Entity {
     }
 
     public float getLegacyBrakeAirCount() {
-        float ratio = Mth.clamp(brakeCylinderPressure / BRAKE_CYLINDER_EMERGENCY_MAX, 0.0F, 1.0F);
+        float ratio = Mth.clamp(getBrakeCylinderPressure() / BRAKE_CYLINDER_EMERGENCY_MAX, 0.0F, 1.0F);
         return LEGACY_MAX_AIR_COUNT - ratio * (LEGACY_MAX_AIR_COUNT - LEGACY_MIN_AIR_COUNT);
     }
 
@@ -1009,13 +1038,13 @@ public class TrainEntity extends Entity {
             : ratio * BRAKE_CYLINDER_SERVICE_MAX;
         float targetReservoir = MAIN_RESERVOIR_NORMAL - Math.min(35.0F, targetCylinder * 0.06F);
 
-        brakePipePressure = approach(brakePipePressure, targetPipe, BRAKE_PIPE_RATE);
-        brakeCylinderPressure = approach(
-            brakeCylinderPressure,
+        setBrakePipePressure(approach(getBrakePipePressure(), targetPipe, BRAKE_PIPE_RATE));
+        setBrakeCylinderPressure(approach(
+            getBrakeCylinderPressure(),
             targetCylinder,
-            targetCylinder > brakeCylinderPressure ? BRAKE_APPLY_RATE : BRAKE_RELEASE_RATE
-        );
-        mainReservoirPressure = approach(mainReservoirPressure, targetReservoir, MAIN_RESERVOIR_RATE);
+            targetCylinder > getBrakeCylinderPressure() ? BRAKE_APPLY_RATE : BRAKE_RELEASE_RATE
+        ));
+        setMainReservoirPressure(approach(getMainReservoirPressure(), targetReservoir, MAIN_RESERVOIR_RATE));
     }
 
     private boolean canTravelOnRail(Vec3 worldPos) {
@@ -3990,6 +4019,91 @@ public class TrainEntity extends Entity {
         return getCouplerDistanceSqr(other, thisSide, otherSide) <= 3.0D * 3.0D;
     }
 
+    private void scanNearbyCouplerContacts() {
+        if (!(level() instanceof ServerLevel serverLevel)) {
+            return;
+        }
+        TrainEntity thisHead = getFormationHead();
+        AABB searchBox = getBoundingBox().inflate(getCouplerContactScanRadius());
+        for (TrainEntity other : serverLevel.getEntitiesOfClass(TrainEntity.class, searchBox)) {
+            if (other == this || !other.isAlive() || other.isRemoved() || isConnectedTo(other)) {
+                continue;
+            }
+            TrainEntity otherHead = other.getFormationHead();
+            if (otherHead == null || otherHead == thisHead || isConnectedTo(otherHead)) {
+                continue;
+            }
+            CouplingRequest request = findNearestExposedCouplerPair(otherHead);
+            if (request == null || request.sourceTrain() == null || request.targetTrain() == null) {
+                continue;
+            }
+            if (request.distanceSqr() > COUPLER_CONTACT_DISTANCE * COUPLER_CONTACT_DISTANCE) {
+                continue;
+            }
+            if (!areCouplersFacing(request.sourceTrain(), request.sourceSide(), request.targetTrain(), request.targetSide())
+                    || !areCouplerRailsCompatible(request.sourceTrain(), request.sourceSide(), request.targetTrain(), request.targetSide())) {
+                continue;
+            }
+            boolean coupled = coupleFormationsRtMLike(request.sourceTrain(), request.sourceSide(), request.targetTrain(), request.targetSide())
+                    || coupleFormationsRtMLike(request.targetTrain(), request.targetSide(), request.sourceTrain(), request.sourceSide());
+            if (coupled) {
+                clearCouplingModeInvolving(request.sourceTrain(), request.targetTrain());
+                notifyCouplingChat(Component.literal("連結しました"), request.targetTrain(), null);
+                return;
+            }
+            if (!isCouplingModeActiveBetween(request.sourceTrain(), request.targetTrain())) {
+                request.sourceTrain().applyImmediateContactBrake(12L);
+                request.targetTrain().applyImmediateContactBrake(12L);
+            }
+        }
+    }
+
+    private boolean areCouplersFacing(TrainEntity source, int sourceSide, TrainEntity target, int targetSide) {
+        if (source == null || target == null) {
+            return false;
+        }
+        Vec3 sourceForward = source.localToWorld(new Vec3(0.0D, 0.0D, 1.0D))
+                .subtract(source.localToWorld(Vec3.ZERO));
+        Vec3 targetForward = target.localToWorld(new Vec3(0.0D, 0.0D, 1.0D))
+                .subtract(target.localToWorld(Vec3.ZERO));
+        if (sourceForward.lengthSqr() < 1.0E-6D || targetForward.lengthSqr() < 1.0E-6D) {
+            return false;
+        }
+        Vec3 sourceOut = sourceForward.normalize().scale(normalizeCouplerSide(sourceSide));
+        Vec3 targetOut = targetForward.normalize().scale(normalizeCouplerSide(targetSide));
+        return sourceOut.dot(targetOut) <= -0.65D;
+    }
+
+    private double getCouplerContactScanRadius() {
+        double radius = Math.max(12.0D, getDefaultDistanceToConnectedTrain(null) + COUPLER_CONTACT_SCAN_MARGIN);
+        for (TrainEntity train : getFormationTrainsInOrder()) {
+            if (train != null) {
+                radius = Math.max(radius, train.getDefaultDistanceToConnectedTrain(null) + COUPLER_CONTACT_SCAN_MARGIN);
+            }
+        }
+        return radius;
+    }
+
+    private boolean areCouplerRailsCompatible(TrainEntity source, int sourceSide, TrainEntity target, int targetSide) {
+        if (source == null || target == null) {
+            return false;
+        }
+        RailAnchor sourceAnchor = source.getAnchorForRenderedBogie(source.getExtremeBogieIndexForCouplerSide(sourceSide));
+        RailAnchor targetAnchor = target.getAnchorForRenderedBogie(target.getExtremeBogieIndexForCouplerSide(targetSide));
+        if (source.isRailAnchorUsable(sourceAnchor) && target.isRailAnchorUsable(targetAnchor)) {
+            RailMap sourceMap = sourceAnchor.map();
+            RailMap targetMap = targetAnchor.map();
+            return sourceMap == targetMap || sameRailShape(sourceMap, targetMap) || railsShareEndpoint(sourceMap, targetMap);
+        }
+        return true;
+    }
+
+    private int getExtremeBogieIndexForCouplerSide(int side) {
+        VehicleDefinition def = VehicleRegistry.getById(getVehicleId());
+        int[] extremes = getExtremeBogieIndices(def);
+        return normalizeCouplerSide(side) > 0 ? extremes[1] : extremes[0];
+    }
+
     private void decoupleAtSide(int side) {
         int normalized = normalizeCouplerSide(side);
         if (!(level() instanceof net.minecraft.server.level.ServerLevel serverLevel)) return;
@@ -5958,10 +6072,6 @@ public class TrainEntity extends Entity {
             RealTrainModRenewed.LOGGER.warn("Ride denied: seat entity missing for vehicle {} seat {}", getVehicleId(), seatIndex);
             return InteractionResult.PASS;
         }
-        if (!seatEntity.getPassengers().isEmpty() && !seatEntity.hasPassenger(player)) {
-            return InteractionResult.PASS;
-        }
-
         assignSeatIndex(player, seatIndex);
         VehicleDefinition def = VehicleRegistry.getById(getVehicleId());
         if (isDriverSeatIndex(seatIndex)) {
@@ -6258,6 +6368,7 @@ public class TrainEntity extends Entity {
         List<Vec3> bogies = getInteractionBogieCenters(def);
         int count = bogies.size();
         for (int bogieIndex = 0; bogieIndex < count; bogieIndex++) {
+            Vec3 bogieWorld = localToWorld(getBogieLocalPosition(bogieIndex, def));
             TrainBogieEntity bogieEntity = resolveBogieHitbox(bogieIndex);
             if (bogieEntity == null) {
                 bogieEntity = RealTrainModRenewedEntities.TRAIN_BOGIE.get().create(level(), net.minecraft.world.entity.EntitySpawnReason.SPAWN_ITEM_USE);
@@ -6265,10 +6376,14 @@ public class TrainEntity extends Entity {
                     continue;
                 }
                 bogieEntity.attachToTrain(this, bogieIndex);
+                bogieEntity.setPos(bogieWorld.x, bogieWorld.y, bogieWorld.z);
+                bogieEntity.setYRot(getYRot());
                 level().addFreshEntity(bogieEntity);
                 bogieHitboxUuids.put(bogieIndex, bogieEntity.getUUID());
             } else {
                 bogieEntity.attachToTrain(this, bogieIndex);
+                bogieEntity.setPos(bogieWorld.x, bogieWorld.y, bogieWorld.z);
+                bogieEntity.setYRot(getYRot());
             }
         }
         List<Integer> staleIndices = new ArrayList<>();
@@ -6314,6 +6429,9 @@ public class TrainEntity extends Entity {
         TrainSeatEntity seatEntity = resolveSeatHitbox(seatIndex);
         if (seatEntity != null) {
             seatEntity.attachToTrain(this, seatIndex);
+            Vec3 seatWorld = getSeatWorldPosition(seatIndex);
+            seatEntity.setPos(seatWorld.x, seatWorld.y, seatWorld.z);
+            seatEntity.setYRot(getSeatWorldYaw(seatIndex));
             return seatEntity;
         }
         seatEntity = RealTrainModRenewedEntities.TRAIN_SEAT.get().create(level(), net.minecraft.world.entity.EntitySpawnReason.SPAWN_ITEM_USE);
@@ -6321,6 +6439,9 @@ public class TrainEntity extends Entity {
             return null;
         }
         seatEntity.attachToTrain(this, seatIndex);
+        Vec3 seatWorld = getSeatWorldPosition(seatIndex);
+        seatEntity.setPos(seatWorld.x, seatWorld.y, seatWorld.z);
+        seatEntity.setYRot(getSeatWorldYaw(seatIndex));
         level().addFreshEntity(seatEntity);
         seatHitboxUuids.put(seatIndex, seatEntity.getUUID());
         return seatEntity;
@@ -6443,9 +6564,9 @@ public class TrainEntity extends Entity {
         if (tag.getInt("DestinationIndex").isPresent()) setDestinationIndex(tag.getIntOr("DestinationIndex", 0));
         if (tag.getInt("SoundIndex").isPresent()) setSoundIndex(tag.getIntOr("SoundIndex", 0));
         if (!Float.isNaN(tag.getFloatOr("BodyRoll", Float.NaN))) setBodyRoll(tag.getFloatOr("BodyRoll", 0.0F));
-        mainReservoirPressure = Mth.clamp(tag.getFloatOr("MainReservoirPressure", MAIN_RESERVOIR_NORMAL), 0.0F, MAIN_RESERVOIR_NORMAL);
-        brakePipePressure = Mth.clamp(tag.getFloatOr("BrakePipePressure", BRAKE_PIPE_NORMAL), 0.0F, BRAKE_PIPE_NORMAL);
-        brakeCylinderPressure = Mth.clamp(tag.getFloatOr("BrakeCylinderPressure", 0.0F), 0.0F, BRAKE_CYLINDER_EMERGENCY_MAX);
+        setMainReservoirPressure(tag.getFloatOr("MainReservoirPressure", MAIN_RESERVOIR_NORMAL));
+        setBrakePipePressure(tag.getFloatOr("BrakePipePressure", BRAKE_PIPE_NORMAL));
+        setBrakeCylinderPressure(tag.getFloatOr("BrakeCylinderPressure", 0.0F));
         if (tag.getInt("CustomButtonBits").isPresent()) setCustomButtonBits(tag.getIntOr("CustomButtonBits", 0));
         if (!Float.isNaN(tag.getFloatOr("RailProgress", Float.NaN))) setRailProgress(tag.getFloatOr("RailProgress", 0.0F));
         if (tag.getInt("Signal").isPresent()) setLegacySignalState(tag.getIntOr("Signal", 0));
@@ -6514,9 +6635,9 @@ public class TrainEntity extends Entity {
         tag.putInt("DestinationIndex", getDestinationIndex());
         tag.putInt("SoundIndex", getSoundIndex());
         tag.putFloat("BodyRoll", getBodyRoll());
-        tag.putFloat("MainReservoirPressure", mainReservoirPressure);
-        tag.putFloat("BrakePipePressure", brakePipePressure);
-        tag.putFloat("BrakeCylinderPressure", brakeCylinderPressure);
+        tag.putFloat("MainReservoirPressure", getMainReservoirPressure());
+        tag.putFloat("BrakePipePressure", getBrakePipePressure());
+        tag.putFloat("BrakeCylinderPressure", getBrakeCylinderPressure());
         tag.putInt("CustomButtonBits", getCustomButtonBits());
         tag.putFloat("RailProgress", getRailProgress());
         tag.putInt("Signal", getSignal());

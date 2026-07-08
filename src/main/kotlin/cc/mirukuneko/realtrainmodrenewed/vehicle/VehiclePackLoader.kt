@@ -368,8 +368,32 @@ object VehiclePackLoader {
             val r = e.asJsonObject
             val uv = r.get("uv")?.takeIf { it.isJsonArray }?.asJsonArray
                 ?.mapNotNull { try { it.asFloat } catch (_: Exception) { null } }?.toFloatArray() ?: floatArrayOf(0f, 0f, 1f, 1f)
-            VehicleDefinition.RollsignDefinition(uv, emptyArray(), parseBoolean(r, "doAnimation", false), parseBoolean(r, "disableLighting", false))
+            val pos = parseRollsignPositions(r)
+            VehicleDefinition.RollsignDefinition(uv, pos, parseBoolean(r, "doAnimation", false), parseBoolean(r, "disableLighting", false))
         }
+    }
+
+    private fun parseRollsignPositions(obj: JsonObject): Array<Array<FloatArray>> {
+        val arr = obj.get("pos")?.takeIf { it.isJsonArray }?.asJsonArray ?: return emptyArray()
+        val quads = mutableListOf<Array<FloatArray>>()
+        for (quadElement in arr) {
+            if (!quadElement.isJsonArray) continue
+            val quadArray = quadElement.asJsonArray
+            if (quadArray.size() < 4) continue
+            val points = mutableListOf<FloatArray>()
+            for (pointElement in quadArray) {
+                if (!pointElement.isJsonArray) continue
+                val values = pointElement.asJsonArray
+                    .mapNotNull { try { it.asFloat } catch (_: Exception) { null } }
+                if (values.size >= 3) {
+                    points += floatArrayOf(values[0], values[1], values[2])
+                }
+            }
+            if (points.size >= 4) {
+                quads += points.take(4).toTypedArray()
+            }
+        }
+        return quads.toTypedArray()
     }
 
     private fun parseLights(root: JsonObject, trainModel: JsonObject, key: String): List<VehicleDefinition.LightDefinition> {

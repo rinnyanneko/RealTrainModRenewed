@@ -5,6 +5,7 @@ import com.mojang.math.Axis
 import cc.mirukuneko.realtrainmodrenewed.client.ScriptClientCompat
 import cc.mirukuneko.realtrainmodrenewed.client.model.MqoModelLoader
 import cc.mirukuneko.realtrainmodrenewed.entity.CarEntity
+import cc.mirukuneko.realtrainmodrenewed.RealTrainModRenewed
 import cc.mirukuneko.realtrainmodrenewed.vehicle.VehicleDefinition
 import cc.mirukuneko.realtrainmodrenewed.vehicle.VehicleRegistry
 import net.minecraft.client.Minecraft
@@ -14,13 +15,15 @@ import net.minecraft.client.renderer.entity.EntityRenderer
 import net.minecraft.client.renderer.entity.EntityRendererProvider
 import net.minecraft.client.renderer.state.level.CameraRenderState
 import net.minecraft.resources.Identifier
-import cc.mirukuneko.realtrainmodrenewed.RealTrainModRenewed.MODID
 
 class CarRenderer(context: EntityRendererProvider.Context) :
     EntityRenderer<CarEntity, LegacyEntityRenderState<CarEntity>>(context) {
 
     companion object {
-        private val FALLBACK_TEXTURE = Identifier.fromNamespaceAndPath(MODID, "textures/car/toyota_prius-phv.png")
+        private val FALLBACK_TEXTURE = Identifier.fromNamespaceAndPath(
+            RealTrainModRenewed.MODID,
+            "textures/car/toyota_prius-phv.png",
+        )
     }
 
     // getTextureLocation removed - CarEntity is an Entity, not EntityType-based renderer

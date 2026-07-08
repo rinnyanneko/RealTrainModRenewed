@@ -1,6 +1,11 @@
 package cc.mirukuneko.realtrainmodrenewed.client.model;
 
 import cc.mirukuneko.realtrainmodrenewed.RealTrainModRenewed;
+import com.mojang.blaze3d.pipeline.BlendFunction;
+import com.mojang.blaze3d.pipeline.ColorTargetState;
+import com.mojang.blaze3d.pipeline.DepthStencilState;
+import com.mojang.blaze3d.pipeline.RenderPipeline;
+import com.mojang.blaze3d.platform.CompareOp;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.blaze3d.vertex.VertexConsumer;
 import cc.mirukuneko.realtrainmodrenewed.BundledPackStore;
@@ -19,11 +24,14 @@ import cc.mirukuneko.realtrainmodrenewed.vehicle.VehicleDefinition;
 import cc.mirukuneko.realtrainmodrenewed.vehicle.VehicleRegistry;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.MultiBufferSource;
+import net.minecraft.client.renderer.RenderPipelines;
+import net.minecraft.client.renderer.rendertype.RenderSetup;
 import net.minecraft.client.renderer.rendertype.RenderType;
 import net.minecraft.client.renderer.rendertype.RenderTypes;
 import net.minecraft.client.renderer.texture.DynamicTexture;
 import net.minecraft.client.renderer.texture.TextureManager;
 import net.minecraft.resources.Identifier;
+import net.minecraft.util.Util;
 import net.minecraft.world.phys.Vec3;
 import org.joml.Matrix3f;
 import org.joml.Matrix4f;
@@ -47,6 +55,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.Function;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.zip.ZipEntry;
@@ -74,6 +83,28 @@ public final class MqoModelLoader {
     private static final Pattern TEX_PATTERN = Pattern.compile("tex\\(\"([^\"]+)\"\\)");
     /** MQO マテリアルの col(r g b a)。4番目がアルファ(不透明度)。RTM はガラス等をこの a<1 で半透明にする。 */
     private static final Pattern COL_PATTERN = Pattern.compile("col\\(\\s*([-0-9.]+)\\s+([-0-9.]+)\\s+([-0-9.]+)\\s+([-0-9.]+)\\s*\\)");
+    private static final RenderPipeline TRAIN_ENTITY_TRANSLUCENT_NO_DEPTH_PIPELINE =
+        RenderPipeline.builder(RenderPipelines.ENTITY_SNIPPET)
+            .withLocation("pipeline/rtmr_train_entity_translucent_no_depth")
+            .withShaderDefine("ALPHA_CUTOUT", 0.1F)
+            .withShaderDefine("PER_FACE_LIGHTING")
+            .withSampler("Sampler1")
+            .withColorTargetState(new ColorTargetState(BlendFunction.TRANSLUCENT))
+            .withCull(false)
+            .withDepthStencilState(new DepthStencilState(CompareOp.LESS_THAN_OR_EQUAL, false))
+            .build();
+    private static final Function<Identifier, RenderType> TRAIN_ENTITY_TRANSLUCENT_NO_DEPTH =
+        Util.memoize(texture -> {
+            RenderSetup state = RenderSetup.builder(TRAIN_ENTITY_TRANSLUCENT_NO_DEPTH_PIPELINE)
+                .withTexture("Sampler0", texture)
+                .useLightmap()
+                .useOverlay()
+                .affectsCrumbling()
+                .sortOnUpload()
+                .setOutline(RenderSetup.OutlineProperty.AFFECTS_OUTLINE)
+                .createRenderSetup();
+            return RenderType.create("rtmr_train_entity_translucent_no_depth", state);
+        });
     private static final Object MODEL_CACHE_LOCK = new Object();
     private static final LinkedHashMap<String, CachedModel> MODEL_CACHE = new LinkedHashMap<>(64, 0.75F, true);
     private static final Set<String> FAILED_MODEL_KEYS = ConcurrentHashMap.newKeySet();
@@ -3516,7 +3547,7 @@ public final class MqoModelLoader {
                     // Lightmap-aware path: block entities (rails, installed objects)
                         // メタセコイア同様の片面 (cull) 表示。
                         RenderType renderType = needsBlend
-                            ? (useCull ? RenderTypes.entityTranslucent(texture) : RenderTypes.entityTranslucent(texture))
+                            ? TRAIN_ENTITY_TRANSLUCENT_NO_DEPTH.apply(texture)
                             : (useCull ? RenderTypes.entityCutout(texture) : RenderTypes.entityCutout(texture));
                         VertexConsumer consumer = buffer.getBuffer(renderType);
                         PoseStack.Pose pose = poseStack.last();
@@ -3721,7 +3752,7 @@ public final class MqoModelLoader {
                 if (groupFilter != null && !groupFilter.shouldRender(batch.groupName)) continue;
                 Identifier texture = batch.texture != null ? batch.texture : fallbackTexture();
                 VertexConsumer consumer = buffer.getBuffer(
-                    batch.translucent ? RenderTypes.entityTranslucent(texture) : RenderTypes.entityCutout(texture)
+                    batch.translucent ? TRAIN_ENTITY_TRANSLUCENT_NO_DEPTH.apply(texture) : RenderTypes.entityCutout(texture)
                 );
                 PoseStack.Pose pose = poseStack.last();
                 Matrix4f mat = pose.pose();

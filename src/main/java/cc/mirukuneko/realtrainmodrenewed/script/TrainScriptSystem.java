@@ -1609,6 +1609,11 @@ public class TrainScriptSystem {
         // Brake pressure fields used by sd8200-style scripts for gauge animation
         public final float brakeCount;
         public final float brakeAirCount;
+        public final float mainReservoirPressure;
+        public final float brakePipePressure;
+        public final float brakeCylinderPressure;
+        public final int destination;
+        public final int rollsign;
         // RTM 1.7/1.12.2 legacy coordinate fields
         public final double xCoord;
         public final double yCoord;
@@ -1636,6 +1641,11 @@ public class TrainScriptSystem {
             // brakeCount: 0-8 equivalent brake notch position for gauge display
             this.brakeCount = train == null ? 0.0F : Math.max(0, -train.getNotch());
             this.brakeAirCount = train == null ? 0.0F : train.getLegacyBrakeAirCount();
+            this.mainReservoirPressure = train == null ? 0.0F : train.getMainReservoirPressure();
+            this.brakePipePressure = train == null ? 0.0F : train.getBrakePipePressure();
+            this.brakeCylinderPressure = train == null ? 0.0F : train.getBrakeCylinderPressure();
+            this.destination = train == null ? 0 : train.getDestinationIndex();
+            this.rollsign = this.destination;
             this.xCoord = train == null ? 0.0 : train.getX();
             this.yCoord = train == null ? 0.0 : train.getY();
             this.zCoord = train == null ? 0.0 : train.getZ();
@@ -1729,6 +1739,22 @@ public class TrainScriptSystem {
 
         public int getRollsign() {
             return train == null ? 0 : train.getDestinationIndex();
+        }
+
+        public int getDestination() {
+            return getDestinationIndex();
+        }
+
+        public float getMainReservoirPressure() {
+            return train == null ? 0.0F : train.getMainReservoirPressure();
+        }
+
+        public float getBrakePipePressure() {
+            return train == null ? 0.0F : train.getBrakePipePressure();
+        }
+
+        public float getBrakeCylinderPressure() {
+            return train == null ? 0.0F : train.getBrakeCylinderPressure();
         }
 
         public boolean inTunnel() {
@@ -3958,7 +3984,7 @@ public class TrainScriptSystem {
                 int renderPackedLight = effectivePackedLightForScriptParts(presentGroupNames);
                 currentMatId = 0;
                 if (legacyDisplaySelection) {
-                    boolean boundRollsign = false;
+                    boolean boundRollsign = bindLegacyRollsignTextureIfPresent(groupNames);
                     try {
                         mqoModel.renderNamedGroups(
                             poseStack,

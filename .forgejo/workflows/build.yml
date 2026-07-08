@@ -50,7 +50,7 @@ jobs:
       - name: Upload jar artifact
         uses: https://code.forgejo.org/forgejo/upload-artifact@v4
         with:
-          name: minecraft-mod-jar.zip
+          name: realtrainmodrenewed.zip
           path: |
             build/libs/*.jar
             !build/libs/*-sources.jar

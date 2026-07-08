@@ -38,7 +38,9 @@ class TrainItem : Item {
 
     companion object {
         private const val SPAWN_COOLDOWN_TICKS = 4
-        private const val PLACEMENT_OCCUPANCY_HALF_WIDTH = 0.45
+        private const val DEFAULT_PLACEMENT_HALF_WIDTH = 1.35
+        private const val RAIL_CORE_SCAN_RADIUS_CHUNKS = 6
+        private const val MAX_CLICK_TO_RAIL_DISTANCE_SQ = 64.0
 
         @JvmStatic
         fun accepts(category: Category?, definition: VehicleDefinition?): Boolean {
@@ -62,7 +64,7 @@ class TrainItem : Item {
         }
         private fun axisFromYaw(yaw: Float): DoubleArray {
             val r = Math.toRadians(-yaw.toDouble())
-            return doubleArrayOf(cos(r), sin(r))
+            return doubleArrayOf(-sin(r), cos(r))
         }
         private fun perpendicularAxisFromYaw(yaw: Float): DoubleArray {
             val a = axisFromYaw(yaw); return doubleArrayOf(-a[1], a[0])
@@ -101,7 +103,7 @@ class TrainItem : Item {
         val spawnData = findNearestRailSpawn(level, context.clickedPos, context.clickLocation, player.yRot)
             ?: run { player.sendOverlayMessage(Component.translatable("message.realtrainmodrenewed.train.must_be_on_rail")); return InteractionResult.FAIL }
 
-        if (isOccupiedSpawnArea(level, spawnData.x, spawnData.y + 0.25, spawnData.z, spawnData.yaw, def, spawnData.map)) {
+        if (isOccupiedSpawnArea(level, spawnData.x, spawnData.y + 0.25, spawnData.z, spawnData.yaw, def)) {
             player.sendOverlayMessage(Component.translatable("message.realtrainmodrenewed.train.already_exists"))
             return InteractionResult.FAIL
         }
@@ -138,23 +140,43 @@ class TrainItem : Item {
         return level.clip(ClipContext(start, end, ClipContext.Block.OUTLINE, ClipContext.Fluid.NONE, player)).type == HitResult.Type.BLOCK
     }
 
-    private fun isOccupiedSpawnArea(level: Level, x: Double, y: Double, z: Double, yaw: Float, def: VehicleDefinition, spawnMap: RailMap? = null): Boolean {
-        var halfLength = maxOf(1.75, def.trainDistance.toDouble())
-        for (bogie in def.bogies) halfLength = maxOf(halfLength, abs(bogie.position.z) + 0.95)
-        for (seat in def.getAllSeatPositions()) halfLength = maxOf(halfLength, abs(seat.z) + 0.95)
-        val halfWidth = PLACEMENT_OCCUPANCY_HALF_WIDTH.toDouble()
-        val radius = maxOf(halfLength, halfWidth) + 1.0
+    private fun isOccupiedSpawnArea(level: Level, x: Double, y: Double, z: Double, yaw: Float, def: VehicleDefinition): Boolean {
+        val halfLength = placementHalfLength(def)
+        val halfWidth = placementHalfWidth(def)
+        var maxExistingHalfLength = halfLength
+        var maxExistingHalfWidth = halfWidth
+        for (knownDef in VehicleRegistry.getAll()) {
+            maxExistingHalfLength = maxOf(maxExistingHalfLength, placementHalfLength(knownDef))
+            maxExistingHalfWidth = maxOf(maxExistingHalfWidth, placementHalfWidth(knownDef))
+        }
+        val radius = halfLength + maxExistingHalfLength + maxExistingHalfWidth + 2.0
         val bounds = AABB(x - radius, y - 0.75, z - radius, x + radius, y + 4.0, z + radius)
         if (level is net.minecraft.server.level.ServerLevel) TrainEntity.purgeDanglingTrainResidue(level, bounds)
-        val overlaps = level.getEntitiesOfClass(TrainEntity::class.java, bounds) { it != null && it.isAlive && !it.isRemoved }
+        val overlaps = level.getEntitiesOfClass(TrainEntity::class.java, bounds) { it.isAlive && !it.isRemoved }
             .filter { abs(it.y - y) <= 3.5 }
-            .filter { spawnMap == null || it.activeRailMap == null || it.activeRailMap === spawnMap }
-            .filter { abs(it.x - x) < halfWidth + PLACEMENT_OCCUPANCY_HALF_WIDTH && abs(it.z - z) < halfLength + 1.0 }
+            .filter {
+                rectanglesOverlap(
+                    x, z, yaw, halfWidth, halfLength,
+                    it.x, it.z, it.yRot, it.bodyHalfWidthForPlacement, it.bodyHalfLengthForPlacement
+                )
+            }
         if (overlaps.isNotEmpty()) {
             logSpawnOccupancy(level, "train_item", x, y, z, yaw, halfWidth, halfLength, overlaps)
             return true
         }
         return false
+    }
+
+    private fun placementHalfLength(def: VehicleDefinition): Double {
+        var halfLength = maxOf(1.75, def.trainDistance.toDouble())
+        for (bogie in def.bogies) halfLength = maxOf(halfLength, abs(bogie.position.z) + 0.95)
+        return halfLength
+    }
+
+    private fun placementHalfWidth(def: VehicleDefinition): Double {
+        var halfWidth = DEFAULT_PLACEMENT_HALF_WIDTH
+        for (bogie in def.bogies) halfWidth = maxOf(halfWidth, abs(bogie.position.x) + 1.0)
+        return halfWidth
     }
 
     private fun logSpawnOccupancy(level: Level, source: String, x: Double, y: Double, z: Double, yaw: Float, hw: Double, hl: Double, overlaps: List<TrainEntity>) {
@@ -166,13 +188,21 @@ class TrainItem : Item {
     }
 
     private fun findNearestRailSpawn(level: Level, clickedPos: BlockPos, clickedPoint: Vec3, preferredYaw: Float): RailSpawnData? {
-        for (dy in -2..2) for (dx in -2..2) for (dz in -2..2) {
+        for (dy in -4..4) for (dx in -8..8) for (dz in -8..8) {
             val pos = clickedPos.offset(dx, dy, dz)
             val be = level.getBlockEntity(pos)
             when (be) {
                 is LargeRailCoreBlockEntity -> if (be.isLoaded) {
                     val map = getNearestRailMap(be, clickedPoint)
                     if (map != null) return findNearestPointOnMap(map, clickedPoint, preferredYaw)
+                }
+                is RailCollisionBlockEntity -> {
+                    val corePos = be.corePos ?: continue
+                    val core = level.getBlockEntity(corePos)
+                    if (core is LargeRailCoreBlockEntity && core.isLoaded) {
+                        val map = getNearestRailMap(core, clickedPoint)
+                        if (map != null) return findNearestPointOnMap(map, clickedPoint, preferredYaw)
+                    }
                 }
                 is BallastBlockEntity -> {
                     val corePos = be.corePos ?: continue
@@ -184,7 +214,34 @@ class TrainItem : Item {
                 }
             }
         }
-        return null
+        return findNearestRailSpawnFromLoadedCores(level, clickedPos, clickedPoint, preferredYaw)
+    }
+
+    private fun findNearestRailSpawnFromLoadedCores(level: Level, clickedPos: BlockPos, clickedPoint: Vec3, preferredYaw: Float): RailSpawnData? {
+        val centerChunkX = clickedPos.x shr 4
+        val centerChunkZ = clickedPos.z shr 4
+        var best: RailSpawnData? = null
+        var bestDistSq = Double.POSITIVE_INFINITY
+        for (cx in centerChunkX - RAIL_CORE_SCAN_RADIUS_CHUNKS..centerChunkX + RAIL_CORE_SCAN_RADIUS_CHUNKS) {
+            for (cz in centerChunkZ - RAIL_CORE_SCAN_RADIUS_CHUNKS..centerChunkZ + RAIL_CORE_SCAN_RADIUS_CHUNKS) {
+                val chunkCenter = BlockPos((cx shl 4) + 8, clickedPos.y, (cz shl 4) + 8)
+                if (!level.hasChunkAt(chunkCenter)) continue
+                val chunk = level.getChunk(cx, cz)
+                for (pos in chunk.blockEntities.keys) {
+                    val core = level.getBlockEntity(pos) as? LargeRailCoreBlockEntity ?: continue
+                    if (!core.isLoaded) continue
+                    for (map in core.allRailMaps) {
+                        val spawn = findNearestPointOnMap(map, clickedPoint, preferredYaw) ?: continue
+                        val distSq = spawn.distanceSq
+                        if (distSq < bestDistSq) {
+                            bestDistSq = distSq
+                            best = spawn
+                        }
+                    }
+                }
+            }
+        }
+        return best?.takeIf { it.distanceSq <= MAX_CLICK_TO_RAIL_DISTANCE_SQ }
     }
 
     private fun getNearestRailMap(core: LargeRailCoreBlockEntity, targetPoint: Vec3): RailMap? {
@@ -209,7 +266,7 @@ class TrainItem : Item {
         for (i in 0..max) {
             val p = map.getRailPos(max, i)
             val d2 = (p[1] - clickedPoint.x).let { it * it } + (map.getRailHeight(max, i) - clickedPoint.y).let { it * it } + (p[0] - clickedPoint.z).let { it * it }
-            if (d2 < bestDistSq) { bestDistSq = d2; best = RailSpawnData(map, max, i, p[1], map.getRailHeight(max, i), p[0], choosePreferredRailYaw(map.getRailYaw(max, i), preferredYaw)) }
+            if (d2 < bestDistSq) { bestDistSq = d2; best = RailSpawnData(map, max, i, p[1], map.getRailHeight(max, i), p[0], choosePreferredRailYaw(map.getRailYaw(max, i), preferredYaw), d2) }
         }
         return best
     }
@@ -225,5 +282,5 @@ class TrainItem : Item {
         return maxOf(96, RailMap.curveSplitForLength(map.getHorizontalPathLength()) * 6)
     }
 
-    private data class RailSpawnData(val map: RailMap, val split: Int, val index: Int, val x: Double, val y: Double, val z: Double, val yaw: Float)
+    private data class RailSpawnData(val map: RailMap, val split: Int, val index: Int, val x: Double, val y: Double, val z: Double, val yaw: Float, val distanceSq: Double)
 }

@@ -53,7 +53,7 @@ object ClientItemHelper {
     @JvmStatic
     fun openTrainSelectScreen(player: Player, stack: ItemStack, category: TrainItem.Category) {
         val infos = getVisibleTrainModels()
-            .filter { info -> TrainItem.accepts(category, VehicleRegistry.getById(info.id())) }
+            .filter { info -> TrainItem.accepts(category, VehicleRegistry.getById(info.id ?: "")) }
         logSelector("train/${category.name.lowercase(Locale.ROOT)}", infos)
         Minecraft.getInstance().setScreen(
             ModelSelectScreen(
@@ -74,7 +74,7 @@ object ClientItemHelper {
             ModelSelectScreen(
                 Component.translatable("screen.realtrainmodrenewed.select_train"),
                 infos,
-                { selection -> formationScreen.updateFormationWithVehicle(selection.modelId()) },
+                { selection -> formationScreen.updateFormationWithVehicle(selection.modelId ?: "") },
                 null,
                 "",
             ),
@@ -212,7 +212,7 @@ object ClientItemHelper {
         }
 
     private fun sendSelectedModel(selection: ModelSelectScreen.SelectionResult) {
-        val payload: CustomPacketPayload = SelectModelPayload(selection.modelId(), selection.dataMapValue())
+        val payload: CustomPacketPayload = SelectModelPayload(selection.modelId ?: "", selection.dataMapValue ?: "")
         val connection = Minecraft.getInstance().connection
         if (connection != null) {
             connection.send(payload)
@@ -220,8 +220,8 @@ object ClientItemHelper {
     }
 
     private fun logSelector(kind: String, infos: List<ModelSelectScreen.ModelInfo>) {
-        val packCount = infos.map { it.packName() }.filter { it.isNotBlank() }.distinct().size
-        val iconCount = infos.count { !it.buttonTexture().isNullOrBlank() }
+        val packCount = infos.map { it.packName ?: "" }.filter { it.isNotBlank() }.distinct().size
+        val iconCount = infos.count { !it.buttonTexture.isNullOrBlank() }
         RealTrainModRenewed.LOGGER.info(
             "Opening {} selector with {} model(s), {} pack(s), {} explicit button texture(s)",
             kind, infos.size, packCount, iconCount,
