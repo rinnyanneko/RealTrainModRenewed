@@ -17,6 +17,14 @@ Minecraft while maintaining compatibility with the existing RTM ecosystem.
 
 ---
 
+## Downloads
+
+- **CurseForge:** https://www.curseforge.com/minecraft/mc-mods/realtrainmodrenewed
+- **Modrinth:** https://modrinth.com/mod/realtrainmodrenewed
+- **Releases:** https://code.mirukuneko.cc/mirukuneko/RealTrainModRenewed/releases
+
+---
+
 ## Repositories
 
 - **Main:** https://code.mirukuneko.cc/mirukuneko/RealTrainModRenewed
@@ -54,12 +62,8 @@ Minecraft while maintaining compatibility with the existing RTM ecosystem.
 
 ## Known Issues
 
-- Train movement jitter during interpolation
-- Legacy model scripts need compatibility work (RTM/KaizPatchX helper APIs)
+- Legacy model scripts need compatibility work (JavaScripts and OpenGL APIs)
 - Some sound scripts need exact mapping verification
-
-These are deferred until the Kotlin rewrite progresses further, unless they
-block compiling, launching, or basic vehicle placement.
 
 ---
 
