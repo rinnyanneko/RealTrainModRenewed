@@ -2,6 +2,7 @@
 // Copyright © 2026 mirukuneko and RealTrainModRenewed contributors
 package cc.mirukuneko.realtrainmodrenewed.entity
 
+import cc.mirukuneko.realtrainmodrenewed.RealTrainModRenewedItems
 import net.minecraft.network.protocol.Packet
 import net.minecraft.network.protocol.game.ClientGamePacketListener
 import net.minecraft.network.protocol.game.ClientboundAddEntityPacket
@@ -38,9 +39,12 @@ open class TrainBogieEntity(type: EntityType<out TrainBogieEntity>, level: Level
     open fun setTrain(train: TrainEntity?, bogieIndex: Int) {
         this.train = train
         if (train != null) {
+            val sameBinding = entityData.get(TRAIN_ENTITY_ID) == train.id && entityData.get(BOGIE_INDEX) == bogieIndex
             entityData.set(TRAIN_ENTITY_ID, train.id)
             entityData.set(BOGIE_INDEX, bogieIndex)
-            entityData.set(ACTIVATED, true)
+            if (!sameBinding) {
+                entityData.set(ACTIVATED, false)
+            }
         } else {
             entityData.set(TRAIN_ENTITY_ID, -1)
             entityData.set(BOGIE_INDEX, 0)
@@ -94,7 +98,9 @@ open class TrainBogieEntity(type: EntityType<out TrainBogieEntity>, level: Level
 
     override fun interact(player: Player, hand: InteractionHand, location: Vec3): InteractionResult {
         val train = getTrain() ?: return InteractionResult.PASS
-        return train.interact(player, hand)
+        val holdingCrowbar = player.mainHandItem.`is`(RealTrainModRenewedItems.CROWBAR_ITEM.get()) ||
+            player.offhandItem.`is`(RealTrainModRenewedItems.CROWBAR_ITEM.get())
+        return train.interactWithBogie(player, getBogieIndex(), hand, holdingCrowbar) ?: InteractionResult.PASS
     }
 
     open fun isActivated(): Boolean = entityData.get(ACTIVATED)

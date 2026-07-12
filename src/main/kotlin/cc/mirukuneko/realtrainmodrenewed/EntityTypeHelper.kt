@@ -34,6 +34,7 @@ object EntityTypeHelper {
         EntityType.Builder.of(::TrainSeatEntity, MobCategory.MISC)
             .sized(0.9f, 0.25f)
             .fireImmune()
+            .noSave()
             .clientTrackingRange(10)
             .updateInterval(1)
             .build(entityKey("train_seat"))

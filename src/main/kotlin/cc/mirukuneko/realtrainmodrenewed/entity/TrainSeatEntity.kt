@@ -28,12 +28,20 @@ open class TrainSeatEntity(type: EntityType<out TrainSeatEntity>, level: Level) 
     var train: TrainEntity? = null
     private var cachedTrainId: Int = -1
 
+    init {
+        noPhysics = true
+        setNoGravity(true)
+    }
+
     override fun defineSynchedData(builder: SynchedEntityData.Builder) {
         builder.define(SEAT_INDEX, -1)
+        builder.define(TRAIN_ID, -1)
     }
 
     open fun setTrain(train: TrainEntity?, seatIndex: Int) {
         this.train = train
+        cachedTrainId = train?.id ?: -1
+        entityData.set(TRAIN_ID, cachedTrainId)
         entityData.set(SEAT_INDEX, seatIndex)
     }
 
@@ -43,6 +51,15 @@ open class TrainSeatEntity(type: EntityType<out TrainSeatEntity>, level: Level) 
         if (vehicle is TrainEntity) {
             train = vehicle
             return vehicle
+        }
+        val trainId = entityData.get(TRAIN_ID)
+        if (trainId >= 0) {
+            cachedTrainId = trainId
+            val resolved = level().getEntity(trainId)
+            if (resolved is TrainEntity) {
+                train = resolved
+                return resolved
+            }
         }
         return null
     }
@@ -66,11 +83,13 @@ open class TrainSeatEntity(type: EntityType<out TrainSeatEntity>, level: Level) 
 
     override fun tick() {
         super.tick()
-        if (level().isClientSide) {
-            val train = getTrain()
-            if (train != null) {
-                // Position follows train.
+        val train = getTrain()
+        if (train == null || !train.isAlive || train.isRemoved) {
+            if (!level().isClientSide) {
+                ejectPassengers()
+                discard()
             }
+            return
         }
     }
 
@@ -88,18 +107,24 @@ open class TrainSeatEntity(type: EntityType<out TrainSeatEntity>, level: Level) 
 
     override fun isPushable(): Boolean = false
 
-    override fun isPickable(): Boolean = true
+    override fun isPickable(): Boolean = !isRemoved
 
-    open fun canBeCollidedWith(): Boolean = false
+    open fun canBeCollidedWith(): Boolean = !isRemoved
 
-    override fun canBeCollidedWith(entity: Entity?): Boolean = false
+    override fun canBeCollidedWith(entity: Entity?): Boolean {
+        if (isRemoved) return false
+        val owner = getTrain()
+        if (entity === owner) return false
+        if (entity != null && owner?.hasPassenger(entity) == true) return false
+        return true
+    }
 
     open fun attachToTrain(train: TrainEntity?, seatIndex: Int) {
         setTrain(train, seatIndex)
     }
 
     open fun belongsToTrain(trainId: Int): Boolean =
-        train != null && train!!.id == trainId
+        entityData.get(TRAIN_ID) == trainId
 
     override fun addPassenger(passenger: Entity) {
         super.addPassenger(passenger)
@@ -117,11 +142,15 @@ open class TrainSeatEntity(type: EntityType<out TrainSeatEntity>, level: Level) 
     }
 
     companion object {
-        private const val HITBOX_WIDTH = 1.2f
-        private const val HITBOX_HEIGHT = 1.2f
+        private const val HITBOX_WIDTH = 0.9f
+        private const val HITBOX_HEIGHT = 0.25f
 
         @JvmField
         val SEAT_INDEX: EntityDataAccessor<Int> =
+            SynchedEntityData.defineId(TrainSeatEntity::class.java, EntityDataSerializers.INT)
+
+        @JvmField
+        val TRAIN_ID: EntityDataAccessor<Int> =
             SynchedEntityData.defineId(TrainSeatEntity::class.java, EntityDataSerializers.INT)
     }
 }

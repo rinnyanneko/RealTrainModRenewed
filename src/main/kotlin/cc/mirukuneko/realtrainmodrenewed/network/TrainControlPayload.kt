@@ -132,14 +132,14 @@ data class TrainControlPayload(
                     }
 
                     "toggle_door_left" -> {
-                        val opening = !controlTrain.isDoorLeftOpen
-                        controlTrain.toggleDoorSideForFormation(true)
+                        val opening = !controlTrain.isDoorSideOpenForFormation(true, sourceTrain)
+                        controlTrain.toggleDoorSideForFormation(true, sourceTrain)
                         playDoorSound(sourceTrain, controlTrain, opening)
                     }
 
                     "toggle_door_right" -> {
-                        val opening = !controlTrain.isDoorRightOpen
-                        controlTrain.toggleDoorSideForFormation(false)
+                        val opening = !controlTrain.isDoorSideOpenForFormation(false, sourceTrain)
+                        controlTrain.toggleDoorSideForFormation(false, sourceTrain)
                         playDoorSound(sourceTrain, controlTrain, opening)
                     }
 

@@ -193,10 +193,16 @@ object VehiclePackLoader {
                 ?: getObject(obj, "modelTrain")
                 ?: getObject(obj, "trainModel3")
                 ?: getObject(obj, "trainModel2")
+                ?: getObject(obj, "trainModel")
                 ?: getObject(obj, "modelTrain3")
                 ?: getObject(obj, "modelTrain2")
+                ?: getObject(obj, "ModelVehicle")
+                ?: getObject(obj, "modelVehicle")
+                ?: getObject(obj, "vehicleModel3")
+                ?: getObject(obj, "vehicleModel2")
+                ?: getObject(obj, "vehicleModel")
                 ?: if (isTrainJson(path)) getObject(obj, "model") else null
-            val trainModel = modelObject ?: return
+            val trainModel = modelObject ?: obj.takeIf { getString(it, "modelFile")?.isNotBlank() == true } ?: return
 
             val modelFile = firstNonBlank(getString(trainModel, "modelFile"), getString(obj, "modelFile")) ?: return
             val displayName = firstNonBlank(
@@ -266,6 +272,7 @@ object VehiclePackLoader {
                 firstNonBlank(getString(trainModel, "sound_DoorOpen"), getString(obj, "sound_DoorOpen")),
                 firstNonBlank(getString(trainModel, "sound_DoorClose"), getString(obj, "sound_DoorClose")))
             def.setServerScriptPath(firstNonBlank(getString(trainModel, "serverScriptPath"), getString(obj, "serverScriptPath")))
+            def.setAnnouncementNames(parseAnnouncementNames(obj, trainModel))
 
             LOADED.add(def)
         } catch (e: Exception) { RealTrainModRenewed.LOGGER.warn("Failed to parse vehicle json {}: {}", path, e.message) }
@@ -291,7 +298,7 @@ object VehiclePackLoader {
     }
 
     private fun parseLegacyBogies(root: JsonObject, trainModel: JsonObject): List<VehicleDefinition.BogieDefinition> {
-        val models = firstJsonArray(root, trainModel, "bogieModel3", "bogieModel2", "bogieModel", "bogieModels")
+        val models = firstJsonArrayOrObject(root, trainModel, "bogieModel3", "bogieModel2", "bogieModel", "bogieModels")
             ?: return emptyList()
         val positions = parseVec3List(root, trainModel, "bogiePos", "bogiePositions")
         val list = mutableListOf<VehicleDefinition.BogieDefinition>()
@@ -308,6 +315,15 @@ object VehiclePackLoader {
             list.add(VehicleDefinition.BogieDefinition(modelFile, textureOverrides, position, script))
         }
         return list
+    }
+
+    private fun firstJsonArrayOrObject(root: JsonObject, trainModel: JsonObject, vararg keys: String): JsonArray? {
+        for (key in keys) {
+            val element = trainModel.get(key) ?: root.get(key) ?: continue
+            if (element.isJsonArray) return element.asJsonArray
+            if (element.isJsonObject) return JsonArray().apply { add(element) }
+        }
+        return null
     }
 
     private fun buildSeatMarkers(playerPositions: List<Vec3>, seatPositions: List<Vec3>): List<VehicleDefinition.SeatMarker> {
@@ -349,8 +365,31 @@ object VehiclePackLoader {
             val d = e.asJsonObject
             val objects = d.get("objects")?.takeIf { it.isJsonArray }?.asJsonArray
                 ?.mapNotNull { if (it.isJsonPrimitive) it.asString else null } ?: emptyList()
-            VehicleDefinition.DoorAnimationDefinition(objects, parseVec3(d, "closedPosition", 1.0), parseVec3(d, "openTranslation", 1.0))
+            val closedPosition = parseOptionalVec3(d, "closedPosition")
+                ?: parseOptionalVec3(d, "pos")
+                ?: Vec3.ZERO
+            val openTranslation = parseOptionalVec3(d, "openTranslation")
+                ?: parseLegacyDoorTranslation(d)
+                ?: Vec3.ZERO
+            VehicleDefinition.DoorAnimationDefinition(objects, closedPosition, openTranslation)
         }
+    }
+
+    private fun parseLegacyDoorTranslation(door: JsonObject): Vec3? {
+        val transforms = door.get("transform")?.takeIf { it.isJsonArray }?.asJsonArray ?: return null
+        for (transform in transforms) {
+            if (!transform.isJsonArray) continue
+            val values = transform.asJsonArray
+            if (values.size() != 3) continue
+            return runCatching { Vec3(values[0].asDouble, values[1].asDouble, values[2].asDouble) }.getOrNull()
+        }
+        return null
+    }
+
+    private fun parseOptionalVec3(obj: JsonObject, key: String): Vec3? {
+        val values = obj.get(key)?.takeIf { it.isJsonArray }?.asJsonArray ?: return null
+        if (values.size() < 3) return null
+        return runCatching { Vec3(values[0].asDouble, values[1].asDouble, values[2].asDouble) }.getOrNull()
     }
 
     private fun parseFloatList(root: JsonObject, trainModel: JsonObject, key: String): List<Float> {
@@ -468,7 +507,7 @@ object VehiclePackLoader {
     private fun parseAnnouncementSounds(obj: JsonObject, trainModel: JsonObject): List<String> {
         val sounds = mutableListOf<String>()
         appendAnnouncementSounds(trainModel, sounds)
-        appendAnnouncementSounds(obj, sounds)
+        if (trainModel !== obj) appendAnnouncementSounds(obj, sounds)
         return sounds
     }
 
@@ -478,6 +517,33 @@ object VehiclePackLoader {
             val sound = extractAnnouncementSound(entry)
             if (!sound.isNullOrBlank()) target.add(sound)
         }
+    }
+
+    private fun parseAnnouncementNames(obj: JsonObject, trainModel: JsonObject): List<String> = buildList {
+        appendAnnouncementNames(trainModel, this)
+        if (trainModel !== obj) appendAnnouncementNames(obj, this)
+    }
+
+    private fun appendAnnouncementNames(json: JsonObject, target: MutableList<String>) {
+        val entries = json.get("sound_Announcement")?.takeIf { it.isJsonArray }?.asJsonArray ?: return
+        for (entry in entries) {
+            if (extractAnnouncementSound(entry).isNullOrBlank()) continue
+            target += extractAnnouncementName(entry)
+        }
+    }
+
+    private fun extractAnnouncementName(entry: JsonElement): String = when {
+        entry.isJsonArray -> entry.asJsonArray.let { array ->
+            if (array.size() >= 2 && array[0].isJsonPrimitive && array[0].asJsonPrimitive.isString) {
+                array[0].asString
+            } else {
+                ""
+            }
+        }
+        entry.isJsonObject -> entry.asJsonObject.let { obj ->
+            firstNonBlank(getString(obj, "name"), getString(obj, "displayName")) ?: ""
+        }
+        else -> ""
     }
 
     private fun extractAnnouncementSound(entry: JsonElement): String? = when {

@@ -175,6 +175,7 @@ class VehicleDefinition(
     @JvmField var soundAcceleration: String = ""
     @JvmField var soundDeceleration: String = ""
     @JvmField var soundDecelerationStop: String = ""
+    @JvmField var announcementNames: List<String> = emptyList()
 
     fun getId(): String = id
     fun getDisplayName(): String = displayName
@@ -213,6 +214,7 @@ class VehicleDefinition(
     fun getInteriorLights(): List<LightDefinition> = interiorLights
     fun getHornSound(): String = hornSound
     fun getAnnouncementSounds(): List<String> = announcementSounds
+    fun getAnnouncementNames(): List<String> = announcementNames
     fun isDoCulling(): Boolean = doCulling
     fun isRenderLight(): Boolean = renderLight
     fun isNotDisplayCab(): Boolean = notDisplayCab
@@ -246,6 +248,10 @@ class VehicleDefinition(
     fun hasServerScript(): Boolean = serverScriptPath.isNotBlank()
 
     fun setServerScriptPath(path: String?) { serverScriptPath = path ?: "" }
+
+    fun setAnnouncementNames(names: List<String>?) {
+        announcementNames = names?.toList() ?: emptyList()
+    }
 
     fun isCarType(): Boolean = vehicleType.equals("car", ignoreCase = true)
     fun hasAutomaticDoor(): Boolean =

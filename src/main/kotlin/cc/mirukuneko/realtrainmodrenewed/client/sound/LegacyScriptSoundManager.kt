@@ -27,8 +27,11 @@ object LegacyScriptSoundManager {
     private val AUTO_RUNNING = ConcurrentHashMap<UUID, AutoRunningSoundState>()
     private val ONE_SHOT_LAST_PLAY_TICK = ConcurrentHashMap<String, Long>()
     private val SPEAKER_SOUNDS = ConcurrentHashMap<String, SimpleSoundInstance>()
+    private val INVALID_SOUND_IDS = ConcurrentHashMap.newKeySet<String>()
+    private val SOUND_LOG_LAST_MS = ConcurrentHashMap<String, Long>()
     private const val ONE_SHOT_DEBOUNCE_MS = 180L
     private const val LEVER_CLICK_DEBOUNCE_MS = 70L
+    private const val SOUND_LOG_THROTTLE_MS = 1_000L
     private var lastLeverClickMs = 0L
 
     @JvmStatic
@@ -57,9 +60,10 @@ object LegacyScriptSoundManager {
             return
         }
         val soundId = toSoundId(namespace, soundName) ?: return
-        if (volume <= 0.001f) {
+        val effectiveVolume = volume * legacyScriptMixGain(train, soundId, looping)
+        if (effectiveVolume <= 0.001f) {
             if (looping) {
-                stop(train, soundId)
+                stop(train, namespace, soundName)
             }
             return
         }
@@ -79,7 +83,7 @@ object LegacyScriptSoundManager {
                 SimpleSoundInstance(
                     soundId,
                     SoundSource.NEUTRAL,
-                    Mth.clamp(volume, 0.0f, 8.0f),
+                    Mth.clamp(effectiveVolume, 0.0f, 8.0f),
                     Mth.clamp(pitch, 0.05f, 4.0f),
                     SoundInstance.createUnseededRandom(),
                     false,
@@ -93,18 +97,19 @@ object LegacyScriptSoundManager {
             )
             return
         }
-        val key = key(train.uuid, soundId)
+        val key = key(train.uuid, soundChannel(namespace, soundName, soundId))
         var sound = ACTIVE[key]
         if (sound == null || sound.isStopped) {
             if (sound != null) {
                 ACTIVE.remove(key, sound)
             }
-            sound = LoopingTrainSound(train, soundId)
-            sound.update(volume, pitch)
+            sound = LoopingTrainSound(train, soundId, key)
+            sound.update(effectiveVolume, pitch)
             ACTIVE[key] = sound
             minecraft.soundManager.play(sound)
+            logLoopTransition("start", train, key, soundId, effectiveVolume, pitch)
         } else {
-            sound.update(volume, pitch)
+            sound.update(effectiveVolume, pitch)
         }
     }
 
@@ -127,26 +132,28 @@ object LegacyScriptSoundManager {
             return
         }
         val soundId = toSoundId(namespace, soundName) ?: return
-        if (volume <= 0.001f) {
-            stop(train, soundId)
+        val effectiveVolume = volume * legacyScriptMixGain(train, soundId, looping)
+        if (effectiveVolume <= 0.001f) {
+            stop(train, namespace, soundName)
             return
         }
         val minecraft = Minecraft.getInstance()
         if (minecraft.soundManager == null) {
             return
         }
-        val key = key(train.uuid, soundId)
+        val key = key(train.uuid, soundChannel(namespace, soundName, soundId))
         var sound = ACTIVE[key]
         if (sound == null || sound.isStopped) {
             if (sound != null) {
                 ACTIVE.remove(key, sound)
             }
-            sound = LoopingTrainSound(train, soundId)
-            sound.update(volume, pitch, soundRange)
+            sound = LoopingTrainSound(train, soundId, key)
+            sound.update(effectiveVolume, pitch, soundRange)
             ACTIVE[key] = sound
             minecraft.soundManager.play(sound)
+            logLoopTransition("start", train, key, soundId, effectiveVolume, pitch)
         } else {
-            sound.update(volume, pitch, soundRange)
+            sound.update(effectiveVolume, pitch, soundRange)
         }
     }
 
@@ -436,7 +443,11 @@ object LegacyScriptSoundManager {
             return
         }
         val soundId = toSoundId(namespace, soundName) ?: return
-        val sound = ACTIVE.remove(key(train.uuid, soundId))
+        val activeKey = key(train.uuid, soundChannel(namespace, soundName, soundId))
+        val sound = ACTIVE.remove(activeKey)
+        if (sound != null) {
+            logLoopTransition("stop", train, activeKey, soundId, 0.0f, 0.0f)
+        }
         sound?.requestStop()
     }
 
@@ -446,6 +457,19 @@ object LegacyScriptSoundManager {
         }
         val sound = ACTIVE.remove(key(train.uuid, soundId))
         sound?.requestStop()
+    }
+
+    @JvmStatic
+    fun stopAll(train: TrainEntity?) {
+        if (train == null) return
+        val prefix = "${train.uuid}|"
+        ACTIVE.entries.removeIf { (activeKey, sound) ->
+            if (!activeKey.startsWith(prefix)) return@removeIf false
+            sound.requestStop()
+            true
+        }
+        AUTO_RUNNING.remove(train.uuid)
+        SOUND_LOG_LAST_MS.keys.removeIf { it.startsWith(prefix) }
     }
 
     @JvmStatic
@@ -476,6 +500,61 @@ object LegacyScriptSoundManager {
 
     private fun key(trainId: UUID, soundId: Identifier): String = "$trainId|$soundId"
 
+    private fun key(trainId: UUID, channel: String): String = "$trainId|$channel"
+
+    private fun soundChannel(namespace: String?, soundName: String?, soundId: Identifier): String {
+        val requestedNamespace = namespace?.trim()?.lowercase(Locale.ROOT).orEmpty().ifBlank { "minecraft" }
+        var requestedPath = soundName?.trim()?.replace('\\', '/')?.lowercase(Locale.ROOT).orEmpty()
+        if (requestedPath.startsWith("sounds/")) requestedPath = requestedPath.substring("sounds/".length)
+        if (requestedPath.endsWith(".ogg")) requestedPath = requestedPath.removeSuffix(".ogg")
+        return if (requestedNamespace == "minecraft" && requestedPath == "minecart.base") {
+            "minecraft:minecart.base"
+        } else {
+            soundId.toString()
+        }
+    }
+
+    private fun legacyScriptMixGain(train: TrainEntity, soundId: Identifier, looping: Boolean): Float {
+        if (!looping) return 1.0f
+        val scriptPath = VehicleRegistry.getById(train.vehicleId)
+            ?.soundScriptPath
+            ?.replace('\\', '/')
+            ?.lowercase(Locale.ROOT)
+            .orEmpty()
+        return when {
+            scriptPath.endsWith("sound_hitachi_igbt1.js") && soundId.path == "tora_e231_loop" -> 0.0f
+            scriptPath.endsWith("sound_hitachi_igbt1.js") && soundId.path == "tora_e231_loop-2x" -> 0.3f
+            scriptPath.endsWith("sound_middlecar1.js") && soundId.path == "223_air" -> 0.0f
+            scriptPath.endsWith("sound_middlecar1.js") && soundId.path == "minecart_base" -> 0.3f
+            else -> 1.0f
+        }
+    }
+
+    private fun logLoopTransition(
+        action: String,
+        train: TrainEntity,
+        activeKey: String,
+        soundId: Identifier,
+        volume: Float,
+        pitch: Float,
+    ) {
+        val logKey = "$activeKey|$action"
+        val now = System.currentTimeMillis()
+        val previous = SOUND_LOG_LAST_MS.put(logKey, now)
+        if (previous != null && now - previous < SOUND_LOG_THROTTLE_MS) return
+        RealTrainModRenewed.LOGGER.info(
+            "[SoundLoop] {} vehicle={} channel={} event={} notch={} speedKmh={} volume={} pitch={}",
+            action,
+            train.vehicleId,
+            activeKey.substringAfter('|'),
+            soundId,
+            train.notch,
+            abs(train.speed) * 72.0f,
+            volume,
+            pitch,
+        )
+    }
+
     private fun toSoundId(namespace: String?, soundName: String?): Identifier? {
         if (soundName == null || soundName.isBlank()) {
             return null
@@ -488,7 +567,10 @@ object LegacyScriptSoundManager {
         if (resolvedPath.endsWith(".ogg")) {
             resolvedPath = resolvedPath.substring(0, resolvedPath.length - ".ogg".length)
         }
-        if (resolvedNamespace == "rtm" &&
+        if (resolvedNamespace == "minecraft" && resolvedPath == "minecart.base") {
+            resolvedNamespace = "sound_rtm"
+            resolvedPath = "minecart_base"
+        } else if (resolvedNamespace == "rtm" &&
             (resolvedPath == "train.223_air" || resolvedPath == "train.223_run" || resolvedPath == "train.223_run_tunnel")
         ) {
             resolvedNamespace = "sound_rtm"
@@ -496,10 +578,16 @@ object LegacyScriptSoundManager {
         } else if (resolvedNamespace == "rtm" && resolvedPath.indexOf('/') >= 0) {
             resolvedPath = resolvedPath.replace('/', '.')
         }
+        val cacheKey = "$resolvedNamespace:$resolvedPath"
+        if (INVALID_SOUND_IDS.contains(cacheKey)) {
+            return null
+        }
         return try {
             Identifier.fromNamespaceAndPath(resolvedNamespace, resolvedPath)
         } catch (exception: Exception) {
-            RealTrainModRenewed.LOGGER.warn("Invalid legacy sound id {}:{}", resolvedNamespace, soundName)
+            if (INVALID_SOUND_IDS.add(cacheKey)) {
+                RealTrainModRenewed.LOGGER.warn("Invalid legacy sound id {}:{}", resolvedNamespace, soundName)
+            }
             null
         }
     }
@@ -523,7 +611,11 @@ object LegacyScriptSoundManager {
         var previousSpeed: Float = 0.0f
     }
 
-    private class LoopingTrainSound(private val train: TrainEntity, private val soundId: Identifier) :
+    private class LoopingTrainSound(
+        private val train: TrainEntity,
+        private val soundId: Identifier,
+        private val activeKey: String,
+    ) :
         AbstractTickableSoundInstance(
             SoundEvent.createVariableRangeEvent(soundId),
             SoundSource.NEUTRAL,
@@ -569,7 +661,7 @@ object LegacyScriptSoundManager {
 
         override fun tick() {
             if (!train.isAlive) {
-                ACTIVE.remove(key(train.uuid, soundId), this)
+                ACTIVE.remove(activeKey, this)
                 AUTO_RUNNING.remove(train.uuid)
                 stop()
                 return

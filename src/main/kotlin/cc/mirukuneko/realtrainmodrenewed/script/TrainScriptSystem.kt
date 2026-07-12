@@ -293,8 +293,12 @@ class TrainScriptSystem private constructor() {
             return if (value == null) fallback else value
         }
 
+        /**
+         * Legacy EntityTrainBase#getSpeed() value in blocks per tick.
+         * RTM render scripts commonly multiply this by 72 to obtain km/h.
+         */
         val speed: Float
-            get() = if (this.vehicle == null) 0.0f else vehicle.speed * 72.0f
+            get() = if (this.vehicle == null) 0.0f else vehicle.speed
 
         val maxSpeed: Float
             get() {
@@ -323,6 +327,10 @@ class TrainScriptSystem private constructor() {
             return vehicle
         }
 
+        fun isControlCar(): Boolean {
+            return this.vehicle != null && vehicle.isControlCar
+        }
+
         val notch: Int
             get() = if (this.vehicle == null) 0 else vehicle.notch
 
@@ -348,16 +356,38 @@ class TrainScriptSystem private constructor() {
             return if (this.vehicle == null) 0.0f else vehicle.mainReservoirPressure
         }
 
+        fun getMRPressure(): Float {
+            return getMainReservoirPressure()
+        }
+
         fun getBrakePipePressure(): Float {
             return if (this.vehicle == null) 0.0f else vehicle.brakePipePressure
+        }
+
+        fun getBPPressure(): Float {
+            return getBrakePipePressure()
         }
 
         fun getBrakeCylinderPressure(): Float {
             return if (this.vehicle == null) 0.0f else vehicle.brakeCylinderPressure
         }
 
+        fun getBCPressure(): Float {
+            return getBrakeCylinderPressure()
+        }
+
+        fun getBrakeAirCount(): Float {
+            return if (this.vehicle == null) 0.0f else vehicle.legacyBrakeAirCount
+        }
+
+        fun getBrakeCount(): Float {
+            return if (this.vehicle == null) 0.0f else max(0, -vehicle.notch).toFloat()
+        }
+
         fun inTunnel(): Boolean {
-            return false
+            val train = this.vehicle ?: return false
+            val sample = BlockPos.containing(train.x, train.y + 2.0, train.z)
+            return !train.level().canSeeSky(sample)
         }
 
         val isComplessorActive: Boolean
@@ -365,7 +395,7 @@ class TrainScriptSystem private constructor() {
                 if (this.vehicle == null) {
                     return false
                 }
-                val speedKmh = abs(this.speed)
+                val speedKmh = this.speedKmh
                 if (speedKmh > 2.0f || vehicle.notch > 0) {
                     return false
                 }
@@ -991,7 +1021,7 @@ class TrainScriptSystem private constructor() {
                 if (train.lightMode > 0) {
                     return if (train.reverser < 0) -45.0f else 45.0f
                 }
-                return train.getSeatRotation()
+                return Mth.clamp(train.seatRotation, -45.0f, 45.0f)
             }
 
             private fun toSoundDouble(value: Any?, fallback: Double): Double {
@@ -1049,10 +1079,67 @@ class TrainScriptSystem private constructor() {
     }
 
     class LegacySoundBridge(private val executor: LegacyScriptExecutor?) {
+        fun getSpeed(): Float {
+            return if (executor?.vehicle == null) 0.0f else abs(executor.vehicle.speed) * 72.0f
+        }
+
+        fun getRawSpeed(): Float {
+            return if (executor?.vehicle == null) 0.0f else executor.vehicle.speed
+        }
+
+        fun getMaxSpeed(): Float {
+            return abs(executor?.maxSpeed ?: 0.0f) * 72.0f
+        }
+
+        fun getNotch(): Int {
+            return executor?.notch ?: 0
+        }
+
+        fun getReverser(): Int {
+            return executor?.reverser ?: 0
+        }
+
+        fun getTrain(): TrainEntity? {
+            return executor?.vehicle
+        }
+
+        fun getEntity(): TrainEntity? {
+            return executor?.vehicle
+        }
+
+        fun inTunnel(): Boolean {
+            return executor?.inTunnel() ?: false
+        }
+
+        fun isComplessorActive(): Boolean {
+            return executor?.isComplessorActive ?: false
+        }
+
+        fun isCompressorActive(): Boolean {
+            return executor?.isCompressorActive ?: false
+        }
+
+        fun complessorCount(): Int {
+            return executor?.complessorCount() ?: 0
+        }
+
+        fun compressorCount(): Int {
+            return executor?.compressorCount() ?: 0
+        }
+
         fun playSound(namespace: String?, soundName: String?, volume: Double, pitch: Double) {
             if (executor != null) {
                 STATES.put(soundKey(namespace, soundName), SoundState(volume, pitch, null))
                 executor.playSound(namespace, soundName, volume, pitch)
+            }
+        }
+
+        fun playSound(namespace: String?, soundName: String?, volume: Any?, pitch: Any?, looping: Any?) {
+            if (executor != null) {
+                val resolvedVolume = toSoundDouble(volume, 1.0)
+                val resolvedPitch = toSoundDouble(pitch, 1.0)
+                STATES[soundKey(namespace, soundName)] = SoundState(resolvedVolume, resolvedPitch, null)
+                executor.playSound(namespace, soundName, resolvedVolume, resolvedPitch, toSoundBoolean(looping, true))
             }
         }
 
@@ -1109,6 +1196,18 @@ class TrainScriptSystem private constructor() {
             }
         }
 
+        private fun toSoundDouble(value: Any?, fallback: Double): Double = when (value) {
+            is Number -> value.toDouble().takeIf { it.isFinite() } ?: fallback
+            else -> value?.toString()?.toDoubleOrNull()?.takeIf { it.isFinite() } ?: fallback
+        }
+
+        private fun toSoundBoolean(value: Any?, fallback: Boolean): Boolean = when (value) {
+            is Boolean -> value
+            is Number -> value.toInt() != 0
+            null -> fallback
+            else -> value.toString().toBooleanStrictOrNull() ?: fallback
+        }
+
         private fun playState(namespace: String?, soundName: String?, state: SoundState) {
             val soundRange = state.soundRange
             if (soundRange != null) {
@@ -1158,6 +1257,7 @@ class TrainScriptSystem private constructor() {
         private var uvOffsetV = 0f
         var matrixDepth: Int = 0
             private set
+        private var invalidMatrixDepth = -1
         private var scriptLocalOrigin = Vec3.ZERO
         private val scriptLocalStack = ArrayDeque<Vec3?>()
         var renderPartsCalls: Int = 0
@@ -1183,6 +1283,7 @@ class TrainScriptSystem private constructor() {
         private var cachedExecutorTrain: TrainEntity? = null
         private var cachedExecutor: LegacyScriptExecutor? = null
         private var replayCacheDisabledForFrame = false
+        private var replayCacheAllowed = true
         private val tessellatorVertices: MutableList<TessVertex> = ArrayList<TessVertex>()
         private var tessColorRed = 1.0f
         private var tessColorGreen = 1.0f
@@ -1351,15 +1452,34 @@ class TrainScriptSystem private constructor() {
             }
         }
 
-        private val replayCache: MutableMap<Long?, OpList?> = object : LinkedHashMap<Long?, OpList?>(64, 0.75f, true) {
-            override fun removeEldestEntry(e: MutableMap.MutableEntry<Long?, OpList?>?): Boolean {
+        private data class ReplayKey(
+            val entityUuid: UUID,
+            val tickCount: Int,
+            val pass: Int,
+            val doorL: Int,
+            val doorR: Int,
+            val lightMode: Int,
+            val notch: Int,
+            val reverser: Int,
+            val destination: Int,
+            val interiorLight: Boolean,
+            val pantographFront: Int,
+            val pantographBack: Int,
+            val soundIndex: Int,
+            val customButtonBits: Int,
+            val customButtonValues: List<Int>,
+        )
+
+        private val replayCache: MutableMap<ReplayKey, OpList?> =
+            object : LinkedHashMap<ReplayKey, OpList?>(64, 0.75f, true) {
+            override fun removeEldestEntry(e: MutableMap.MutableEntry<ReplayKey, OpList?>?): Boolean {
                 return size > REPLAY_CACHE_MAX
             }
         }
         private var currentRecording: OpList? = null // null = recording off
         var isReplaying: Boolean = false
             private set
-        private var currentSignature = 0L
+        private var currentSignature: ReplayKey? = null
 
         private fun recordOp(kind: Int, f0: Float, f1: Float, f2: Float, f3: Float, f4: Float, s: String?, c: Char) {
             if (currentRecording != null) {
@@ -1368,14 +1488,15 @@ class TrainScriptSystem private constructor() {
         }
 
         /**
-         * pass + entity 状態を long に圧縮。同じ signature の連続フレームでは
-         * 録画された Op 列を再生する。state には speed / door / light / notch
-         * 等 「branch に影響しうる」値を含める。yaw 等の連続変化値は含めない。
+         * pass + entity 状態を long に圧縮。同じ entity の同一 game tick 内だけ
+         * 録画された Op 列を再生する。tick を跨いだら必ず JS を再実行するため、
+         * LCD・圧力計・点滅など tick 駆動の表示や script data 更新は停止しない。
          */
-        fun computeReplaySignature(pass: Int, entity: Any?): Long {
-            if (entity !is TrainEntity) return 0L
+        private fun computeReplaySignature(pass: Int, entity: Any?): ReplayKey? {
+            if (!replayCacheAllowed) return null
+            if (entity !is TrainEntity) return null
             if (abs(entity.speed) > 0.001f) {
-                return 0L
+                return null
             }
             val doorL = Math.round(entity.doorMoveL * 32.0f)
             val doorR = Math.round(entity.doorMoveR * 32.0f)
@@ -1383,20 +1504,41 @@ class TrainScriptSystem private constructor() {
             val notch = entity.notch
             val rev = entity.reverser
             val dest = entity.destinationIndex
-            val interior = if (entity.isInteriorLightOn) 1 else 0
-            var h = pass.toLong()
-            h = h * 31 + doorL
-            h = h * 31 + doorR
-            h = h * 31 + lightMode
-            h = h * 31 + notch
-            h = h * 31 + rev
-            h = h * 31 + dest
-            h = h * 31 + interior
-            return if (h == 0L) 1L else h
+            val pantographFront = Math.round(entity.pantograph_F)
+            val pantographBack = Math.round(entity.pantograph_B)
+            var customButtonBits = 0
+            for (buttonIndex in 0..30) {
+                if (entity.isCustomButtonOn(buttonIndex)) {
+                    customButtonBits = customButtonBits or (1 shl buttonIndex)
+                }
+            }
+            return ReplayKey(
+                entity.uuid,
+                entity.tickCount,
+                pass,
+                doorL,
+                doorR,
+                lightMode,
+                notch,
+                rev,
+                dest,
+                entity.isInteriorLightOn,
+                pantographFront,
+                pantographBack,
+                entity.soundIndex,
+                customButtonBits,
+                List(31) { entity.getCustomButtonValue(it) },
+            )
         }
 
-        fun tryReplayCachedScript(signature: Long): Boolean {
-            if (signature == 0L) return false
+        fun configureReplaySafety(scriptSource: String?) {
+            replayCacheAllowed = scriptSource.isNullOrBlank() ||
+                !FRAME_SENSITIVE_SCRIPT_PATTERN.matcher(scriptSource).find()
+        }
+
+        fun tryReplayCachedScript(pass: Int, entity: Any?): Boolean {
+            val signature = computeReplaySignature(pass, entity)
+            if (signature == null) return false
             val list = replayCache.get(signature)
             if (list == null) return false
             this.isReplaying = true
@@ -1408,11 +1550,12 @@ class TrainScriptSystem private constructor() {
             return true
         }
 
-        fun beginRecording(signature: Long) {
+        fun beginRecording(pass: Int, entity: Any?) {
+            val signature = computeReplaySignature(pass, entity)
             replayCacheDisabledForFrame = false
-            if (signature == 0L) {
+            if (signature == null) {
                 currentRecording = null
-                currentSignature = 0L
+                currentSignature = null
                 return
             }
             currentSignature = signature
@@ -1426,11 +1569,11 @@ class TrainScriptSystem private constructor() {
         }
 
         fun endRecording(keep: Boolean) {
-            if (currentRecording != null && keep && currentSignature != 0L && !replayCacheDisabledForFrame) {
-                replayCache.put(currentSignature, currentRecording)
+            if (currentRecording != null && keep && currentSignature != null && !replayCacheDisabledForFrame) {
+                replayCache[currentSignature!!] = currentRecording
             }
             currentRecording = null
-            currentSignature = 0L
+            currentSignature = null
             replayCacheDisabledForFrame = false
         }
 
@@ -1631,7 +1774,9 @@ class TrainScriptSystem private constructor() {
         fun renderRegisteredGroups(rawNames: MutableList<String?>?) {
             val stack = poseStack
             val targetBuffer = buffer
-            if (rawNames == null || rawNames.isEmpty() || mqoModel == null || stack == null || targetBuffer == null) {
+            if (rawNames == null || rawNames.isEmpty() || mqoModel == null || stack == null || targetBuffer == null ||
+                isMatrixInvalid()
+            ) {
                 return
             }
             renderPartsCalls++
@@ -1853,10 +1998,12 @@ class TrainScriptSystem private constructor() {
             this.currentPass = pass
             this.currentEntity = entity
             this.boundTexture = null
+            this.tessellatorFallbackTexture = null
             resetColor()
             clearUvWindow()
             clearUvOffset()
             this.matrixDepth = 0
+            this.invalidMatrixDepth = -1
             this.scriptLocalOrigin = Vec3.ZERO
             this.scriptLocalStack.clear()
         }
@@ -1867,11 +2014,13 @@ class TrainScriptSystem private constructor() {
             this.buffer = null
             this.currentEntity = null
             this.boundTexture = null
+            this.tessellatorFallbackTexture = null
             this.currentPass = 0
             resetColor()
             clearUvWindow()
             clearUvOffset()
             this.matrixDepth = 0
+            this.invalidMatrixDepth = -1
             this.scriptLocalOrigin = Vec3.ZERO
             this.scriptLocalStack.clear()
         }
@@ -1931,6 +2080,8 @@ class TrainScriptSystem private constructor() {
         }
 
         var currentMatId: Int = 0
+        var currentBatchTexture: Identifier? = null
+        private var tessellatorFallbackTexture: Identifier? = null
 
         init {
             this.mqoModel = if (model is MqoModel) model else null
@@ -2136,6 +2287,12 @@ class TrainScriptSystem private constructor() {
             onBatchRendered()
             var texture = boundTexture
             if (texture == null) {
+                texture = tessellatorFallbackTexture
+            }
+            if (texture == null) {
+                texture = currentBatchTexture
+            }
+            if (texture == null) {
                 texture = MqoModelLoader.getScriptTexture("minecraft", "textures/block/white_wool.png", 0)
             }
             val vc =
@@ -2186,7 +2343,7 @@ class TrainScriptSystem private constructor() {
                         .setColor(r, g, b, a)
                         .setUv(vtx.u, vtx.v)
                         .setOverlay(OverlayTexture.NO_OVERLAY)
-                        .setLight(packedLight)
+                        .setLight(if (currentPass >= 2 || isLegacyVehicleLightRequested()) 0x00F000F0 else packedLight)
                         .setNormal(nx, ny, nz)
                 }
                 i += 4
@@ -2303,7 +2460,9 @@ class TrainScriptSystem private constructor() {
         ) {
             val stack = poseStack
             val targetBuffer = buffer
-            if (mqoModel == null || stack == null || targetBuffer == null || groups == null || groups.isEmpty()) return
+            if (mqoModel == null || stack == null || targetBuffer == null || groups == null || groups.isEmpty() ||
+                isMatrixInvalid()
+            ) return
             val quads: MutableList<FloatArray> = mqoModel.getGroupQuadCorners(groups).filterNotNull().toMutableList()
             if (quads.isEmpty()) return
             onBatchRendered()
@@ -2439,7 +2598,7 @@ class TrainScriptSystem private constructor() {
         fun renderParts(groups: Any?) {
             val stack = poseStack
             val targetBuffer = buffer
-            if (mqoModel == null || stack == null || targetBuffer == null) {
+            if (mqoModel == null || stack == null || targetBuffer == null || isMatrixInvalid()) {
                 return
             }
             renderPartsCalls++
@@ -2646,6 +2805,11 @@ class TrainScriptSystem private constructor() {
             if (lightmapMaxForced) {
                 return packedLight
             }
+            if (presentGroupNames != null && presentGroupNames.isNotEmpty() && isLegacyVehicleLightRequested() &&
+                presentGroupNames.all { isExteriorTrainLightGroup(it?.lowercase()) }
+            ) {
+                return 0x00F000F0
+            }
             if (packedLight == basePackedLight) {
                 return packedLight
             }
@@ -2667,6 +2831,11 @@ class TrainScriptSystem private constructor() {
                 }
             }
             return packedLight
+        }
+
+        private fun isLegacyVehicleLightRequested(): Boolean {
+            val train = resolveCurrentTrainEntity() ?: return false
+            return train.lightMode > 0 || train.isPantographUp || train.getCustomButtonValue(2) > 0
         }
 
         private fun shouldSuppressOerMseScriptHoodGroup(lowerGroupName: String?): Boolean {
@@ -2879,6 +3048,8 @@ class TrainScriptSystem private constructor() {
                     || lowerGroupName.contains("_ceil")
                     || lowerGroupName.contains("led_box")
                     || lowerGroupName.contains("led")
+                    || lowerGroupName == "i_body"
+                    || lowerGroupName == "inner"
         }
 
         private fun isExteriorTrainLightGroup(lowerGroupName: String?): Boolean {
@@ -3000,7 +3171,7 @@ class TrainScriptSystem private constructor() {
             // skip them in baked render even if they weren't rendered this frame
             // (e.g. body02 when CarType="01": script skips it, baked must too).
             if (scriptRegisteredGroups.contains(normalized)) {
-                return false
+                return translucent && !scriptedTranslucentGroups.contains(normalized)
             }
             // RTM script は on/off、号車別、表示種別の片方だけを render() で選ぶ。
             // 直接 registerParts されていない兄弟 group を baked が描くと、
@@ -3268,14 +3439,26 @@ class TrainScriptSystem private constructor() {
                 poseStack!!.popPose()
                 matrixDepth--
             }
+            if (invalidMatrixDepth > matrixDepth) {
+                invalidMatrixDepth = -1
+            }
             scriptLocalOrigin =
                 (if (scriptLocalStack.isEmpty()) net.minecraft.world.phys.Vec3.ZERO else scriptLocalStack.pop())!!
             recordOp(OP_POP, 0f, 0f, 0f, 0f, 0f, null, ' ')
         }
 
+        fun setLegacyMaterialContext(materialId: Int, texture: Identifier?) {
+            currentMatId = materialId
+            currentBatchTexture = texture
+            tessellatorFallbackTexture = texture
+        }
+
         fun translate(x: Float, y: Float, z: Float) {
             // NaN/Infinite ガード: スクリプトが undefined を渡すと NaN になり poseStack 全体が破壊される。
-            if (!java.lang.Float.isFinite(x) || !java.lang.Float.isFinite(y) || !java.lang.Float.isFinite(z)) return
+            if (!java.lang.Float.isFinite(x) || !java.lang.Float.isFinite(y) || !java.lang.Float.isFinite(z)) {
+                markMatrixInvalid()
+                return
+            }
             val applied = adjustLegacyScriptBogieTranslate(x, y, z)
             if (poseStack != null) {
                 poseStack!!.translate(applied.x, applied.y, applied.z)
@@ -3285,8 +3468,22 @@ class TrainScriptSystem private constructor() {
         }
 
         fun translate(x: Double, y: Double, z: Double) {
-            if (!java.lang.Double.isFinite(x) || !java.lang.Double.isFinite(y) || !java.lang.Double.isFinite(z)) return
+            if (!java.lang.Double.isFinite(x) || !java.lang.Double.isFinite(y) || !java.lang.Double.isFinite(z)) {
+                markMatrixInvalid()
+                return
+            }
             translate(x.toFloat(), y.toFloat(), z.toFloat())
+        }
+
+        fun translate(x: Any?, y: Any?, z: Any?) {
+            val tx = toScriptDouble(x, Double.NaN)
+            val ty = toScriptDouble(y, Double.NaN)
+            val tz = toScriptDouble(z, Double.NaN)
+            if (!java.lang.Double.isFinite(tx) || !java.lang.Double.isFinite(ty) || !java.lang.Double.isFinite(tz)) {
+                markMatrixInvalid()
+                return
+            }
+            translate(tx, ty, tz)
         }
 
         private fun adjustLegacyScriptBogieTranslate(x: Float, y: Float, z: Float): Vec3 {
@@ -3328,7 +3525,10 @@ class TrainScriptSystem private constructor() {
             if (!java.lang.Float.isFinite(angle) || !java.lang.Float.isFinite(x) || !java.lang.Float.isFinite(y) || !java.lang.Float.isFinite(
                     z
                 )
-            ) return
+            ) {
+                markMatrixInvalid()
+                return
+            }
             recordOp(OP_ROTATE_FREE, angle, x, y, z, 0f, null, ' ')
             if (poseStack == null) {
                 return
@@ -3349,8 +3549,25 @@ class TrainScriptSystem private constructor() {
             if (!java.lang.Double.isFinite(angle) || !java.lang.Double.isFinite(x) || !java.lang.Double.isFinite(y) || !java.lang.Double.isFinite(
                     z
                 )
-            ) return
+            ) {
+                markMatrixInvalid()
+                return
+            }
             rotate(angle.toFloat(), x.toFloat(), y.toFloat(), z.toFloat())
+        }
+
+        fun rotate(angle: Any?, x: Any?, y: Any?, z: Any?) {
+            val a = toScriptDouble(angle, Double.NaN)
+            val rx = toScriptDouble(x, Double.NaN)
+            val ry = toScriptDouble(y, Double.NaN)
+            val rz = toScriptDouble(z, Double.NaN)
+            if (!java.lang.Double.isFinite(a) || !java.lang.Double.isFinite(rx) || !java.lang.Double.isFinite(ry) ||
+                !java.lang.Double.isFinite(rz)
+            ) {
+                markMatrixInvalid()
+                return
+            }
+            rotate(a, rx, ry, rz)
         }
 
         fun rotate(angle: Double, axis: String?, originX: Double, originY: Double, originZ: Double) {
@@ -3361,7 +3578,10 @@ class TrainScriptSystem private constructor() {
             if (!java.lang.Double.isFinite(angle) || !java.lang.Double.isFinite(originX) || !java.lang.Double.isFinite(
                     originY
                 ) || !java.lang.Double.isFinite(originZ)
-            ) return
+            ) {
+                markMatrixInvalid()
+                return
+            }
 
             val a = angle.toFloat()
             val x = originX.toFloat()
@@ -3382,10 +3602,36 @@ class TrainScriptSystem private constructor() {
             translate(-x, -y, -z)
         }
 
+        fun rotate(angle: Any?, axis: Any?, originX: Any?, originY: Any?, originZ: Any?) {
+            val a = toScriptDouble(angle, Double.NaN)
+            val x = toScriptDouble(originX, Double.NaN)
+            val y = toScriptDouble(originY, Double.NaN)
+            val z = toScriptDouble(originZ, Double.NaN)
+            val axisText = axis?.toString()
+            if (!java.lang.Double.isFinite(a) || !java.lang.Double.isFinite(x) || !java.lang.Double.isFinite(y) ||
+                !java.lang.Double.isFinite(z) || axisText == null || axisText.isBlank() ||
+                "undefined".equals(axisText, ignoreCase = true) || "null".equals(axisText, ignoreCase = true)
+            ) {
+                markMatrixInvalid()
+                return
+            }
+            rotate(
+                a,
+                axisText,
+                x,
+                y,
+                z
+            )
+        }
+
         fun scale(x: Float, y: Float, z: Float) {
             // NaN/Infinite/Zero ガード: スケール 0 や NaN は matrix を壊す
-            if (!java.lang.Float.isFinite(x) || !java.lang.Float.isFinite(y) || !java.lang.Float.isFinite(z)) return
-            if (x == 0.0f || y == 0.0f || z == 0.0f) return
+            if (!java.lang.Float.isFinite(x) || !java.lang.Float.isFinite(y) || !java.lang.Float.isFinite(z) ||
+                x == 0.0f || y == 0.0f || z == 0.0f
+            ) {
+                markMatrixInvalid()
+                return
+            }
             if (poseStack != null) {
                 poseStack!!.scale(x, y, z)
             }
@@ -3393,8 +3639,32 @@ class TrainScriptSystem private constructor() {
         }
 
         fun scale(x: Double, y: Double, z: Double) {
-            if (!java.lang.Double.isFinite(x) || !java.lang.Double.isFinite(y) || !java.lang.Double.isFinite(z)) return
+            if (!java.lang.Double.isFinite(x) || !java.lang.Double.isFinite(y) || !java.lang.Double.isFinite(z)) {
+                markMatrixInvalid()
+                return
+            }
             scale(x.toFloat(), y.toFloat(), z.toFloat())
+        }
+
+        fun scale(x: Any?, y: Any?, z: Any?) {
+            val sx = toScriptDouble(x, Double.NaN)
+            val sy = toScriptDouble(y, Double.NaN)
+            val sz = toScriptDouble(z, Double.NaN)
+            if (!java.lang.Double.isFinite(sx) || !java.lang.Double.isFinite(sy) || !java.lang.Double.isFinite(sz)) {
+                markMatrixInvalid()
+                return
+            }
+            scale(sx, sy, sz)
+        }
+
+        private fun markMatrixInvalid() {
+            if (matrixDepth > 0 && invalidMatrixDepth < 0) {
+                invalidMatrixDepth = matrixDepth
+            }
+        }
+
+        private fun isMatrixInvalid(): Boolean {
+            return invalidMatrixDepth >= 0 && matrixDepth >= invalidMatrixDepth
         }
 
         // ---- NPC biped animation ----
@@ -3403,7 +3673,7 @@ class TrainScriptSystem private constructor() {
             var speed = 0.0f
             var onGround = true
             if (entity is LegacyScriptExecutor) {
-                speed = abs(entity.speed) / 72.0f
+                speed = abs(entity.speed)
                 onGround = entity.isOnGround
             } else if (entity is TrainEntity) {
                 speed = abs(entity.speed)
@@ -3680,9 +3950,38 @@ class TrainScriptSystem private constructor() {
             // (passKey, stateHash) → 録画。LinkedHashMap で access order LRU 制限 (メモリ上限)。
             private const val REPLAY_CACHE_MAX = 256
 
+            private val FRAME_SENSITIVE_SCRIPT_PATTERN: Pattern = Pattern.compile(
+                "partial\\s*tick|systemTime|systemHour|systemMinute|systemSecond|systemMillisecond|" +
+                    "currentTimeMillis|nanoTime|new\\s+Date|Date\\s*\\(|camera|viewerPos|renderViewEntity",
+                Pattern.CASE_INSENSITIVE,
+            )
+
             // isEmissiveGroup のコンパイル済み regex (毎回コンパイルするコストを排除)
             private val DEST_N_PATTERN: Pattern = Pattern.compile("dest\\d+")
             private val TYPE_N_PATTERN: Pattern = Pattern.compile("type\\d+")
+
+            private fun toScriptDouble(value: Any?, fallback: Double): Double {
+                if (value is Number) {
+                    val result = value.toDouble()
+                    return if (java.lang.Double.isFinite(result)) result else fallback
+                }
+                if (value is Boolean) {
+                    return if (value) 1.0 else 0.0
+                }
+                if (value != null) {
+                    val text = value.toString().trim { it <= ' ' }
+                    if (text.isNotEmpty() && !"undefined".equals(text, ignoreCase = true) &&
+                        !"null".equals(text, ignoreCase = true)
+                    ) {
+                        try {
+                            val result = text.toDouble()
+                            return if (java.lang.Double.isFinite(result)) result else fallback
+                        } catch (ignored: NumberFormatException) {
+                        }
+                    }
+                }
+                return fallback
+            }
 
             /** 指定グループ名のリストを現在の poseStack で描画する。  */
             /** 台車・車輪(走り装置)グループ名か。.class台車車両でスクリプト描画を抑制する判定用。  */
@@ -5309,6 +5608,7 @@ class TrainScriptSystem private constructor() {
                 scriptEngine.put(SCRIPT_PATH_KEY, if (scriptPath == null) "" else scriptPath)
                 scriptEngine.put(SCRIPT_MODEL_KEY, if (modelName == null) "" else modelName)
                 script = normalizeLegacyScriptReferences(script)
+                renderer.configureReplaySafety(script)
                 script = LEGACY_API_PREPEND + (if (script == null) "" else script)
                 scriptEngine.eval(script)
                 prepareScriptRuntimeBeforeInit(scriptEngine)
@@ -5610,7 +5910,7 @@ class TrainScriptSystem private constructor() {
                             "var ModelLoader = { loadModel: function(resource, accuracy, options) { return { renderAll: function() {}, renderOnly: function() {}, renderPart: function() {}, objects: [] }; } };\n" +
                             "var ModelPackManager = { INSTANCE: { getResource: function(domain, path) { return { domain: domain, path: path, func_110624_b: function() { return domain; }, func_110623_a: function() { return path; } }; } } };\n" +
                             "var TrainState = { getStateType: function(value) { return value; }, suggestState: function(value, fallback) { return value == null ? fallback : value; } };\n" +
-                            "TrainState.TrainStateType = { Reverser: 0, Notch: 1, Rail: 2, Door: 4, Light: 5, Pantograph: 6, Speed: 7, Destination: 8, Sound: 9, Interior: 11 };\n" +
+                            "TrainState.TrainStateType = { Reverser: 0, Notch: 1, Rail: 2, Door: 4, Light: 5, Pantograph: 6, ChunkLoader: 7, Destination: 8, Sound: 9, Interior: 11 };\n" +
                             "var RenderPass = {\n" +
                             "  NORMAL: { id: 0 },\n" +
                             "  TRANSPARENT: { id: 1 },\n" +
@@ -5620,7 +5920,9 @@ class TrainScriptSystem private constructor() {
                             "  OUTLINE: { id: 3 },\n" +
                             "  PICK: { id: 4 }\n" +
                             "};\n" +
-                            "var TessellatorCompat = { instance: { startDrawingQuads: function() { renderer.tessellatorStart(); }, addVertex: function(x, y, z) { renderer.tessellatorAddVertex(x, y, z); }, addVertexWithUV: function(x, y, z, u, v) { renderer.tessellatorAddVertexWithUV(x, y, z, u, v); }, setColorRGBA_F: function(r, g, b, a) { renderer.tessellatorSetColor(r, g, b, a); }, setColorRGBA: function(r, g, b, a) { renderer.tessellatorSetColor((r || 0) / 255.0, (g || 0) / 255.0, (b || 0) / 255.0, (a || 0) / 255.0); }, setNormal: function(x, y, z) { renderer.tessellatorSetNormal(x, y, z); }, draw: function() { renderer.tessellatorDraw(); } } };\n" +
+                            "var TessellatorCompat = { instance: { startDrawingQuads: function() { renderer.tessellatorStart(); }, startDrawing: function(mode) { renderer.tessellatorStart(); }, addVertex: function(x, y, z) { renderer.tessellatorAddVertex(x, y, z); }, addVertexWithUV: function(x, y, z, u, v) { renderer.tessellatorAddVertexWithUV(x, y, z, u, v); }, setColorRGBA_F: function(r, g, b, a) { renderer.tessellatorSetColor(r, g, b, a); }, setColorRGBA: function(r, g, b, a) { renderer.tessellatorSetColor((r || 0) / 255.0, (g || 0) / 255.0, (b || 0) / 255.0, (a || 0) / 255.0); }, setColorOpaque_F: function(r, g, b) { renderer.tessellatorSetColor(r, g, b, 1.0); }, setColorOpaque: function(r, g, b) { renderer.tessellatorSetColor((r || 0) / 255.0, (g || 0) / 255.0, (b || 0) / 255.0, 1.0); }, setNormal: function(x, y, z) { renderer.tessellatorSetNormal(x, y, z); }, draw: function() { renderer.tessellatorDraw(); } }, getInstance: function() { return this.instance; } };\n" +
+                            "var NGTTessellator = TessellatorCompat;\n" +
+                            "var Tessellator = TessellatorCompat;\n" +
                             "var GLHelper = { disableLighting: function() { renderer.disableLighting(); }, enableLighting: function() { renderer.enableLighting(); }, setBrightness: function(v) { renderer.setBrightness(v); }, setLightmapMaxBrightness: function() { renderer.setLightmapMaxBrightness(); }, preMoveTexUV: function(u, v) { renderer.setUvOffset(u, v); }, postMoveTexUV: function() { renderer.clearUvOffset(); } };\n" +
                             "var NGTMath = {\n" +
                             "  toRadians: function(deg) { return deg * Math.PI / 180; },\n" +
@@ -5662,6 +5964,7 @@ class TrainScriptSystem private constructor() {
                             "try { Packages.jp['" + oldRoot + "']['" + oldLibRoot + "'].renderer[" + quoteJs(
                         oldTessellatorName
                     ) + "] = TessellatorCompat; } catch (e) {}\n" +
+                            "try { Packages.jp.legacy.legacylib.renderer.NGTTessellator = TessellatorCompat; } catch (e) {}\n" +
                             "try { Packages.jp['" + oldRoot + "']['" + oldVehicleRoot + "'].modelpack.ModelPackManager = ModelPackManager; } catch (e) {}\n" +
                             "try { Packages.jp['" + oldRoot + "']['" + oldLibRoot + "'].renderer.GLHelper = GLHelper; } catch (e) {}\n" +
                             "try { renderer.renderer = renderer; } catch (e) {}\n" +
@@ -6078,13 +6381,14 @@ class TrainScriptSystem private constructor() {
         }
 
         @JvmStatic
-        fun invokeScriptTick(scriptEngine: ScriptEngine?, entity: Any?) {
+        fun invokeScriptTick(scriptEngine: ScriptEngine?, entity: Any?, soundScript: Boolean = false) {
             if (scriptEngine == null || isScriptDisabled(scriptEngine)) return
             val compat = if (entity is TrainEntity) LegacyScriptExecutor(entity) else null
+            val soundBridge = LegacySoundBridge(compat)
             try {
                 scriptEngine.put("executer", compat)
                 scriptEngine.put("executor", compat)
-                scriptEngine.put("__RTMU_SoundBridge__", LegacySoundBridge(compat))
+                scriptEngine.put("__RTMU_SoundBridge__", soundBridge)
             } catch (ignored: Throwable) {
             }
             if (entity is TrainEntity) {
@@ -6109,6 +6413,20 @@ class TrainScriptSystem private constructor() {
             }
             if (scriptEngine is Invocable) {
                 try {
+                    scriptEngine.invokeFunction("updateSoundMaker", soundBridge)
+                } catch (ignored: NoSuchMethodException) {
+                } catch (e: ScriptException) {
+                    disableBrokenScript(scriptEngine, "updateSoundMaker(soundUpdater)", e)
+                    return
+                }
+                try {
+                    scriptEngine.invokeFunction("updateSoundEffects", soundBridge)
+                } catch (ignored: NoSuchMethodException) {
+                } catch (e: ScriptException) {
+                    disableBrokenScript(scriptEngine, "updateSoundEffects(soundUpdater)", e)
+                    return
+                }
+                try {
                     scriptEngine.invokeFunction("tick", entity)
                     return
                 } catch (ignored: NoSuchMethodException) {
@@ -6128,7 +6446,7 @@ class TrainScriptSystem private constructor() {
                 }
                 if (compat != null) {
                     try {
-                        scriptEngine.invokeFunction("onUpdate", compat)
+                        scriptEngine.invokeFunction("onUpdate", if (soundScript) soundBridge else compat)
                         return
                     } catch (ignored: NoSuchMethodException) {
                         // no one-argument compat onUpdate
@@ -6159,11 +6477,12 @@ class TrainScriptSystem private constructor() {
             try {
                 scriptEngine.put("__ptTickEntity", entity)
                 scriptEngine.put("__ptCompat", compat)
+                scriptEngine.put("__ptOnUpdateCompat", if (soundScript) soundBridge else compat)
                 scriptEngine.eval(
                     "if (typeof tick === 'function') tick(__ptTickEntity);" +
                             " else if (typeof onUpdate === 'function') {" +
-                            "   if (__ptCompat != null) {" +
-                            "     try { onUpdate(__ptCompat); } catch (e1) {" +
+                            "   if (__ptOnUpdateCompat != null) {" +
+                            "     try { onUpdate(__ptOnUpdateCompat); } catch (e1) {" +
                             "       try { onUpdate(__ptTickEntity, __ptCompat); } catch (e2) { onUpdate(__ptTickEntity); }" +
                             "     }" +
                             "   } else { onUpdate(__ptTickEntity); }" +

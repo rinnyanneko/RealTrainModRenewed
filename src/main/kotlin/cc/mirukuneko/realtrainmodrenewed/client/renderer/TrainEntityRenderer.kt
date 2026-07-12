@@ -173,14 +173,12 @@ open class TrainEntityRenderer(context: EntityRendererProvider.Context) :
             }
             val doorTransform = object : MqoModelLoader.GroupTransform {
                 override fun apply(stack: PoseStack, groupName: String?) {
-                    applyRunningGearTransform(stack, entity, definition, model, groupName, renderYaw, partialTicks)
                     applyDoorTransform(stack, definition.leftDoors, groupName, entity.doorMoveL, true)
                     applyDoorTransform(stack, definition.rightDoors, groupName, entity.doorMoveR, false)
                 }
 
                 override fun mayModify(groupName: String?): Boolean {
                     if (groupName == null || groupName.length < 4) return false
-                    if (isRunningGearGroup(groupName)) return true
                     var i = 0
                     val end = groupName.length - 4
                     while (i <= end) {
@@ -214,6 +212,26 @@ open class TrainEntityRenderer(context: EntityRendererProvider.Context) :
                 RealTrainModRenewed.LOGGER.info("[Render] all groups: {}", allGroups)
             }
             MqoModelLoader.renderModel(model, poseStack, buffer, trainPackedLight, groupFilter, doorTransform, entity)
+            if (!modelScriptRunning && model.hasLegacyLightTextures()) {
+                val lightMode = entity.lightMode
+                MqoModelLoader.renderLegacyLightLayer(
+                    model, poseStack, buffer, trainPackedLight, 0, false, groupFilter, doorTransform, entity,
+                )
+                if (lightMode > 0) {
+                    val directionalLightIndex = if (entity.reverser < 0) 2 else 1
+                    MqoModelLoader.renderLegacyLightLayer(
+                        model,
+                        poseStack,
+                        buffer,
+                        trainPackedLight,
+                        directionalLightIndex,
+                        true,
+                        groupFilter,
+                        doorTransform,
+                        entity,
+                    )
+                }
+            }
             try {
                 renderBogiesInline(entity, definition, model, poseStack, buffer, trainPackedLight, partialTicks)
             } catch (throwable: Throwable) {
@@ -683,7 +701,7 @@ open class TrainEntityRenderer(context: EntityRendererProvider.Context) :
             if (BogieRenderer.isDummyBogieModel(bogieDef.modelFile())) {
                 return true
             }
-            return selfDrawsRunningGear && bogieDef.modelFile().lowercase(Locale.ROOT).endsWith(".class")
+            return selfDrawsRunningGear && bogieDef.modelFile().endsWith(".class", ignoreCase = true)
         }
 
         private fun shouldUseCompatibilityRendering(definition: VehicleDefinition?, model: MqoModelLoader.MqoModel?): Boolean {
@@ -755,7 +773,11 @@ open class TrainEntityRenderer(context: EntityRendererProvider.Context) :
                     renderLightGlow(consumer, matrix, normalMatrix, light, true, billRight, billUp)
                 }
             }
-            if (!definition.hasScript() && definition.headLights.isEmpty() && definition.tailLights.isEmpty()) {
+            if (!definition.hasScript() &&
+                !model.hasLegacyLightTextures() &&
+                definition.headLights.isEmpty() &&
+                definition.tailLights.isEmpty()
+            ) {
                 renderLegacyFallbackLights(entity, consumer, matrix, normalMatrix, mode, billRight, billUp)
             }
         }

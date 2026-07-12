@@ -145,10 +145,25 @@ class Formation(@JvmField var id: String, size: Int) {
     fun updateTrainMovement() {
         val frontTrain = getFront()?.train ?: return
         speed = frontTrain.speed
-        for (entry in entries) {
-            val train = entry?.train ?: continue
-            if (train !== frontTrain) {
-                train.speed = speed
+        if (direction == 0) {
+            var leader = entries.firstOrNull()?.train ?: return
+            for (index in 1 until entries.size) {
+                val entry = entries[index] ?: continue
+                entry.train.moveAsFormationFollower(leader, entry.leaderSide, entry.followerSide, speed)
+                leader = entry.train
+            }
+        } else {
+            var leader = entries.lastOrNull()?.train ?: return
+            for (index in entries.lastIndex - 1 downTo 0) {
+                val follower = entries[index]?.train ?: continue
+                val connection = entries[index + 1] ?: continue
+                follower.moveAsFormationFollower(
+                    leader,
+                    connection.followerSide,
+                    connection.leaderSide,
+                    speed
+                )
+                leader = follower
             }
         }
     }

@@ -5,6 +5,7 @@ package cc.mirukuneko.realtrainmodrenewed.client.screen
 import cc.mirukuneko.realtrainmodrenewed.RealTrainModRenewed
 import cc.mirukuneko.realtrainmodrenewed.RealTrainModRenewedItems
 import cc.mirukuneko.realtrainmodrenewed.client.ClientNetworkHelper
+import cc.mirukuneko.realtrainmodrenewed.client.TrainControlKeyMappings
 import cc.mirukuneko.realtrainmodrenewed.client.sound.LegacyScriptSoundManager
 import cc.mirukuneko.realtrainmodrenewed.entity.TrainEntity
 import cc.mirukuneko.realtrainmodrenewed.network.TrainControlPayload
@@ -14,12 +15,14 @@ import net.minecraft.client.gui.GuiGraphicsExtractor
 import net.minecraft.client.gui.components.Button
 import net.minecraft.client.gui.components.Renderable
 import net.minecraft.client.gui.screens.Screen
+import net.minecraft.client.input.KeyEvent
 import net.minecraft.client.input.MouseButtonEvent
 import net.minecraft.client.renderer.RenderPipelines
 import net.minecraft.network.chat.Component
 import net.minecraft.resources.Identifier
 import net.minecraft.world.item.ItemStack
 import net.minecraft.world.level.block.Blocks
+import org.lwjgl.glfw.GLFW
 import kotlin.math.max
 import kotlin.math.min
 
@@ -44,11 +47,16 @@ open class TrainControlScreen(private val train: TrainEntity) : Screen(Component
             addArrowButton(left + 4, top + 52, "<", "noop")
             addButton(left + 28, top + 52, 120, "チャンクロード", "noop", 0)
             addArrowButton(left + 152, top + 52, ">", "noop")
-            addArrowButton(left + 4, top + 76, "<", "prev_destination")
-            addButton(left + 28, top + 76, 120, destinationLabel(), "next_destination", 0)
-            addArrowButton(left + 152, top + 76, ">", "next_destination")
+            val directionSupported = supportsDirectionControl()
+            addArrowButton(left + 4, top + 76, "<", "prev_destination").active = directionSupported
+            addButton(left + 28, top + 76, 120, destinationLabel(), "next_destination", 0).active = directionSupported
+            addArrowButton(left + 152, top + 76, ">", "next_destination").active = directionSupported
             addArrowButton(left + 4, top + 100, "<", "prev_sound")
-            addButton(left + 28, top + 100, 120, "アナウンス ${train.soundIndex + 1}", "next_sound", 0)
+            val announcementName = VehicleRegistry.getById(train.vehicleId)?.announcementNames
+                ?.getOrNull(train.soundIndex)
+                ?.takeIf { it.isNotBlank() }
+                ?: "アナウンス ${train.soundIndex + 1}"
+            addButton(left + 28, top + 100, 120, announcementName, "next_sound", 0)
             addArrowButton(left + 152, top + 100, ">", "next_sound")
         } else if (selectedTab == ControlTab.FUNCTION) {
             val definition = VehicleRegistry.getById(train.vehicleId)
@@ -81,14 +89,14 @@ open class TrainControlScreen(private val train: TrainEntity) : Screen(Component
         return addRenderableWidget(button)
     }
 
-    private fun addArrowButton(x: Int, y: Int, label: String, action: String) {
+    private fun addArrowButton(x: Int, y: Int, label: String, action: String): Button {
         val button = Button.builder(Component.literal(label)) { send(action, 0) }
             .bounds(x, y, 20, 20)
             .build()
         if (action == "noop") {
             button.active = false
         }
-        addRenderableWidget(button)
+        return addRenderableWidget(button)
     }
 
     private fun addDoorButton(x: Int, y: Int, leftDoor: Boolean) {
@@ -179,10 +187,19 @@ open class TrainControlScreen(private val train: TrainEntity) : Screen(Component
         if (train.isPantographUp) "パンタ 上" else "パンタ 下"
 
     private fun destinationLabel(): String {
+        if (!supportsDirectionControl()) return "方向幕 非対応"
         val rollsignNames = train.resourceState.resourceSet.config.rollsignNames ?: emptyArray()
         val count = max(1, rollsignNames.size)
         val name = if (rollsignNames.isEmpty()) "なし" else rollsignNames[Math.floorMod(train.destinationIndex, count)]
         return "方向幕 $name"
+    }
+
+    private fun supportsDirectionControl(): Boolean {
+        val definition = VehicleRegistry.getById(train.vehicleId) ?: return false
+        if (definition.hasScript() || train.scriptEngine != null) return true
+        return definition.rollsignNames.isNotEmpty() &&
+            definition.rollsignTexture.isNotBlank() &&
+            definition.rollsigns.isNotEmpty()
     }
 
     private fun send(action: String, value: Int) {
@@ -256,6 +273,24 @@ open class TrainControlScreen(private val train: TrainEntity) : Screen(Component
             }
         }
         return super.mouseClicked(event, doubleClick)
+    }
+
+    override fun keyPressed(event: KeyEvent): Boolean {
+        val minecraft = minecraft
+        if (event.key() == GLFW.GLFW_KEY_ESCAPE ||
+            minecraft.options.keyInventory.matches(event) ||
+            TrainControlKeyMappings.OPEN_CONTROL.matches(event)
+        ) {
+            closeFromKey()
+            return true
+        }
+        return super.keyPressed(event)
+    }
+
+    private fun closeFromKey() {
+        while (TrainControlKeyMappings.OPEN_CONTROL.consumeClick()) {
+        }
+        onClose()
     }
 
     private fun tabAt(mouseX: Double, mouseY: Double): ControlTab? {

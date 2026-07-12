@@ -2,6 +2,7 @@
 // Copyright © 2026 mirukuneko and RealTrainModRenewed contributors
 package cc.mirukuneko.realtrainmodrenewed.client.model
 
+import cc.mirukuneko.realtrainmodrenewed.client.render.VertexWriter
 import cc.mirukuneko.realtrainmodrenewed.BundledPackStore.getModJarPath
 import cc.mirukuneko.realtrainmodrenewed.Config
 import cc.mirukuneko.realtrainmodrenewed.RealTrainModRenewed
@@ -252,6 +253,24 @@ object MqoModelLoader {
     @Volatile
     private var shaderPipelineCacheValue = false
     private val MISSING_RESOURCE = ResourceSearchResult(null, null, "__missing__")
+
+    /** Invalidates path-based model and script data before add-on packs are rescanned. */
+    @JvmStatic
+    fun clearPackCaches() {
+        synchronized(MODEL_CACHE_LOCK) {
+            MODEL_CACHE.clear()
+            modelCacheBytes = 0L
+        }
+        FAILED_MODEL_KEYS.clear()
+        SOUND_SCRIPT_SOURCE_CACHE.clear()
+        TEXTURE_INFO_CACHE.clear()
+        SCRIPT_TEXTURE_CACHE.clear()
+        RESOURCE_SEARCH_CACHE.clear()
+        MISSING_SCRIPT_WARNINGS.clear()
+        sharedPackCandidates = null
+        fallbackRailModel = null
+        fallbackRailAttempted = false
+    }
 
     private fun logModelLoadDetail(phase: String?, pattern: String?, vararg args: Any?) {
         RealTrainModRenewed.LOGGER.debug("[ModelLoad:{}] " + pattern, *MqoModelLoader.prependArg(phase, args))
@@ -1139,6 +1158,7 @@ object MqoModelLoader {
         val texCoords: MutableList<FloatArray> = ArrayList<FloatArray>()
         val normals: MutableList<Vector3f?> = ArrayList<Vector3f?>()
         val materialTextures: MutableMap<String, String> = HashMap<String, String>()
+        val materialAlphas: MutableMap<String, Float> = HashMap<String, Float>()
         val byGroup: MutableMap<String?, BatchBuilder> = LinkedHashMap<String?, BatchBuilder>()
         var currentGroup = "default"
         var currentMaterial = "default"
@@ -1149,7 +1169,9 @@ object MqoModelLoader {
                 continue
             }
             if (line.startsWith("mtllib ")) {
-                materialTextures.putAll(loadObjMaterialLibrary(line.substring(7).trim { it <= ' ' }, opener))
+                val library = loadObjMaterialLibrary(line.substring(7).trim { it <= ' ' }, opener)
+                materialTextures.putAll(library.textures)
+                materialAlphas.putAll(library.alphas)
                 continue
             }
             if (line.startsWith("o ") || line.startsWith("g ")) {
@@ -1215,18 +1237,31 @@ object MqoModelLoader {
             }
 
             val textureInfo = resolveObjTexture(currentMaterial, materialTextures, textureOverrides, opener)
+            val materialAlpha = materialAlphas[currentMaterial] ?: 1.0f
             val uvBounds = flattenUvs(faceVertices)
             var avgY = 0f
             for (fv in faceVertices) avgY += fv.position!!.y.toFloat()
             avgY /= faceVertices.size.toFloat()
-            val translucent = shouldTreatFaceAsTranslucent(textureInfo, currentGroup, uvBounds, faceVertices.size, avgY)
-            val materialId = currentMaterial.hashCode() and 0x7FFFFFFF
+            val materialLower = currentMaterial.lowercase()
+            val groupLower = currentGroup.lowercase()
+            val namedGlassMaterial = materialLower.contains("glass") || materialLower.contains("window")
+            val unnamedMaterial = materialLower.isBlank() || materialLower == "default"
+            val glassMaterial = namedGlassMaterial || unnamedMaterial &&
+                (groupLower.contains("glass") || groupLower.contains("window") || groupLower.contains("wind") ||
+                    groupLower == "alpha" || groupLower.startsWith("alpha_"))
+            val translucent = materialAlpha < 0.999f || glassMaterial ||
+                shouldTreatFaceAsTranslucent(textureInfo, currentGroup, uvBounds, faceVertices.size, avgY)
+            val materialId = if (currentMaterial.equals("light", ignoreCase = true)) {
+                2
+            } else {
+                currentMaterial.hashCode() and 0x7FFFFFFF
+            }
             val batchKey = currentGroup + "|" + currentMaterial + "|" + translucent
             val batchGroupName = currentGroup
             val bb = byGroup.computeIfAbsent(
                 batchKey
             ) { k: String? ->
-                BatchBuilder(
+                val builder = BatchBuilder(
                     byGroup.size,
                     batchGroupName,
                     textureInfo.location,
@@ -1235,6 +1270,13 @@ object MqoModelLoader {
                     translucent,
                     60.0f
                 )
+                builder.baseAlpha = materialAlpha
+                builder.glassTranslucent = materialAlpha < 0.999f || glassMaterial || textureInfo.hasGlassBand
+                builder.explicitGlassOnly = glassMaterial
+                builder.opaqueTexture = textureInfo.opaqueLocation
+                builder.windowTexture =
+                    if (materialAlpha < 0.999f || glassMaterial) textureInfo.location else textureInfo.windowLocation
+                builder
             }
 
             if (faceVertices.size == 4) {
@@ -1450,17 +1492,24 @@ object MqoModelLoader {
         return TEXTURE_INFO_CACHE.computeIfAbsent(cacheKey) { k: String? -> registerTextureFromZip(binding, opener) }
     }
 
-    private fun loadObjMaterialLibrary(materialFile: String?, opener: TextureOpener): MutableMap<String, String> {
-        val materials: MutableMap<String, String> = HashMap<String, String>()
+    private data class ObjMaterialLibrary(
+        val textures: MutableMap<String, String> = HashMap(),
+        val alphas: MutableMap<String, Float> = HashMap(),
+    )
+
+    private fun loadObjMaterialLibrary(materialFile: String?, opener: TextureOpener): ObjMaterialLibrary {
+        val library = ObjMaterialLibrary()
         if (materialFile == null || materialFile.isBlank()) {
-            return materials
+            return library
         }
         try {
             opener.open(materialFile).use { input ->
                 if (input == null) {
-                    return materials
+                    return library
                 }
                 var current: String? = null
+                val diffuseTextures: MutableMap<String, String> = HashMap()
+                val alphaTextures: MutableMap<String, String> = HashMap()
                 for (raw in readText(input).split("\\R".toRegex()).dropLastWhile { it.isEmpty() }.toTypedArray()) {
                     val line = raw.trim { it <= ' ' }
                     if (line.isEmpty() || line.startsWith("#")) {
@@ -1474,17 +1523,30 @@ object MqoModelLoader {
                         continue
                     }
                     if (line.startsWith("map_Kd ")) {
-                        materials.put(current, line.substring(7).trim { it <= ' ' })
+                        diffuseTextures[current] = line.substring(7).trim { it <= ' ' }
                     } else if (line.startsWith("map_d ")) {
-                        materials.putIfAbsent(
-                            current,
-                            line.substring(6).trim { it <= ' ' } + TEXTURE_META_SEPARATOR + "alphablend")
+                        alphaTextures[current] = line.substring(6).trim { it <= ' ' }
+                    } else if (line.startsWith("d ")) {
+                        line.substring(2).trim().toFloatOrNull()?.let { library.alphas[current] = Mth.clamp(it, 0.0f, 1.0f) }
+                    } else if (line.startsWith("Tr ")) {
+                        line.substring(3).trim().toFloatOrNull()?.let {
+                            library.alphas[current] = 1.0f - Mth.clamp(it, 0.0f, 1.0f)
+                        }
+                    }
+                }
+                for (name in diffuseTextures.keys + alphaTextures.keys) {
+                    val path = diffuseTextures[name] ?: alphaTextures[name] ?: continue
+                    val alpha = library.alphas[name] ?: 1.0f
+                    library.textures[name] = if (alpha < 0.999f || alphaTextures.containsKey(name)) {
+                        path + TEXTURE_META_SEPARATOR + "alphablend"
+                    } else {
+                        path
                     }
                 }
             }
         } catch (ignored: Exception) {
         }
-        return materials
+        return library
     }
 
     private fun parseVertexLine(line: String): Vec3? {
@@ -1529,6 +1591,14 @@ object MqoModelLoader {
         val matAlpha: Float =
             (if ((matId.toInt() and 0xFF) < materialAlphas.size) materialAlphas.get(matId.toInt() and 0xFF) else 1.0f)!!
         val matKey = matId.toInt() and 0xFF
+        val materialName = if (matKey < materialOrder.size) materialOrder[matKey] else null
+        val lowerMaterialName = materialName?.lowercase() ?: ""
+        val lowerGroupName = groupName?.lowercase() ?: ""
+        val namedGlassMaterial = lowerMaterialName.contains("glass") || lowerMaterialName.contains("window")
+        val unnamedMaterial = lowerMaterialName.isBlank() || lowerMaterialName == "default"
+        val explicitGlass = namedGlassMaterial || unnamedMaterial &&
+                (lowerGroupName.contains("glass") || lowerGroupName.contains("window") ||
+                    lowerGroupName.contains("wind") || lowerGroupName == "alpha" || lowerGroupName.startsWith("alpha_"))
         val vi = matchGroup(V_PATTERN, line)
         val uv = matchGroup(UV_PATTERN, line)
         if (vi == null) return
@@ -1554,7 +1624,7 @@ object MqoModelLoader {
             return
         }
         // マテリアル col の a<1 = ガラス等の半透明。グループ名に依らず半透明描画し、その不透明度を適用する。
-        val translucent = matAlpha < 0.99f
+        val translucent = matAlpha < 0.99f || explicitGlass
                 || shouldTreatFaceAsTranslucent(textureInfo, groupName, uvs, vertexCount, avgY)
         val batchKey = groupName + "|" + matKey + "|" + translucent
         val batchOrder = byGroup.size
@@ -1570,9 +1640,10 @@ object MqoModelLoader {
                 facetAngle
             )
             b.baseAlpha = baseAlpha
-            b.glassTranslucent = textureInfo.hasGlassBand
+            b.glassTranslucent = explicitGlass || textureInfo.hasGlassBand
+            b.explicitGlassOnly = explicitGlass
             b.opaqueTexture = textureInfo.opaqueLocation
-            b.windowTexture = textureInfo.windowLocation
+            b.windowTexture = if (matAlpha < 0.999f || explicitGlass) textureInfo.location else textureInfo.windowLocation
             b
         }
 
@@ -2531,15 +2602,27 @@ object MqoModelLoader {
                             "dynamic/mqo/" + Integer.toHexString(key) + "_opq"
                         )
                         Minecraft.getInstance().getTextureManager().register(opaqueLoc, opaqueTex)
-                        windowLoc = loc
+                        val windowImg = if (glassBand) copyStainedGlassAlpha(img) else copyNonOpaqueAlpha(img)
+                        val windowTex = newDynamicTexture("mqo translucent", windowImg)
+                        windowLoc = Identifier.fromNamespaceAndPath(
+                            RealTrainModRenewed.MODID,
+                            "dynamic/mqo/" + Integer.toHexString(key) + "_trans"
+                        )
+                        Minecraft.getInstance().getTextureManager().register(windowLoc, windowTex)
                     }
                     // 発光(Light)テクスチャの emissive 解決はサブライトテクスチャ(_light0 等)があるときのみ。
                     // ※以前「サブが無ければ元テクスチャを emissive にする」フォールバックを入れたが、Spacia/E259 等の
                     //   AlphaBlend,Light 車体や Light グループが発光パスで二重描画され、チカチカ/急行灯増殖/車体白化を
                     //   起こしたため撤去。踏切ライトの発光は別の安全な手段で対応する。
+                    var lightTextures = resolveLegacyLightTextures(binding, opener)
+                    if (lightTextures.isEmpty() && binding.options.contains("light") &&
+                        !alphaBlendOption && isDedicatedLightTexture(binding.path)
+                    ) {
+                        lightTextures = arrayOf(baseLoc)
+                    }
                     return TextureInfo(
                         baseLoc,
-                        resolveLegacyLightTextures(binding, opener),
+                        lightTextures,
                         alphaBlendOption || partialAlpha || glassBand,
                         partialAlpha,
                         glassBand,
@@ -2561,17 +2644,24 @@ object MqoModelLoader {
         }
         val explicitPaths = binding.lightTexturePaths
         val count = max(3, explicitPaths.size)
-        val found: MutableList<Identifier?> = ArrayList<Identifier?>()
+        val found: MutableList<Identifier?> = MutableList(count) { null }
         for (i in 0..<count) {
             val candidate =
                 if (i < explicitPaths.size) explicitPaths.get(i) else deriveLegacyLightTexturePath(binding.path, i)
             if (candidate == null || candidate.isBlank()) continue
             val loaded = tryLoadOptionalTexture(candidate, opener, binding.cacheKey() + "#light" + i)
             if (loaded != null) {
-                found.add(loaded)
+                found[i] = loaded
             }
         }
         return found.toTypedArray<Identifier?>()
+    }
+
+    private fun isDedicatedLightTexture(path: String?): Boolean {
+        if (path.isNullOrBlank()) return false
+        val leaf = path.replace('\\', '/').substringAfterLast('/').lowercase(Locale.ROOT)
+        return leaf.contains("light") || leaf.contains("lamp") ||
+            leaf.contains("glow") || leaf.contains("emissive")
     }
 
     private fun deriveLegacyLightTexturePath(basePath: String?, index: Int): String {
@@ -3182,6 +3272,31 @@ object MqoModelLoader {
         )
     }
 
+    @JvmStatic
+    fun renderLegacyLightLayer(
+        model: MqoModel?,
+        poseStack: PoseStack,
+        buffer: MultiBufferSource,
+        packedLight: Int,
+        lightTextureIndex: Int,
+        fullbright: Boolean,
+        groupFilter: GroupPredicate?,
+        groupTransform: GroupTransform?,
+        entity: Any?,
+    ) {
+        model?.renderLegacyLightLayer(
+            poseStack,
+            buffer,
+            packedLight,
+            OverlayTexture.NO_OVERLAY,
+            lightTextureIndex,
+            fullbright,
+            groupFilter,
+            groupTransform,
+            entity,
+        )
+    }
+
     @JvmRecord
     private data class ResourceSearchResult(val packPath: Path?, val filePath: Path?, val zipEntryName: String?)
 
@@ -3396,6 +3511,9 @@ object MqoModelLoader {
         /** テクスチャが明確なガラス帯を持つ=本当の半透明。強制カットアウトを免除する。  */
         var glassTranslucent: Boolean = false
 
+        /** 材質またはグループ自体がガラス。RTM の不透明 pass では描画しない。 */
+        var explicitGlassOnly: Boolean = false
+
         /** RTM pass0(不透明描画)用のアルファテスト相当テクスチャ。  */
         var opaqueTexture: Identifier? = null
 
@@ -3469,6 +3587,7 @@ object MqoModelLoader {
             )
             built.baseAlpha = baseAlpha
             built.glassTranslucent = glassTranslucent
+            built.explicitGlassOnly = explicitGlassOnly
             built.opaqueTexture = if (opaqueTexture != null) opaqueTexture else texture
             built.windowTexture = if (windowTexture != null) windowTexture else texture
             return built
@@ -3832,7 +3951,7 @@ object MqoModelLoader {
 
         fun hasOpaqueBatches(): Boolean {
             for (batch in batches) {
-                if (!batch!!.translucent) {
+                if (!batch!!.explicitGlassOnly) {
                     return true
                 }
             }
@@ -3864,7 +3983,7 @@ object MqoModelLoader {
 
         fun hasLegacyLightTextures(): Boolean {
             for (batch in batches) {
-                if (batch!!.emissiveTextures.size > 0) {
+                if (batch!!.emissiveTextures.any { it != null }) {
                     return true
                 }
             }
@@ -3942,24 +4061,24 @@ object MqoModelLoader {
             try {
                 if (scriptRenderer != null) {
                     scriptRenderer!!.setRenderContext(poseStack, buffer, packedLight, overlay, pass, entity)
+                    val lightBatch = batches.firstOrNull { it?.materialId == 2 }
+                    if (lightBatch != null) {
+                        scriptRenderer!!.setLegacyMaterialContext(lightBatch.materialId, lightBatch.texture)
+                    }
                 }
                 // RTM スクリプトは model.renderPart("...") で部品を描画する。
                 // ScriptModel が現在の renderer を知らないと描画できないため、毎フレーム差し替える。
                 if (scriptModel != null && scriptRenderer != null) {
                     scriptModel.setActiveRenderer(scriptRenderer)
                 }
-                val allowReplay = entity !is TrainEntity
-                if (scriptRenderer != null && allowReplay) {
-                    val sig = scriptRenderer!!.computeReplaySignature(pass, entity)
-                    if (sig != 0L) {
-                        if (scriptRenderer!!.tryReplayCachedScript(sig)) {
-                            // replay 成功 - JS engine を 1 度も呼ばずに描画完了
-                            noteLegacyPassActivity(pass, true)
-                            return true
-                        }
-                        // miss: 録画開始してから JS を走らせる
-                        scriptRenderer!!.beginRecording(sig)
+                if (scriptRenderer != null) {
+                    if (scriptRenderer!!.tryReplayCachedScript(pass, entity)) {
+                        // replay 成功 - JS engine を 1 度も呼ばずに描画完了
+                        noteLegacyPassActivity(pass, true)
+                        return true
                     }
+                    // miss: 録画開始してから JS を走らせる
+                    scriptRenderer!!.beginRecording(pass, entity)
                 }
                 if (scriptEngine is ScriptEngine) {
                     val renderedBatchesBefore =
@@ -4097,7 +4216,7 @@ object MqoModelLoader {
             translucent: kotlin.Boolean,
             scriptRenderer: TrainScriptSystem.ScriptModelRenderer?,
             entity: Any?,
-            fullbright: kotlin.Boolean
+            fullbright: kotlin.Boolean,
         ) {
             renderSelectedBatches(
                 selectedBatches,
@@ -4110,7 +4229,7 @@ object MqoModelLoader {
                 null,
                 scriptRenderer,
                 entity,
-                fullbright
+                fullbright,
             )
         }
 
@@ -4125,7 +4244,9 @@ object MqoModelLoader {
             groupTransform: GroupTransform?,
             scriptRenderer: TrainScriptSystem.ScriptModelRenderer?,
             entity: Any?,
-            fullbright: kotlin.Boolean
+            fullbright: kotlin.Boolean,
+            legacyLightTextureIndex: Int? = null,
+            legacyLightFullbright: Boolean = true,
         ) {
             // シェーダー(Iris/Oculus)有効時は、フラットな直接GL経路ではなく法線付きの
             // バッファ経路で描画する。直接GL経路は頂点法線スムージングが効かず、影modで
@@ -4159,10 +4280,14 @@ object MqoModelLoader {
                 if (shouldSuppressPackSpecificShadowArtifact(entity, batch!!.groupNameLower)) {
                     continue
                 }
-                val scriptPassNow = if (scriptRenderer != null) scriptRenderer.currentPass else 0
+                val scriptPassNow = legacyLightTextureIndex?.plus(2)
+                    ?: if (scriptRenderer != null) scriptRenderer.currentPass else 0
+                if (!translucent && batch.baseAlpha < 0.999f && scriptPassNow < 2) continue
+                if (!translucent && batch.explicitGlassOnly && scriptPassNow < 2) continue
                 if (translucent && !batch.translucent && scriptPassNow < 2) continue
                 if (scriptRenderer != null) {
                     scriptRenderer.currentMatId = batch.materialId
+                    scriptRenderer.currentBatchTexture = batch.texture
                     scriptRenderer.onBatchRendered()
                 }
                 val willTransform = groupTransform != null && groupTransform.mayModify(batch.groupName)
@@ -4174,10 +4299,13 @@ object MqoModelLoader {
                         groupTransform.apply(poseStack, batch.groupName)
                     }
 
-                    val scriptPass = if (scriptRenderer != null) scriptRenderer.currentPass else 0
+                    val scriptPass = legacyLightTextureIndex?.plus(2)
+                        ?: if (scriptRenderer != null) scriptRenderer.currentPass else 0
                     val scriptTexture = scriptRenderer != null && scriptRenderer.boundTexture != null
                     val emissiveTexture =
                         if (!scriptTexture && scriptPass >= 2) batch.emissiveTextureForPass(scriptPass) else null
+                    val emissiveBatchFullbright = emissiveTexture != null &&
+                        (legacyLightTextureIndex == null || legacyLightFullbright)
                     val legacyPlainFullbright = scriptPass >= 2 && isLegacyPlainFullbrightGroup(batch.groupNameLower)
                     if (scriptPass >= 2 && !scriptTexture && emissiveTexture == null && !legacyPlainFullbright) {
                         continue
@@ -4238,6 +4366,11 @@ object MqoModelLoader {
                     val mat = pose.pose()
                     val norm = pose.normal()
                     val normalOut = FloatArray(3)
+                    val vertexLight = if (legacyPlainFullbright || emissiveBatchFullbright) {
+                        0x00F000F0
+                    } else {
+                        resolveVertexLight(entity, lowerGroupName, packedLight)
+                    }
                     for (i in 0..<batch.vertexCount) {
                         val o = i * 8
                         var x = batch.data!![o]
@@ -4262,11 +4395,11 @@ object MqoModelLoader {
                         val tny = norm.m01() * nx + norm.m11() * ny + norm.m21() * nz
                         val tnz = norm.m02() * nx + norm.m12() * ny + norm.m22() * nz
                         normalizeNormal(tnx, tny, tnz, normalOut)
-                        consumer.addVertex(mat, x, y, z)
+                        VertexWriter.addVertex(consumer, mat, x, y, z)
                             .setColor(scriptRed, scriptGreen, scriptBlue, scriptAlpha)
                             .setUv(u, v)
                             .setOverlay(overlay)
-                            .setLight(if (legacyPlainFullbright || emissiveTexture != null) 0x00F000F0 else packedLight)
+                            .setLight(vertexLight)
                             .setNormal(normalOut[0], normalOut[1], normalOut[2])
                     }
                 } finally {
@@ -4277,6 +4410,35 @@ object MqoModelLoader {
             }
 
             // (床下の蓋は撤去: ユーザー報告「床に敷いた影のように見えて邪魔」のため。)
+        }
+
+        fun renderLegacyLightLayer(
+            poseStack: PoseStack,
+            buffer: MultiBufferSource,
+            packedLight: Int,
+            overlay: Int,
+            lightTextureIndex: Int,
+            fullbright: Boolean,
+            groupFilter: GroupPredicate?,
+            groupTransform: GroupTransform?,
+            entity: Any?,
+        ) {
+            if (lightTextureIndex < 0 || !hasLegacyLightTextures()) return
+            renderSelectedBatches(
+                batches,
+                poseStack,
+                buffer,
+                packedLight,
+                overlay,
+                true,
+                groupFilter,
+                groupTransform,
+                null,
+                entity,
+                false,
+                lightTextureIndex,
+                fullbright,
+            )
         }
 
         fun renderPreferScript(
@@ -4517,7 +4679,7 @@ object MqoModelLoader {
                     val tny = norm.m01() * nx + norm.m11() * ny + norm.m21() * nz
                     val tnz = norm.m02() * nx + norm.m12() * ny + norm.m22() * nz
                     normalizeNormal(tnx, tny, tnz, normalized)
-                    consumer.addVertex(mat, vx, vy, vz)
+                    VertexWriter.addVertex(consumer, mat, vx, vy, vz)
                         .setColor(red, green, blue, alpha)
                         .setUv(batch.data[o + 6], batch.data[o + 7])
                         .setOverlay(overlay)
@@ -4566,7 +4728,7 @@ object MqoModelLoader {
                 vc: VertexConsumer, mat: Matrix4f, x: kotlin.Float, y: kotlin.Float, z: kotlin.Float,
                 gray: Int, packedLight: Int, overlay: Int, nx: kotlin.Float, ny: kotlin.Float, nz: kotlin.Float
             ) {
-                vc.addVertex(mat, x, y, z)
+                VertexWriter.addVertex(vc, mat, x, y, z)
                     .setColor(gray, gray, gray, 255)
                     .setUv(0.5f, 0.5f)
                     .setOverlay(overlay)
@@ -4601,7 +4763,48 @@ object MqoModelLoader {
             }
 
             private fun resolveVertexLight(entity: Any?, lowerGroupName: String?, packedLight: Int): Int {
+                if (entity is TrainEntity && lowerGroupName != null) {
+                    if (entity.isInteriorLightOn && isLegacyInteriorSurfaceGroup(lowerGroupName)) {
+                        return 0x00F000F0
+                    }
+                    if (isBakedDisplayEmissionGroup(lowerGroupName)) {
+                        return 0x00F000F0
+                    }
+                }
                 return packedLight
+            }
+
+            private fun isLegacyInteriorSurfaceGroup(groupName: String): Boolean {
+                return groupName.contains("interior") ||
+                    groupName.contains("inside") ||
+                    groupName.contains("roomlight") ||
+                    groupName.contains("room_light") ||
+                    groupName.contains("cabinlight") ||
+                    groupName.contains("cabin_light") ||
+                    groupName.contains("cab_") ||
+                    groupName.contains("fluorescent") ||
+                    groupName.contains("ceiling_light") ||
+                    groupName.contains("蛍光灯") ||
+                    groupName.contains("室内灯") ||
+                    groupName.contains("車内灯") ||
+                    groupName.startsWith("内装") ||
+                    groupName.contains("運転台") ||
+                    groupName.contains("乗務員") ||
+                    groupName.contains("天井") ||
+                    groupName.contains("網棚") ||
+                    groupName.contains("つり革") ||
+                    groupName.contains("トイレ") ||
+                    groupName == "isu"
+            }
+
+            private fun isBakedDisplayEmissionGroup(groupName: String): Boolean {
+                return groupName.contains("rollsign") ||
+                    groupName.contains("destination") ||
+                    groupName.contains("display") ||
+                    groupName.contains("案内表示器") ||
+                    groupName.contains("行先") ||
+                    groupName.contains("方向幕") ||
+                    groupName.contains("行路表")
             }
 
             /**
@@ -4700,6 +4903,8 @@ object MqoModelLoader {
                         || lowerGroupName.contains("_ceil")
                         || lowerGroupName.contains("led_box")
                         || lowerGroupName.contains("led")
+                        || lowerGroupName == "i_body"
+                        || lowerGroupName == "inner"
             }
 
             private fun shouldUseGlassOnlyPass(batch: Batch?, lowerGroupName: String?): kotlin.Boolean {
@@ -4972,6 +5177,9 @@ object MqoModelLoader {
 
         /** テクスチャが明確なガラス帯を持つ=本当の半透明。強制カットアウトを免除する。  */
         var glassTranslucent: kotlin.Boolean = false
+
+        /** 材質またはグループ自体がガラス。RTM の不透明 pass では描画しない。 */
+        var explicitGlassOnly: kotlin.Boolean = false
 
         /** RTM pass0(不透明描画)用のアルファテスト相当テクスチャ。  */
         var opaqueTexture: Identifier? = null

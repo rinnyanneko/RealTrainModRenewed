@@ -151,27 +151,25 @@ tasks.named('jar', Jar).configure {
     }
 }
 
-tasks.register('compileJsEngineVerifier', JavaCompile) {
-    source = fileTree('tools/verify-js-engine') {
-        include 'VerifyJsEngine.java'
+sourceSets {
+    jsEngineVerifier {
+        kotlin {
+            srcDir 'tools/verify-js-engine'
+        }
     }
-    destinationDirectory = layout.buildDirectory.dir('js-engine-verifier/classes')
-    classpath = files()
-    options.release = 17
-    options.encoding = 'UTF-8'
 }
 
 def builtModJar = tasks.named('jar').flatMap { it.archiveFile }
 
 tasks.register('verifyBundledJsEngine', JavaExec) {
-    dependsOn tasks.named('jar'), tasks.named('compileJsEngineVerifier')
+    dependsOn tasks.named('jar'), tasks.named('compileJsEngineVerifierKotlin')
     group = 'verification'
     description = 'Verifies the built jar still exposes a working bundled GraalJS script engine.'
     classpath = files(
-        tasks.named('compileJsEngineVerifier').flatMap { it.destinationDirectory },
+        sourceSets.jsEngineVerifier.output,
         builtModJar
     )
-    mainClass = 'VerifyJsEngine'
+    mainClass = 'VerifyJsEngineKt'
     jvmArgs '-Dpolyglot.engine.WarnInterpreterOnly=false'
     doFirst {
         args = [builtModJar.get().asFile.absolutePath]

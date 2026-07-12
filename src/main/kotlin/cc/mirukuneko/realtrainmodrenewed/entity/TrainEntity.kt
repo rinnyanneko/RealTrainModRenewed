@@ -12,6 +12,7 @@ import cc.mirukuneko.realtrainmodrenewed.blockentity.LargeRailCoreBlockEntity
 import cc.mirukuneko.realtrainmodrenewed.blockentity.RailCollisionBlockEntity
 import cc.mirukuneko.realtrainmodrenewed.client.model.MqoModelLoader.loadServerScriptForVehicle
 import cc.mirukuneko.realtrainmodrenewed.client.model.MqoModelLoader.loadSoundScriptForVehicle
+import cc.mirukuneko.realtrainmodrenewed.client.sound.LegacyScriptSoundManager
 import cc.mirukuneko.realtrainmodrenewed.client.sound.LegacyScriptSoundManager.tickJsonRunningSound
 import cc.mirukuneko.realtrainmodrenewed.entity.formation.Formation
 import cc.mirukuneko.realtrainmodrenewed.entity.formation.FormationEntry
@@ -106,12 +107,7 @@ class TrainEntity(type: EntityType<*>, level: Level) : Entity(type, level) {
     // 直前値を維持し、台車が一瞬剛体位置へ戻って「外れて見える」のを防ぐ。
     private var activeDriverUuid: UUID? = null
     private var activeDriverTicks = 0
-    private var clientLerpSteps = 0
-    private var clientLerpX = 0.0
-    private var clientLerpY = 0.0
-    private var clientLerpZ = 0.0
-    private var clientLerpYRot = 0.0
-    private var clientLerpXRot = 0.0
+    private val interpolationHandler = InterpolationHandler(this, 3)
 
     // クライアント: 同期された端台車オフセット(エンティティ相対)の前tick/現tick値。
     // tick段付きを無くすため、描画時に partialTicks で補間する(本家RTMの台車補間に相当)。
@@ -406,17 +402,52 @@ class TrainEntity(type: EntityType<*>, level: Level) : Entity(type, level) {
     }
 
     fun toggleDoorSideForFormation(left: Boolean) {
-        val next = if (left) !this.isDoorLeftOpen else !this.isDoorRightOpen
+        toggleDoorSideForFormation(left, this)
+    }
+
+    fun toggleDoorSideForFormation(left: Boolean, referenceTrain: TrainEntity?) {
+        val reference = referenceTrain ?: this
+        val next = !isDoorSideOpenForFormation(left, reference)
         if (level().isClientSide()) {
-            if (left) this.isDoorLeftOpen = next
-            else this.isDoorRightOpen = next
+            setDoorSideOpenFromReference(left, next, reference)
             return
         }
         forEachFormationTrain(Consumer { train: TrainEntity? ->
-            if (left) train!!.isDoorLeftOpen =
-                next
-            else train!!.isDoorRightOpen = next
+            train?.setDoorSideOpenFromReference(left, next, reference)
         })
+    }
+
+    fun isDoorSideOpenForFormation(left: Boolean, referenceTrain: TrainEntity?): Boolean {
+        val reference = referenceTrain ?: this
+        return if (isOppositeFormationDirection(reference)) {
+            if (left) this.isDoorRightOpen else this.isDoorLeftOpen
+        } else {
+            if (left) this.isDoorLeftOpen else this.isDoorRightOpen
+        }
+    }
+
+    private fun setDoorSideOpenFromReference(left: Boolean, value: Boolean, referenceTrain: TrainEntity) {
+        val targetLeft = if (isOppositeFormationDirection(referenceTrain)) !left else left
+        if (targetLeft) {
+            this.isDoorLeftOpen = value
+        } else {
+            this.isDoorRightOpen = value
+        }
+    }
+
+    private fun isOppositeFormationDirection(referenceTrain: TrainEntity): Boolean {
+        val thisDir = formationEntryDirection(this)
+        val referenceDir = formationEntryDirection(referenceTrain)
+        return thisDir != referenceDir
+    }
+
+    private fun formationEntryDirection(train: TrainEntity?): Int {
+        if (train == null) {
+            return 0
+        }
+        val currentFormation = train.formation ?: return 0
+        val entry = currentFormation.getEntry(train) ?: return 0
+        return if (entry.dir != 0) 1 else 0
     }
 
     var isPantographUp: Boolean
@@ -714,11 +745,17 @@ class TrainEntity(type: EntityType<*>, level: Level) : Entity(type, level) {
             }
         }
         val runScriptTick = !level().isClientSide() || shouldRunClientVisualScriptThisTick()
-        if (level().isClientSide() && soundScriptEngine != null) {
-            TrainScriptSystem.invokeScriptTick(soundScriptEngine, this)
+        if (level().isClientSide() && soundScriptEngine != null &&
+            !TrainScriptSystem.isLegacyScriptDisabled(soundScriptEngine)
+        ) {
+            TrainScriptSystem.invokeScriptTick(soundScriptEngine, this, true)
             TrainScriptSystem.invokeScriptUpdate(soundScriptEngine, this, 1.0f)
         } else {
             if (level().isClientSide()) {
+                if (soundScriptEngine != null) {
+                    LegacyScriptSoundManager.stopAll(this)
+                    setSoundScriptEngine(null)
+                }
                 tickJsonRunningSound(this)
             }
             // 音は毎tick更新するが、重い描画スクリプトは既存の間引き設定を尊重する。
@@ -728,16 +765,8 @@ class TrainEntity(type: EntityType<*>, level: Level) : Entity(type, level) {
         }
 
         if (level().isClientSide()) {
-            if (clientLerpSteps > 0) {
-                lerpPositionAndRotationStep(
-                    clientLerpSteps,
-                    clientLerpX,
-                    clientLerpY,
-                    clientLerpZ,
-                    clientLerpYRot,
-                    clientLerpXRot
-                )
-                clientLerpSteps--
+            if (interpolationHandler.hasActiveInterpolation()) {
+                interpolationHandler.interpolate()
             } else {
                 reapplyPosition()
                 setRot(getYRot(), getXRot())
@@ -763,13 +792,6 @@ class TrainEntity(type: EntityType<*>, level: Level) : Entity(type, level) {
             )
         }
 
-        val movingEnoughToMissInteractionHitboxes = abs(this.speed) > 0.02f
-        if (movingEnoughToMissInteractionHitboxes || interactionHitboxRefreshCooldown-- <= 0) {
-            ensureBogieHitboxes()
-            ensureSeatHitboxes()
-            interactionHitboxRefreshCooldown = if (movingEnoughToMissInteractionHitboxes) 0 else 20
-        }
-
         if (!level().isClientSide()) {
             pruneSeatAssignments()
             for (passenger in getPassengers().toList()) {
@@ -786,6 +808,7 @@ class TrainEntity(type: EntityType<*>, level: Level) : Entity(type, level) {
             if (!level().isClientSide() && formation == null && coupledLeaderUuid == null) {
                 rebuildFormationFromUuidChain()
             }
+            refreshFormationDirectionFromActiveDriver()
             val isFormationFollower = (formation != null && !formation!!.isFrontCar(this))
                     || (formation == null && coupledLeaderUuid != null)
             if (isFormationFollower) {
@@ -796,6 +819,7 @@ class TrainEntity(type: EntityType<*>, level: Level) : Entity(type, level) {
                 // (アンカーは編成側 formation.updateTrainMovement が設定済み。)
                 // これをしないと後続車の台車がクライアントで剛体描画になりカーブでズレる。
                 syncBogieRenderOffsets()
+                refreshInteractionHitboxes(force = true)
                 return
             }
 
@@ -832,8 +856,7 @@ class TrainEntity(type: EntityType<*>, level: Level) : Entity(type, level) {
             val unsupported = this.isUnsupportedInAir
             val onRail = !unsupported && travelAlongRail(speed, controller, cabTrain)
             if (!onRail || unsupported) {
-                this.speed = 0.0f
-                this.notch = 0
+                stopFormationAtRailBoundary()
                 setNoGravity(false)
                 val dm = getDeltaMovement()
                 var vy = dm.y
@@ -863,66 +886,13 @@ class TrainEntity(type: EntityType<*>, level: Level) : Entity(type, level) {
 
             // 端台車のワールド位置をクライアントへ同期(カーブで台車をレール上に正確に描くため)。
             syncBogieRenderOffsets()
+            refreshInteractionHitboxes(force = !isNoGravity)
 
             hurtMarked = abs(speed) > 0.001f
         }
     }
 
-    fun lerpTo(x: Double, y: Double, z: Double, yRot: Float, xRot: Float, steps: Int) {
-        val dx = x - getX()
-        val dy = y - getY()
-        val dz = z - getZ()
-        val distanceSq = dx * dx + dy * dy + dz * dz
-        clientLerpX = x
-        clientLerpY = y
-        clientLerpZ = z
-        clientLerpYRot = yRot.toDouble()
-        clientLerpXRot = xRot.toDouble()
-        if (distanceSq > 16.0) {
-            clientLerpSteps = 1
-        } else if (abs(this.speed) > 0.02f) {
-            clientLerpSteps = max(4, min(6, steps + 2))
-        } else {
-            clientLerpSteps = max(2, min(4, steps))
-            setDeltaMovement(Vec3.ZERO)
-        }
-    }
-
-    private val isLocalPlayerOnThisTrain: Boolean
-        get() {
-            val mc = Minecraft.getInstance()
-            if (mc.player == null) return false
-            val vehicle = mc.player!!.getVehicle()
-            if (vehicle is TrainEntity) {
-                return vehicle === this || (vehicle.coupledLeaderUuid != null || vehicle.coupledFollowerUuid != null)
-                        && vehicle.formationHead === this.formationHead
-            }
-            if (vehicle is TrainSeatEntity) {
-                val t = vehicle.getTrain()
-                return t != null && (t === this || t.formationHead === this.formationHead)
-            }
-            return false
-        }
-
-    fun lerpTargetX(): Double {
-        return if (clientLerpSteps > 0) clientLerpX else getX()
-    }
-
-    fun lerpTargetY(): Double {
-        return if (clientLerpSteps > 0) clientLerpY else getY()
-    }
-
-    fun lerpTargetZ(): Double {
-        return if (clientLerpSteps > 0) clientLerpZ else getZ()
-    }
-
-    fun lerpTargetXRot(): Float {
-        return if (clientLerpSteps > 0) clientLerpXRot.toFloat() else getXRot()
-    }
-
-    fun lerpTargetYRot(): Float {
-        return if (clientLerpSteps > 0) clientLerpYRot.toFloat() else getYRot()
-    }
+    override fun getInterpolation(): InterpolationHandler = interpolationHandler
 
     private fun applyNotchPhysics(speed: Float, notch: Int): Float {
         val def = getById(
@@ -940,16 +910,11 @@ class TrainEntity(type: EntityType<*>, level: Level) : Entity(type, level) {
             if (absSpeed >= maxSpeed) {
                 return speed
             }
-            // 力行: 実車らしく「発車はゆっくり → 徐々にぐんぐん速くなる → 最高速で頭打ち」。
+            // 力行: JSON の acceleration は P5 の基準加速度として扱う。
             val notchFactor = notch / getMaxPowerNotch(def).toFloat()
-            // 発進ランプ: 最高速の約15%まででフル牽引に立ち上げる(カックン発進を防ぐ程度に短め)。
-            var launchRamp = Mth.clamp(speedRatio / 0.15f, 0.0f, 1.0f)
-            launchRamp = launchRamp * launchRamp * (3.0f - 2.0f * launchRamp)
-            // 高速減衰は緩やか(speedRatio^3)。中速までは加速度を保ち「どんどん速くなる」感を出し、
-            // 最高速付近でだけ頭打ちにする(実車の定出力域→特性域に近い)。
-            val tractionCurve = (0.52f + launchRamp * 0.48f) * (1.0f - speedRatio.toDouble().pow(3.0).toFloat())
-            val accelCurve = accelBase * (0.55f + notchFactor * 0.70f) * tractionCurve
-            val next = speed + max(0.00016f, accelCurve)
+            val tractionCurve = 1.0f - speedRatio.toDouble().pow(3.0).toFloat()
+            val accelCurve = accelBase * (0.35f + notchFactor * 0.65f) * tractionCurve
+            val next = speed + max(0.0f, accelCurve)
             return if (abs(next) > maxSpeed) maxSpeed.withSign(next) else next
         }
 
@@ -1117,7 +1082,7 @@ class TrainEntity(type: EntityType<*>, level: Level) : Entity(type, level) {
 
     private fun findActiveRailCore(): LargeRailCoreBlockEntity? {
         val sample = sampleRail(activeRailMap!!, activeRailSplit, activeRailPosition)
-        val base = BlockPos.containing(sample.x, sample.y - RAIL_HEIGHT_OFFSET, sample.z)
+        val base = BlockPos.containing(sample.x, sample.y, sample.z)
         val direct = railCoreAt(base)
         if (direct != null) {
             return direct
@@ -1709,7 +1674,7 @@ class TrainEntity(type: EntityType<*>, level: Level) : Entity(type, level) {
                     if (activeRailBodyDirection == 0) 1 else activeRailBodyDirection
                 )
             } else {
-                this.speed = 0.0f
+                stopFormationAtRailBoundary()
                 setDeltaMovement(Vec3.ZERO)
                 if (!restabilizeBogieAnchors(controllerDirection)) {
                     return false
@@ -1745,12 +1710,26 @@ class TrainEntity(type: EntityType<*>, level: Level) : Entity(type, level) {
             appliedYaw,
             if (activeRailBodyDirection == 0) 1 else activeRailBodyDirection
         )
-        setDeltaMovement(getX() - startX, getY() - startY, getZ() - startZ)
+        if (abs(this.speed) <= 1.0E-6f) {
+            setDeltaMovement(Vec3.ZERO)
+        } else {
+            setDeltaMovement(getX() - startX, getY() - startY, getZ() - startZ)
+        }
         activeRailIndex = Mth.clamp(Math.round(activeRailPosition).toInt(), 0, activeRailSplit)
         activeRailDirection =
             if (controllerDirection == 0) activeRailDirection else controllerDirection * (if (activeRailBodyDirection == 0) 1 else activeRailBodyDirection)
         this.railProgress = activeRailIndex / activeRailSplit.toFloat()
         return true
+    }
+
+    private fun stopFormationAtRailBoundary() {
+        forEachFormationTrain(Consumer { train ->
+            train ?: return@Consumer
+            train.speed = 0.0f
+            train.notch = 0
+            train.setDeltaMovement(Vec3.ZERO)
+            train.hurtMarked = true
+        })
     }
 
     /**
@@ -2691,13 +2670,13 @@ class TrainEntity(type: EntityType<*>, level: Level) : Entity(type, level) {
         val high = Mth.clamp(ceil(clamped).toInt(), 0, split)
         if (low == high) {
             val pos = map.getRailPos(split, low)
-            return RailSample(pos[1], map.getRailHeight(split, low) + RAIL_HEIGHT_OFFSET, pos[0])
+            return RailSample(pos[1], map.getRailHeight(split, low), pos[0])
         }
         val t = clamped - low
         val a = map.getRailPos(split, low)
         val b = map.getRailPos(split, high)
-        val yA: Double = map.getRailHeight(split, low) + RAIL_HEIGHT_OFFSET
-        val yB: Double = map.getRailHeight(split, high) + RAIL_HEIGHT_OFFSET
+        val yA: Double = map.getRailHeight(split, low)
+        val yB: Double = map.getRailHeight(split, high)
         return RailSample(
             Mth.lerp(t, a[1], b[1]),
             Mth.lerp(t, yA, yB),
@@ -2711,13 +2690,13 @@ class TrainEntity(type: EntityType<*>, level: Level) : Entity(type, level) {
         val high = Mth.clamp(ceil(clamped).toInt(), 0, split)
         if (low == high) {
             val pos = map.getRailPos(split, low)
-            return RailSample(pos[1], map.getRailHeight(split, low) + BOGIE_HITBOX_HEIGHT_OFFSET, pos[0])
+            return RailSample(pos[1], map.getRailHeight(split, low), pos[0])
         }
         val t = clamped - low
         val a = map.getRailPos(split, low)
         val b = map.getRailPos(split, high)
-        val yA: Double = map.getRailHeight(split, low) + BOGIE_HITBOX_HEIGHT_OFFSET
-        val yB: Double = map.getRailHeight(split, high) + BOGIE_HITBOX_HEIGHT_OFFSET
+        val yA: Double = map.getRailHeight(split, low)
+        val yB: Double = map.getRailHeight(split, high)
         return RailSample(
             Mth.lerp(t, a[1], b[1]),
             Mth.lerp(t, yA, yB),
@@ -2728,7 +2707,7 @@ class TrainEntity(type: EntityType<*>, level: Level) : Entity(type, level) {
     private fun sampleRailIndex(map: RailMap, split: Int, index: Int): RailSample {
         val clamped = Mth.clamp(index, 0, split)
         val pos = map.getRailPos(split, clamped)
-        return RailSample(pos[1], map.getRailHeight(split, clamped) + RAIL_HEIGHT_OFFSET, pos[0])
+        return RailSample(pos[1], map.getRailHeight(split, clamped), pos[0])
     }
 
     private fun sampleRailYaw(map: RailMap?, split: Int, index: Double): Float {
@@ -2923,14 +2902,14 @@ class TrainEntity(type: EntityType<*>, level: Level) : Entity(type, level) {
             railWorldY = getBogieWorldPosition(bogieIndex)
         }
         // 本家RTM準拠の台車高さ:
-        //   本家は車体・台車とも func_70033_W()=0 で、両者を「同じレール面基準」に置く。
-        //   台車の縦オフセットは JSON の bogiePos[i].y のみ(全実パックで 0.0 = 車体中心と同じ高さ)。
-        //   台車基準を車体と同一(RAIL_HEIGHT_OFFSET)へ揃え、bogiePos.y だけ足す。
+        //   RailMap.getRailHeight はすでにワールド軌面Yを返す。台車モデルは TrainEntityRenderer の
+        //   車体座標系内で描くため、ワールドYは車体中心基準(RTM_VEHICLE_Y_OFFSET)へ戻してから
+        //   JSON の bogiePos[i].y と最小限の visual lift を足す。
         // カーブ上では車体中心線とレール中心線が一致しないため、X/Z はレール位置へ追従。
         val anchor = getAnchorForRenderedBogie(bogieIndex)
         if (clientSynced || isRailAnchorUsable(anchor)) {
             val bodyRefY: Double =
-                railWorldY.y + (RAIL_HEIGHT_OFFSET - BOGIE_HITBOX_HEIGHT_OFFSET) + bogie.position().y + BOGIE_RENDER_LIFT
+                railWorldY.y + TRAIN_BODY_HEIGHT_OFFSET + bogie.position().y + BOGIE_RENDER_LIFT
             // 本体ポーズ(yaw/pitch/bank/modelOffset/scale)を厳密に逆変換して、カーブのバンクでも
             // 台車がレール上の正しい位置に描画されるようにする。
             val railLocal = worldToBogieLocalForRender(Vec3(railWorldY.x, bodyRefY, railWorldY.z), partialTicks)
@@ -3447,7 +3426,7 @@ class TrainEntity(type: EntityType<*>, level: Level) : Entity(type, level) {
                 val py: Double = activeRailMap!!.getRailHeight(
                     activeRailSplit,
                     index
-                ) + RAIL_HEIGHT_OFFSET
+                ) + TRAIN_BODY_HEIGHT_OFFSET
                 val distSq = distanceToSqr(p[1], py, p[0])
                 // 交差部では別レールとの距離がかなり近くなるので、少し離れても
                 // 現在のレールを優先して掴み続ける。
@@ -3520,7 +3499,7 @@ class TrainEntity(type: EntityType<*>, level: Level) : Entity(type, level) {
                             var nearest = map.getNearlestPoint(split, worldPos.x, worldPos.z)
                             nearest = Mth.clamp(nearest, 0, split)
                             val p = map.getRailPos(split, nearest)
-                            val py: Double = map.getRailHeight(split, nearest) + RAIL_HEIGHT_OFFSET
+                            val py: Double = map.getRailHeight(split, nearest) + TRAIN_BODY_HEIGHT_OFFSET
                             var distSq = Vec3(p[1], py, p[0]).distanceToSqr(worldPos)
                             val nearEndpoint = nearest <= max(6, split / 6) || nearest >= split - max(6, split / 6)
                             val maxDistSq = if (endpointOnly) 81.0 else 144.0
@@ -3569,7 +3548,7 @@ class TrainEntity(type: EntityType<*>, level: Level) : Entity(type, level) {
                             var nearest = map.getNearlestPoint(split, getX(), getZ())
                             nearest = Mth.clamp(nearest, 0, split)
                             val p = map.getRailPos(split, nearest)
-                            val py: Double = map.getRailHeight(split, nearest) + RAIL_HEIGHT_OFFSET
+                            val py: Double = map.getRailHeight(split, nearest) + TRAIN_BODY_HEIGHT_OFFSET
                             var distSq = distanceToSqr(p[1], py, p[0])
 
                             distSq += railYawPenalty(map, split, nearest, referenceYaw)
@@ -3783,6 +3762,11 @@ class TrainEntity(type: EntityType<*>, level: Level) : Entity(type, level) {
         return localToWorld(Vec3(0.0, 0.0, z))
     }
 
+    private fun getPreviousCouplerPoint(front: Boolean): Vec3 {
+        val z = if (front) this.couplingHalfLength else -this.couplingHalfLength
+        return localToWorldPrev(Vec3(0.0, 0.0, z))
+    }
+
     private fun getNearestCouplerDistanceSqr(other: TrainEntity?): Double {
         return findNearestCouplerPair(other).distanceSqr
     }
@@ -3791,32 +3775,76 @@ class TrainEntity(type: EntityType<*>, level: Level) : Entity(type, level) {
         if (other == null || other === this || isConnectedTo(other)) {
             return false
         }
-        if (getNearestCouplerDistanceSqr(other) <= 16.0) {
-            return true
+        for (thisSide in intArrayOf(-1, 1)) {
+            for (otherSide in intArrayOf(-1, 1)) {
+                if (getSweptCouplerDistanceSqr(other, thisSide, otherSide) <=
+                    COUPLER_CONTACT_DISTANCE * COUPLER_CONTACT_DISTANCE
+                ) return true
+            }
         }
-        return getBoundingBox().inflate(4.0).intersects(other.getBoundingBox().inflate(4.0))
+        return false
     }
 
-    private fun enterCouplingMode(player: Player) {
+    private fun enterCouplingMode(player: Player, bogieIndex: Int = -1) {
         if (level().isClientSide()) {
             return
         }
+        val selectedBogieIndex = if (bogieIndex >= 0) {
+            Mth.clamp(bogieIndex, 0, 1)
+        } else {
+            findNearestBogieIndex(player.position())
+        }
+        clearBogieActivation()
+        setBogieActivated(selectedBogieIndex, true)
         val playerId = player.getUUID()
         val selection: CouplingSelection? = COUPLING_MODE.get(playerId)
         if (selection == null || selection.isComplete) {
-            COUPLING_MODE.put(playerId, CouplingSelection(getUUID(), -1, null, -1, level().getGameTime()))
+            COUPLING_MODE.put(
+                playerId,
+                CouplingSelection(getUUID(), selectedBogieIndex, null, -1, level().getGameTime())
+            )
             player.sendOverlayMessage(Component.literal("連結モード: もう片方の列車の台車を選択してください"))
             return
         }
         if (selection.first == getUUID()) {
-            player.sendOverlayMessage(Component.literal("連結モード: もう片方の列車を選択してください"))
+            COUPLING_MODE[playerId] = CouplingSelection(
+                getUUID(),
+                selectedBogieIndex,
+                null,
+                -1,
+                level().getGameTime()
+            )
+            player.sendOverlayMessage(Component.literal("連結モード: 端點已更新，請選擇另一輛列車"))
             return
         }
         COUPLING_MODE.put(
             playerId,
-            CouplingSelection(selection.first, selection.firstBogieIndex, getUUID(), -1, level().getGameTime())
+            CouplingSelection(
+                selection.first,
+                selection.firstBogieIndex,
+                getUUID(),
+                selectedBogieIndex,
+                level().getGameTime()
+            )
         )
         player.sendOverlayMessage(Component.literal("連結モード: 2両をゆっくり接触させてください"))
+    }
+
+    private fun findNearestBogieIndex(worldPosition: Vec3): Int {
+        val bogies = getInteractionBogieCenters(getById(vehicleId))
+        if (bogies.isEmpty()) {
+            return 0
+        }
+        var nearestIndex = 0
+        var nearestDistance = Double.MAX_VALUE
+        for (index in bogies.indices) {
+            val distance = localToWorld(bogies[index]).distanceToSqr(worldPosition)
+            if (distance < nearestDistance) {
+                nearestDistance = distance
+                nearestIndex = index
+            }
+        }
+        return nearestIndex
     }
 
     private fun tryCompletePendingCoupling() {
@@ -3848,11 +3876,19 @@ class TrainEntity(type: EntityType<*>, level: Level) : Entity(type, level) {
                 continue
             }
             if (sourceRaw.canCompleteCouplingWith(targetRaw)) {
-                sourceRaw.coupleWith(targetRaw)
-                COUPLING_MODE.remove(entry.key)
                 val player: Player? = entry.key?.let { serverLevel.getPlayerByUUID(it) }
-                if (player != null) {
-                    player.sendOverlayMessage(Component.literal("連結しました"))
+                if (sourceRaw.tryImmediateSelectedBogieCoupling(
+                        player,
+                        selection.first,
+                        selection.firstBogieIndex,
+                        targetRaw,
+                        selection.secondBogieIndex
+                    )
+                ) {
+                    COUPLING_MODE.remove(entry.key)
+                    if (player != null) {
+                        player.sendOverlayMessage(Component.literal("連結しました"))
+                    }
                 }
             }
         }
@@ -4319,7 +4355,12 @@ class TrainEntity(type: EntityType<*>, level: Level) : Entity(type, level) {
             if (request == null || request.sourceTrain == null || request.targetTrain == null) {
                 continue
             }
-            if (request.distanceSqr > COUPLER_CONTACT_DISTANCE * COUPLER_CONTACT_DISTANCE) {
+            if (request.sourceTrain.getSweptCouplerDistanceSqr(
+                    request.targetTrain,
+                    request.sourceSide,
+                    request.targetSide
+                ) > COUPLER_CONTACT_DISTANCE * COUPLER_CONTACT_DISTANCE
+            ) {
                 continue
             }
             if (!areCouplersFacing(request.sourceTrain, request.sourceSide, request.targetTrain, request.targetSide)
@@ -4345,6 +4386,8 @@ class TrainEntity(type: EntityType<*>, level: Level) : Entity(type, level) {
                 request.sourceSide
             )
             if (coupled) {
+                request.sourceTrain.clearBogieActivation()
+                request.targetTrain.clearBogieActivation()
                 clearCouplingModeInvolving(request.sourceTrain, request.targetTrain)
                 notifyCouplingChat(Component.literal("連結しました"), request.targetTrain, null)
                 return
@@ -4543,9 +4586,21 @@ class TrainEntity(type: EntityType<*>, level: Level) : Entity(type, level) {
 
     private fun canCompleteCouplingWith(other: TrainEntity?, thisSide: Int, otherSide: Int): Boolean {
         if (other == null || other === this || isConnectedTo(other)) return false
-        val distance = getDefaultDistanceToConnectedTrain(other)
-        return getCouplerDistanceSqr(other, thisSide, otherSide) <= distance * distance
-                || getBoundingBox().inflate(distance * 0.5).intersects(other.getBoundingBox().inflate(distance * 0.5))
+        return getSweptCouplerDistanceSqr(other, thisSide, otherSide) <=
+            COUPLER_CONTACT_DISTANCE * COUPLER_CONTACT_DISTANCE
+    }
+
+    private fun getSweptCouplerDistanceSqr(other: TrainEntity, thisSide: Int, otherSide: Int): Double {
+        val previous = getPreviousCouplerPoint(thisSide > 0)
+            .subtract(other.getPreviousCouplerPoint(otherSide > 0))
+        val current = getCouplerPoint(thisSide > 0).subtract(other.getCouplerPoint(otherSide > 0))
+        val movement = current.subtract(previous)
+        val movementLengthSqr = movement.lengthSqr()
+        if (movementLengthSqr <= 1.0E-8) {
+            return current.lengthSqr()
+        }
+        val progress = Mth.clamp(-previous.dot(movement) / movementLengthSqr, 0.0, 1.0)
+        return previous.add(movement.scale(progress)).lengthSqr()
     }
 
     private fun getExposedHeadSide(headTrain: TrainEntity?): Int {
@@ -4874,6 +4929,23 @@ class TrainEntity(type: EntityType<*>, level: Level) : Entity(type, level) {
         }
         this.activeDriverUuid = passenger.getUUID()
         this.activeDriverTicks = 40
+        refreshFormationDirectionFromActiveDriver()
+    }
+
+    private fun refreshFormationDirectionFromActiveDriver() {
+        val currentFormation = formation ?: return
+        val entries = currentFormation.entries
+        if (entries.size <= 1) {
+            currentFormation.setDirection(0)
+            return
+        }
+        for (index in entries.indices) {
+            val train = entries[index]?.train ?: continue
+            if (train.activeDriverUuid != null && train.activeDriverTicks > 0) {
+                currentFormation.setDirection(if (index * 2 >= entries.lastIndex) 1 else 0)
+                return
+            }
+        }
     }
 
     fun ensureDriverReady(passenger: Entity?) {
@@ -5008,11 +5080,17 @@ class TrainEntity(type: EntityType<*>, level: Level) : Entity(type, level) {
             4 -> (if (this.isDoorRightOpen) 1.0f else 0.0f) + (if (this.isDoorLeftOpen) 2.0f else 0.0f)
             5 -> toLegacyLightMode(this.lightMode)
             6 -> if (this.isPantographUp) 1.0f else 0.0f
-            7 -> abs(this.speed) * 72.0f
+            // Legacy RTM reserves state 7 for the chunk-loader mode, not speed.
+            7 -> 0.0f
             8 -> this.destinationIndex.toFloat()
             9 -> this.soundIndex.toFloat()
             10 -> 1.0f - this.reverser
             11 -> this.interiorLightMode
+            12 -> this.brakeCylinderPressure
+            13 -> this.brakePipePressure
+            14 -> this.mainReservoirPressure
+            15 -> this.legacyBrakeAirCount
+            16 -> max(0, -this.notch).toFloat()
             else -> 0.0f
         }
     }
@@ -5312,6 +5390,10 @@ class TrainEntity(type: EntityType<*>, level: Level) : Entity(type, level) {
             setBoolean(key, toBoolean(value), syncType)
         }
 
+        fun setBoolean(key: Any?, value: Any?, syncType: Any?) {
+            setBoolean(toKey(key), toBoolean(value), toSyncType(syncType))
+        }
+
         /**
          * Stores an integer value for the current script frame.
          */
@@ -5327,6 +5409,10 @@ class TrainEntity(type: EntityType<*>, level: Level) : Entity(type, level) {
             setInt(key, toInt(value), syncType)
         }
 
+        fun setInt(key: Any?, value: Any?, syncType: Any?) {
+            setInt(toKey(key), toInt(value), toSyncType(syncType))
+        }
+
         fun setString(key: String?, value: String?, syncType: Int) {
             val safeValue = if (value == null) "" else value
             values.put(key, safeValue)
@@ -5334,6 +5420,10 @@ class TrainEntity(type: EntityType<*>, level: Level) : Entity(type, level) {
                 train.scriptData.put(key, safeValue)
                 if (syncType != 0) train.scriptDataDirty = true
             }
+        }
+
+        fun setString(key: Any?, value: Any?, syncType: Any?) {
+            setString(toKey(key), value?.toString(), toSyncType(syncType))
         }
 
         fun setDouble(key: String?, value: Double, syncType: Int) {
@@ -5346,6 +5436,10 @@ class TrainEntity(type: EntityType<*>, level: Level) : Entity(type, level) {
 
         fun setDouble(key: String?, value: Any?, syncType: Int) {
             setDouble(key, toDouble(value), syncType)
+        }
+
+        fun setDouble(key: Any?, value: Any?, syncType: Any?) {
+            setDouble(toKey(key), toDouble(value), toSyncType(syncType))
         }
 
         private fun refresh() {
@@ -5410,6 +5504,23 @@ class TrainEntity(type: EntityType<*>, level: Level) : Entity(type, level) {
         }
 
         companion object {
+            private fun toKey(value: Any?): String? {
+                return value?.toString()
+            }
+
+            private fun toSyncType(value: Any?): Int {
+                if (value is Boolean) return if (value) 1 else 0
+                if (value is Number) return value.toInt()
+                if (value is String) {
+                    try {
+                        return value.toInt()
+                    } catch (ignored: NumberFormatException) {
+                    }
+                    return if (toBoolean(value)) 1 else 0
+                }
+                return 0
+            }
+
             private fun toBoolean(value: Any?): Boolean {
                 if (value is Boolean) return value
                 if (value is Number) return value.toInt() != 0
@@ -5597,6 +5708,17 @@ class TrainEntity(type: EntityType<*>, level: Level) : Entity(type, level) {
         val direction: Byte
             get() = (if (train.formation != null) train.formation!!.getDirection() else 0).toByte()
 
+        /**
+         * Legacy RTM scripts call this through Java reflection, so keep an explicit JavaBean getter.
+         */
+        fun getControlCar(): TrainEntity? {
+            return frontTrain()
+        }
+
+        fun getFrontTrain(): TrainEntity? {
+            return frontTrain()
+        }
+
         private fun frontTrain(): TrainEntity? {
             if (train.formation != null) {
                 val front: FormationEntry? = train.formation!!.getFrontEntry()
@@ -5676,6 +5798,9 @@ class TrainEntity(type: EntityType<*>, level: Level) : Entity(type, level) {
             0.0f, 0.22f, 0.44f, 0.66f, 0.88f, 1.1f
         )
         val rollsignNames: Array<String?>?
+        val customButtons: Array<String?>
+        val customButtonNames: Array<String?>
+        val customButtonOptions: Array<Array<String?>>
 
         // Legacy cab/server scripts read sound_Announcement as a 2D array [[name, soundPath], ...].
         val sound_Announcement: Array<Array<String?>?>
@@ -5698,6 +5823,15 @@ class TrainEntity(type: EntityType<*>, level: Level) : Entity(type, level) {
             } else {
                 this.rollsignNames = DEFAULT_ROLLSIGN_NAMES
             }
+            val buttonNames =
+                if (definition != null) definition.getCustomButtonNames() else emptyList()
+            this.customButtons = buttonNames.toTypedArray()
+            this.customButtonNames = this.customButtons
+            val buttonOptions =
+                if (definition != null) definition.getCustomButtonOptions() else emptyList()
+            this.customButtonOptions = buttonOptions.map { options ->
+                options.map { it as String? }.toTypedArray()
+            }.toTypedArray()
             this.isSingleTrain = definition != null && definition.isSingleTrain()
             val sounds: List<String> =
                 if (definition != null) definition.getAnnouncementSounds() else emptyList()
@@ -6227,7 +6361,7 @@ class TrainEntity(type: EntityType<*>, level: Level) : Entity(type, level) {
         }
         if (holdingCrowbar) {
             if (!level().isClientSide()) {
-                enterCouplingMode(player)
+                enterCouplingMode(player, bogieIndex)
             }
             return if (level().isClientSide()) InteractionResult.SUCCESS else InteractionResult.SUCCESS_SERVER
         }
@@ -6321,7 +6455,7 @@ class TrainEntity(type: EntityType<*>, level: Level) : Entity(type, level) {
     }
 
     private fun getDefaultReverserForSeat(def: VehicleDefinition?, seatIndex: Int): Int {
-        return 1
+        return getDriverCabDirectionBySeatIndex(seatIndex, def)
     }
 
     private fun getDriverCabDirectionBySeatIndex(seatIndex: Int, def: VehicleDefinition?): Int {
@@ -6575,7 +6709,7 @@ class TrainEntity(type: EntityType<*>, level: Level) : Entity(type, level) {
         val bogies = getInteractionBogieCenters(def)
         val count = bogies.size
         for (bogieIndex in 0..<count) {
-            val bogieWorld = localToWorld(getBogieLocalPosition(bogieIndex, def))
+            val bogieWorld = getBogieEntityWorldPosition(bogieIndex)
             var bogieEntity = resolveBogieHitbox(bogieIndex)
             if (bogieEntity == null) {
                 bogieEntity =
@@ -6593,6 +6727,7 @@ class TrainEntity(type: EntityType<*>, level: Level) : Entity(type, level) {
                 bogieEntity.setPos(bogieWorld.x, bogieWorld.y, bogieWorld.z)
                 bogieEntity.setYRot(getYRot())
             }
+            bogieEntity.setOldPosAndRot()
         }
         val staleIndices: MutableList<Int?> = ArrayList<Int?>()
         for (bogieIndex in bogieHitboxUuids.keys) {
@@ -7119,6 +7254,7 @@ class TrainEntity(type: EntityType<*>, level: Level) : Entity(type, level) {
         val fid = getInstance().getNewId()
         val f =
             Formation(fid, chain.size)
+        var entryDirection = 0
         for (i in chain.indices) {
             val t: TrainEntity = chain.get(i)!!
             var leaderSide = -1
@@ -7127,10 +7263,23 @@ class TrainEntity(type: EntityType<*>, level: Level) : Entity(type, level) {
                 val prev: TrainEntity = chain.get(i - 1)!!
                 leaderSide = normalizeCouplerSide(prev.coupledFollowerThisSide)
                 followerSide = normalizeCouplerSide(prev.coupledFollowerOtherSide)
+                if (leaderSide == followerSide) {
+                    entryDirection = 1 - entryDirection
+                }
             }
-            f.entries[i] = FormationEntry(t, i, 0, leaderSide, followerSide)
+            f.entries[i] = FormationEntry(t, i, entryDirection, leaderSide, followerSide)
             t.formation = f
         }
+    }
+
+    private fun refreshInteractionHitboxes(force: Boolean = false) {
+        val movingEnoughToMissInteractionHitboxes = abs(speed) > 0.02f
+        if (!force && !movingEnoughToMissInteractionHitboxes && interactionHitboxRefreshCooldown-- > 0) {
+            return
+        }
+        ensureBogieHitboxes()
+        ensureSeatHitboxes()
+        interactionHitboxRefreshCooldown = if (movingEnoughToMissInteractionHitboxes || force) 0 else 20
     }
 
     fun moveAsFormationFollower(leader: TrainEntity?, leaderSide: Int, followerSide: Int, speed: Float) {
@@ -7166,6 +7315,7 @@ class TrainEntity(type: EntityType<*>, level: Level) : Entity(type, level) {
         setDeltaMovement(getX() - preX, getY() - preY, getZ() - preZ)
         this.hurtMarked = true
         this.hurtMarked = true
+        refreshInteractionHitboxes(force = true)
     }
 
     // ---- Custom button multi-value storage ----
@@ -7325,13 +7475,13 @@ class TrainEntity(type: EntityType<*>, level: Level) : Entity(type, level) {
         private const val BOGIE_INTERACT_HALF_LENGTH = 1.18
         private const val RTM_VEHICLE_Y_OFFSET = 1.1875
 
-        /** BogieRenderer 描画台車(MQO台車モデル車両)の高さ微調整。MSE 等で台車がレールに少し埋まるのを補正。  */
-        private const val BOGIE_RENDER_LIFT = 0.18
+        /** BogieRenderer 描画台車(MQO台車モデル車両)の高さ微調整。ごく薄いZファイト/埋まりだけを避ける。  */
+        private const val BOGIE_RENDER_LIFT = 0.02
         private const val DEFAULT_HALF_WIDTH = 1.35
         private const val DEFAULT_HALF_HEIGHT = 2.2
         private const val TRAIN_BODY_MARGIN = 1.2
-        private const val COUPLED_CLEARANCE = 0.18
-        private const val COUPLER_CONTACT_DISTANCE = 0.9
+        private const val COUPLED_CLEARANCE = -0.06
+        private const val COUPLER_CONTACT_DISTANCE = 0.35
         private const val COUPLER_CONTACT_SCAN_MARGIN = 6.0
         private const val BOGIE_SPAN_TOLERANCE = 1.75
         private const val RAIL_CONNECTION_MAX_DISTANCE_SQ = 0.25
@@ -7342,19 +7492,9 @@ class TrainEntity(type: EntityType<*>, level: Level) : Entity(type, level) {
         // カーブ補間の揺れ余裕を足した値。通常走行・カーブでは到達しない。
         private const val RAIL_TELEPORT_TOLERANCE = 3.0
 
-        // 0.74 → +0.1 = 0.84。
-        private const val EXTRA_TRAIN_BODY_LIFT = 0.84
-        private const val EXTRA_BOGIE_LIFT = 0.02
-
-        // モデル原点より低い床下パーツがレールと干渉しない高さ。
-        private const val RAIL_HEIGHT_OFFSET = 1.09
-
-        // RTM 本家はレール基準で車体中心を 1.1875 上げて描画する。
-        // この実装では sampleRail() 側で RAIL_HEIGHT_OFFSET を先に足しているため、
-        // ここでは残り分だけを加算して車体と台車の相対位置を本家に合わせる。
-        private val TRAIN_BODY_HEIGHT_OFFSET: Double =
-            (RTM_VEHICLE_Y_OFFSET - RAIL_HEIGHT_OFFSET) + EXTRA_TRAIN_BODY_LIFT
-        private val BOGIE_HITBOX_HEIGHT_OFFSET: Double = 0.25 + EXTRA_BOGIE_LIFT
+        // RailMap.getRailHeight() はすでにワールド軌面Yを返す。車体中心だけ RTM 本家と同じ
+        // 1.1875 を足し、sample 側では高さを二重に加算しない。
+        private const val TRAIN_BODY_HEIGHT_OFFSET = RTM_VEHICLE_Y_OFFSET
         const val BOGIE_VISUAL_LIFT: Double = 0.39
         private const val BODY_HITBOX_SIZE = 0.1f
         private const val BOGIE_SPLITS_PER_METER = 48
@@ -7375,8 +7515,9 @@ class TrainEntity(type: EntityType<*>, level: Level) : Entity(type, level) {
             e.vehicleId = vehicleId
             e.trainDistance = trainDistance
             e.lightMode = 0
-            // スポーン位置をレール基準で少し上げる（埋まり防止）
-            e.setPos(x, y + RAIL_HEIGHT_OFFSET, z)
+            // スポーン位置を RTM の車体中心基準に合わせる。通常は直後に initializeOnRail で
+            // 台車基準から再配置されるが、プレビュー等でも同じ高さを使う。
+            e.setPos(x, y + TRAIN_BODY_HEIGHT_OFFSET, z)
             e.setRot(yRot, 0.0f)
             // 前tick位置(xo/yo/zo)を現在位置に揃える。これをしないとスポーン直後の
             // 描画補間が原点(0,0,0)から行われ、台車のワールド位置計算が大きくズレる
@@ -7485,7 +7626,7 @@ class TrainEntity(type: EntityType<*>, level: Level) : Entity(type, level) {
             if (hit == null || hit.train == null) {
                 return false
             }
-            hit.train.enterCouplingMode(player)
+            hit.train.enterCouplingMode(player, hit.bogieIndex)
             return true
         }
 
