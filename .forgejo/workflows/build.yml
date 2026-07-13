@@ -33,11 +33,6 @@ jobs:
       - name: Show Java version
         run: java -version
 
-      - name: Fix Gradle wrapper line endings
-        run: |
-          sed -i 's/\r$//' ./gradlew
-          head -n 1 ./gradlew | cat -v
-
       - name: Make Gradle wrapper executable
         run: chmod +x ./gradlew
 
@@ -47,11 +42,25 @@ jobs:
       - name: List jars
         run: ls -lah build/libs
 
+      - name: Prepare jar artifact
+        run: |
+          mkdir -p artifacts
+          JAR_FILE=$(find build/libs -maxdepth 1 -name "*.jar" \
+            ! -name "*-sources.jar" \
+            ! -name "*-javadoc.jar" \
+            | head -n 1)
+
+          if [ -z "$JAR_FILE" ]; then
+            echo "No mod jar found in build/libs"
+            exit 1
+          fi
+
+          echo "Selected jar: $JAR_FILE"
+          cp "$JAR_FILE" artifacts/RealTrainModRenewed.jar
+          ls -lah artifacts
+
       - name: Upload jar artifact
-        uses: https://code.forgejo.org/forgejo/upload-artifact@v4
+        uses: https://code.forgejo.org/forgejo/upload-artifact@v3
         with:
-          name: realtrainmodrenewed.zip
-          path: |
-            build/libs/*.jar
-            !build/libs/*-sources.jar
-            !build/libs/*-javadoc.jar
+          name: RealTrainModRenewed.jar
+          path: artifacts/RealTrainModRenewed.jar
