@@ -312,7 +312,7 @@ class TrainScriptSystem private constructor() {
                 }
                 var max = 0.0f
                 for (speed in definition.getNotchMaxSpeeds()) {
-                    if (speed != null && java.lang.Float.isFinite(speed)) {
+                    if (java.lang.Float.isFinite(speed)) {
                         max = max(max, speed)
                     }
                 }
@@ -774,7 +774,7 @@ class TrainScriptSystem private constructor() {
             get() {
                 if (this.vehicle == null) return 0
                 var total = 0
-                for (t in vehicle!!.formationTrainsForDisplay) {
+                for (t in vehicle.formationTrainsForDisplay) {
                     t ?: continue
                     total += t.getPassengers().size
                     // also count passengers on seat entities attached to this train
@@ -782,9 +782,7 @@ class TrainScriptSystem private constructor() {
                         TrainSeatEntity::class.java,
                         t.getBoundingBox().inflate(20.0)
                     )) {
-                        if (e is TrainSeatEntity
-                            && e.getTrain() === t && !e.getPassengers().isEmpty()
-                        ) {
+                        if (e.getTrain() === t && !e.getPassengers().isEmpty()) {
                             total += e.getPassengers().size
                         }
                     }
@@ -3082,7 +3080,7 @@ class TrainScriptSystem private constructor() {
                 return false
             }
             val rollsignTexture = definition.getRollsignTexture()
-            if (rollsignTexture == null || rollsignTexture.isBlank()) {
+            if (rollsignTexture.isBlank()) {
                 return false
             }
             val count = max(1, if (definition.getRollsignNames().isEmpty()) 1 else definition.getRollsignNames().size)
@@ -3211,7 +3209,7 @@ class TrainScriptSystem private constructor() {
             val def = VehicleRegistry.getById(entity.vehicleId)
             return def != null && def.getBogies().stream()
                 .anyMatch { b: VehicleDefinition.BogieDefinition? ->
-                    b!!.modelFile() != null && !b.modelFile().isBlank()
+                    !b!!.modelFile().isBlank()
                 }
         }
 
@@ -3353,7 +3351,7 @@ class TrainScriptSystem private constructor() {
         private fun getWorldDayTime(entity: Any?): Long {
             try {
                 if (entity is Entity) {
-                    return if (entity.level() == null) 0 else entity.level().getLevelData().getGameTime()
+                    return entity.level().getLevelData().getGameTime()
                 }
                 if (entity is BlockEntity) {
                     return if (entity.getLevel() == null) 0 else entity.getLevel()!!.getLevelData().getGameTime()
@@ -4374,10 +4372,12 @@ class TrainScriptSystem private constructor() {
                         .collect(Collectors.toList())
                 }
                 if (groups.javaClass.isArray()) {
-                    val arr = groups as Array<Any?>
-                    return Arrays.stream<Any?>(arr)
-                        .flatMap<String?> { value: Any? -> expandSerializedGroupNames(value.toString()).stream() }
-                        .collect(Collectors.toList())
+                    val result = mutableListOf<String?>()
+                    for (i in 0..<java.lang.reflect.Array.getLength(groups)) {
+                        val value = java.lang.reflect.Array.get(groups, i)
+                        result.addAll(expandSerializedGroupNames(value.toString()))
+                    }
+                    return result
                 }
                 if (groups is MutableMap<*, *>) {
                     val lengthValue = groups.get("length")
@@ -4993,19 +4993,19 @@ class TrainScriptSystem private constructor() {
         }
 
         fun info(vararg args: Any?) {
-            if (args != null && args.size > 0) {
+            if (args.isNotEmpty()) {
                 RealTrainModRenewed.LOGGER.info("[NGTLog] {}", args[0])
             }
         }
 
         fun warn(vararg args: Any?) {
-            if (args != null && args.size > 0) {
+            if (args.isNotEmpty()) {
                 RealTrainModRenewed.LOGGER.warn("[NGTLog] {}", args[0])
             }
         }
 
         fun error(vararg args: Any?) {
-            if (args != null && args.size > 0) {
+            if (args.isNotEmpty()) {
                 RealTrainModRenewed.LOGGER.error("[NGTLog] {}", args[0])
             }
         }
@@ -5025,7 +5025,7 @@ class TrainScriptSystem private constructor() {
             get() {
                 try {
                     val mc = Minecraft.getInstance()
-                    return if (mc == null) null else mc.player
+                    return mc.player
                 } catch (t: Throwable) {
                     return null
                 }
@@ -5498,13 +5498,11 @@ class TrainScriptSystem private constructor() {
                             .option("js.syntax-extensions", "true")
                             .option("js.ecmascript-version", ecmaVersion)
                         val scriptEngine: ScriptEngine = GraalJSScriptEngine.create(polyglotEngine, contextBuilder)
-                        if (scriptEngine != null) {
-                            RealTrainModRenewed.LOGGER.info(
-                                "Using Graal.js with RTM compatibility on ECMAScript {}.",
-                                ecmaVersion
-                            )
-                            return scriptEngine
-                        }
+                        RealTrainModRenewed.LOGGER.info(
+                            "Using Graal.js with RTM compatibility on ECMAScript {}.",
+                            ecmaVersion
+                        )
+                        return scriptEngine
                     } catch (e: Throwable) {
                         RealTrainModRenewed.LOGGER.debug(
                             "Graal.js polyglot unavailable (ECMAScript {}): {}",

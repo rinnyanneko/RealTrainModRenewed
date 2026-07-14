@@ -182,7 +182,7 @@ abstract class IFTTTContainer : Serializable {
 
                 override fun getType(): IFTTTType.IFTTTEnumBase = IFTTTType.This.RTM.TrainDataMap
 
-                override fun getTitle(): String = getType()!!.getTranslationKey() + " " + dataType.key
+                override fun getTitle(): String = getType().getTranslationKey() + " " + dataType.key
 
                 override fun getExplanation(): Array<String> =
                     arrayOf("Key: $key", "Value" + comparisonType.getName() + if (dataType == DataType.BOOLEAN) "" else value)
@@ -413,7 +413,7 @@ abstract class IFTTTContainer : Serializable {
 
                 override fun getType(): IFTTTType.IFTTTEnumBase = IFTTTType.That.RTM.TrainDataMap
 
-                override fun getTitle(): String = getType()!!.getTranslationKey() + " " + dataType.key
+                override fun getTitle(): String = getType().getTranslationKey() + " " + dataType.key
 
                 override fun getExplanation(): Array<String> = arrayOf("Key: $key", "Value: $value")
 

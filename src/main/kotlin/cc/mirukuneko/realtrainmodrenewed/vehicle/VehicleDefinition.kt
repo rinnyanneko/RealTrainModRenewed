@@ -157,7 +157,7 @@ class VehicleDefinition(
 
         private fun toImmutableNestedList(options: List<List<String>>?): List<List<String>> {
             if (options.isNullOrEmpty()) return emptyList()
-            return options.map { it?.toList() ?: emptyList() }.toList()
+            return options.map { it.toList() }.toList()
         }
     }
 

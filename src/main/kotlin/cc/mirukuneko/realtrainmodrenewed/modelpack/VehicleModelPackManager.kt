@@ -460,7 +460,7 @@ class VehicleModelPackManager private constructor() : ResourceManagerReloadListe
             }
 
             var scriptPath = vehicle.scriptPath
-            if ((scriptPath == null || scriptPath.isBlank()) && resourceConfig.scripts.isNotEmpty()) {
+            if (scriptPath.isBlank() && resourceConfig.scripts.isNotEmpty()) {
                 scriptPath = resourceConfig.scripts[0]
             }
 

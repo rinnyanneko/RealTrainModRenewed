@@ -18,9 +18,6 @@ class ScriptKeyboardCompat {
     fun isKeyDown(lwjgl2Code: Int): Boolean {
         return try {
             val mc = Minecraft.getInstance()
-            if (mc == null || mc.window == null) {
-                return false
-            }
             val glfw = toGlfw(lwjgl2Code)
             if (glfw < 0) {
                 return false

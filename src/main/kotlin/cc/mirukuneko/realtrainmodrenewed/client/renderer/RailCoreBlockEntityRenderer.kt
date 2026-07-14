@@ -125,60 +125,9 @@ open class RailCoreBlockEntityRenderer(
                 if (points != null && points.isNotEmpty() && railModelHasSwitchParts(model)) {
                     for (mapIndex in maps.indices) {
                         val map = maps[mapIndex]
-                        if (map != null) {
-                            renderMapGroups(
-                                be,
-                                map,
-                                poseStack,
-                                buffer,
-                                packedLight,
-                                ox,
-                                oy,
-                                oz,
-                                modelOffset,
-                                scale,
-                                model,
-                                definition,
-                                cameraDistanceSq,
-                                compatibilityHeavy,
-                                RailGroup.BASE,
-                                mapIndex * 0.01f,
-                            )
-                        }
-                    }
-                    for (point in points) {
-                        if (point != null) {
-                            renderSwitchPoint(
-                                be,
-                                point,
-                                poseStack,
-                                buffer,
-                                packedLight,
-                                ox,
-                                oy,
-                                oz,
-                                modelOffset,
-                                scale,
-                                model,
-                                definition,
-                                cameraDistanceSq,
-                                compatibilityHeavy,
-                            )
-                        }
-                    }
-                    return
-                }
-                for (mapIndex in maps.indices) {
-                    val map = maps[mapIndex]
-                    if (map != null) {
-                        renderRailMap(
+                        renderMapGroups(
                             be,
                             map,
-                            mapIndex,
-                            layout,
-                            activeIndex,
-                            previousIndex,
-                            switchProgress,
                             poseStack,
                             buffer,
                             packedLight,
@@ -191,39 +140,82 @@ open class RailCoreBlockEntityRenderer(
                             definition,
                             cameraDistanceSq,
                             compatibilityHeavy,
-                            null,
+                            RailGroup.BASE,
+                            mapIndex * 0.01f,
                         )
                     }
+                    for (point in points) {
+                        renderSwitchPoint(
+                            be,
+                            point,
+                            poseStack,
+                            buffer,
+                            packedLight,
+                            ox,
+                            oy,
+                            oz,
+                            modelOffset,
+                            scale,
+                            model,
+                            definition,
+                            cameraDistanceSq,
+                            compatibilityHeavy,
+                        )
+                    }
+                    return
+                }
+                for (mapIndex in maps.indices) {
+                    val map = maps[mapIndex]
+                    renderRailMap(
+                        be,
+                        map,
+                        mapIndex,
+                        layout,
+                        activeIndex,
+                        previousIndex,
+                        switchProgress,
+                        poseStack,
+                        buffer,
+                        packedLight,
+                        ox,
+                        oy,
+                        oz,
+                        modelOffset,
+                        scale,
+                        model,
+                        definition,
+                        cameraDistanceSq,
+                        compatibilityHeavy,
+                        null,
+                    )
                 }
                 return
             }
 
             val activeIndex = Mth.clamp(be.activeSegmentIndex, 0, maps.size - 1)
             val activeMap = maps[activeIndex]
-            if (activeMap != null) {
-                renderRailMap(
-                    be,
-                    activeMap,
-                    activeIndex,
-                    RenderSwitchLayout.NONE,
-                    activeIndex,
-                    activeIndex,
-                    1.0f,
-                    poseStack,
-                    buffer,
-                    packedLight,
-                    ox,
-                    oy,
-                    oz,
-                    modelOffset,
-                    scale,
-                    model,
-                    definition,
-                    cameraDistanceSq,
-                    compatibilityHeavy,
-                    null,
-                )
-            }
+            renderRailMap(
+                be,
+                activeMap,
+                activeIndex,
+                RenderSwitchLayout.NONE,
+                activeIndex,
+                activeIndex,
+                1.0f,
+                poseStack,
+                buffer,
+                packedLight,
+                ox,
+                oy,
+                oz,
+                modelOffset,
+                scale,
+                model,
+                definition,
+                cameraDistanceSq,
+                compatibilityHeavy,
+                null,
+            )
         } catch (throwable: Throwable) {
             RealTrainModRenewed.LOGGER.warn("Skipping rail render at {} after renderer failure", be.blockPos, throwable)
         } finally {

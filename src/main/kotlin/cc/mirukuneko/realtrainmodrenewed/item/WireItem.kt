@@ -93,6 +93,7 @@ class WireItem : Item, ModelSelectableItem {
         return if (level.isClientSide) InteractionResult.SUCCESS else InteractionResult.SUCCESS_SERVER
     }
 
+    @Deprecated("Overrides Minecraft's deprecated tooltip extension hook")
     override fun appendHoverText(stack: ItemStack, context: TooltipContext, display: net.minecraft.world.item.component.TooltipDisplay, lines: java.util.function.Consumer<Component>, flag: TooltipFlag) {
         val selectedId = LegacyItemStackBridge.getSelectedModelId(stack)
         if (!selectedId.isNullOrBlank()) {

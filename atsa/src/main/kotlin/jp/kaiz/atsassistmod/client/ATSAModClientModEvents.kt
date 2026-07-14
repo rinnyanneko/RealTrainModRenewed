@@ -30,6 +30,7 @@ object ATSAModClientModEvents {
     @SubscribeEvent
     @JvmStatic
     fun registerKeys(event: RegisterKeyMappingsEvent) {
+        event.registerCategory(ATSAModKeys.CATEGORY)
         event.register(ATSAModKeys.EMERGENCY_BRAKE)
     }
 

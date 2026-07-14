@@ -347,7 +347,7 @@ object MqoModelLoader {
             return null
         }
         val scriptPath = resolveVehicleRenderScriptPath(packPath, def)
-        val soundScriptPath = if (def.getSoundScriptPath() != null) def.getSoundScriptPath() else ""
+        val soundScriptPath = def.getSoundScriptPath()
         // legacy script は init() で trainName/modelName ごとの差分を固定するため、車両ID単位で分離する
         val key =
             "v|" + def.getId() + "|" + def.getPackName() + "|" + def.getModelFile() + "|" + def.getTextureOverrides()
@@ -459,7 +459,7 @@ object MqoModelLoader {
             val loaded = loadStandaloneScriptSource(packPath, scriptPath)
             if (loaded == null) "" else loaded
         }
-        if (scriptSource == null || scriptSource.isBlank()) {
+        if (scriptSource.isBlank()) {
             return null
         }
         return TrainScriptSystem.loadStandaloneScript(scriptPath, scriptSource, def.getId())
@@ -480,7 +480,7 @@ object MqoModelLoader {
             val loaded = loadStandaloneScriptSource(packPath, scriptPath)
             if (loaded == null) "" else loaded
         }
-        if (scriptSource == null || scriptSource.isBlank()) {
+        if (scriptSource.isBlank()) {
             return null
         }
         return TrainScriptSystem.loadStandaloneScript(scriptPath, scriptSource, def.getId())
@@ -526,8 +526,8 @@ object MqoModelLoader {
         val info = TEXTURE_INFO_CACHE.computeIfAbsent(cacheKey) { key: String? ->
             registerTextureFromZip(binding, object : TextureOpener {
                 @Throws(Exception::class)
-                override fun open(rel: String?): InputStream? {
-                    return openTexture(packPath, rel)
+                override fun open(path: String?): InputStream? {
+                    return openTexture(packPath, path)
                 }
 
                 override fun getPackKey(): String = packPath.toString()
@@ -611,8 +611,8 @@ object MqoModelLoader {
                 val lowerModelFile = modelFile!!.lowercase()
                 val opener: TextureOpener = object : TextureOpener {
                     @Throws(Exception::class)
-                    override fun open(rel: String?): InputStream? {
-                        return openTexture(modelPackPath, rel)
+                    override fun open(path: String?): InputStream? {
+                        return openTexture(modelPackPath, path)
                     }
 
                     override fun getPackKey(): String {
@@ -654,8 +654,8 @@ object MqoModelLoader {
                 val lowerModelFile = modelFile!!.lowercase()
                 val opener: TextureOpener = object : TextureOpener {
                     @Throws(Exception::class)
-                    override fun open(rel: String?): InputStream? {
-                        return openTexture(modelPackPath, rel)
+                    override fun open(path: String?): InputStream? {
+                        return openTexture(modelPackPath, path)
                     }
 
                     override fun getPackKey(): String {
@@ -950,7 +950,7 @@ object MqoModelLoader {
                 stream.forEach { path: Path ->
                     try {
                         if (Files.isDirectory(path) || isSupportedArchive(path)) {
-                            candidates.add(path!!.toAbsolutePath().normalize())
+                            candidates.add(path.toAbsolutePath().normalize())
                         }
                     } catch (ignored: Exception) {
                     }
@@ -1992,10 +1992,10 @@ object MqoModelLoader {
         try {
             if (hasExplicitPath) {
                 var legacyScript = VehicleModelPackManager.INSTANCE.getScript(normalized)
-                if (legacyScript == null || legacyScript.isBlank()) {
+                if (legacyScript.isBlank()) {
                     legacyScript = VehicleModelPackManager.INSTANCE.getScript(leaf)
                 }
-                if (legacyScript != null && !legacyScript.isBlank()) {
+                if (!legacyScript.isBlank()) {
                     RealTrainModRenewed.LOGGER.info(
                         "Loaded legacy script from resource manager: {}, length={}",
                         normalized,
@@ -2111,10 +2111,10 @@ object MqoModelLoader {
         try {
             if (hasExplicitPath) {
                 var legacyScript = VehicleModelPackManager.INSTANCE.getScript(normalized)
-                if (legacyScript == null || legacyScript.isBlank()) {
+                if (legacyScript.isBlank()) {
                     legacyScript = VehicleModelPackManager.INSTANCE.getScript(leaf)
                 }
-                if (legacyScript != null && !legacyScript.isBlank()) {
+                if (!legacyScript.isBlank()) {
                     return legacyScript
                 }
             }
@@ -2648,7 +2648,7 @@ object MqoModelLoader {
         for (i in 0..<count) {
             val candidate =
                 if (i < explicitPaths.size) explicitPaths.get(i) else deriveLegacyLightTexturePath(binding.path, i)
-            if (candidate == null || candidate.isBlank()) continue
+            if (candidate.isBlank()) continue
             val loaded = tryLoadOptionalTexture(candidate, opener, binding.cacheKey() + "#light" + i)
             if (loaded != null) {
                 found[i] = loaded
@@ -3920,7 +3920,6 @@ object MqoModelLoader {
         fun hasOwnWheelGroups(): Boolean {
             for (batch in batches) {
                 val g = batch!!.groupNameLower
-                if (g == null) continue
                 if (g.startsWith("wheel") || g.contains("動輪") || g.contains("車輪")) {
                     return true
                 }
@@ -4933,7 +4932,7 @@ object MqoModelLoader {
                 }
                 val lowerId = vehicleId.lowercase()
                 val def = getById(vehicleId)
-                val lowerModelFile = if (def == null || def.getModelFile() == null)
+                val lowerModelFile = if (def == null)
                     ""
                 else
                     def.getModelFile().replace('\\', '/').lowercase()

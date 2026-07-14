@@ -7,7 +7,7 @@ import java.io.BufferedInputStream
 import java.io.ByteArrayOutputStream
 import java.io.IOException
 import java.net.HttpURLConnection
-import java.net.URL
+import java.net.URI
 import java.nio.charset.StandardCharsets
 import java.util.Base64
 import javax.sound.sampled.AudioInputStream
@@ -125,7 +125,7 @@ open class VoiceText(private val key: String?) {
         @JvmStatic
         fun getAudioInputStream(key: String, bytes: ByteArray): AudioInputStream? =
             try {
-                val connection = URL(BASE_URL).openConnection() as HttpURLConnection
+                val connection = URI.create(BASE_URL).toURL().openConnection() as HttpURLConnection
                 connection.setRequestProperty(
                     "Authorization",
                     "Basic " + Base64.getEncoder().encodeToString("$key:".toByteArray()),

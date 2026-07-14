@@ -25,7 +25,7 @@ open class ATACSController : TrainProtection() {
     override fun onTick(train: TrainEntity, distance: Double) {
         super.onTick(train, distance)
 
-        val necessaryDistance = getBreakingDistance(RtmTrains.speed(train).toFloat())
+        val necessaryDistance = getBreakingDistance(RtmTrains.speed(train))
         val gap = getAnotherTrainDistance(train, necessaryDistance + SEARCH_MARGIN)
 
         if (gap < 0.0) {
@@ -107,7 +107,7 @@ open class ATACSController : TrainProtection() {
     }
 
     private fun getPattern(distance: Double): Double =
-        sqrt((1.4f * 3.6f * 7.2f * distance).toDouble())
+        sqrt(1.4f * 3.6f * 7.2f * distance)
 
     private fun getBreakingDistance(trainSpeedT: Float): Double {
         val trainSpeedH = trainSpeedT * 72f + 20f

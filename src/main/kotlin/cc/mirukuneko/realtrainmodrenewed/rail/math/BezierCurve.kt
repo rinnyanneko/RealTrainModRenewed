@@ -44,8 +44,8 @@ class BezierCurve(
         split = splitForLength(length)
     }
 
-    override fun getPoint(par1: Int, par2: Int): DoubleArray =
-        getPointFromParameter(getHomogenizedParameter(par1, par2).toDouble())
+    override fun getPoint(split: Int, index: Int): DoubleArray =
+        getPointFromParameter(getHomogenizedParameter(split, index).toDouble())
 
     private fun getPointFromParameter(par1: Double): DoubleArray {
         val t = par1.coerceIn(0.0, 1.0)
@@ -59,13 +59,13 @@ class BezierCurve(
         return doubleArrayOf(x, y)
     }
 
-    override fun getNearlestPoint(par1: Int, par2: Double, par3: Double): Int {
+    override fun getNearlestPoint(split: Int, x: Double, z: Double): Int {
         var i = 0
         var pd = Double.MAX_VALUE
-        for (j in 0 until par1) {
-            val point = getPoint(par1, j)
-            val dx = par2 - point[1]
-            val dy = par3 - point[0]
+        for (j in 0 until split) {
+            val point = getPoint(split, j)
+            val dx = x - point[1]
+            val dy = z - point[0]
             val distance = dx * dx + dy * dy
             if (distance < pd) {
                 pd = distance
@@ -75,8 +75,8 @@ class BezierCurve(
         return if (pd < Double.MAX_VALUE) i else -1
     }
 
-    override fun getSlope(par1: Int, par2: Int): Double =
-        getSlopeFromParameter(getHomogenizedParameter(par1, par2).toDouble())
+    override fun getSlope(split: Int, index: Int): Double =
+        getSlopeFromParameter(getHomogenizedParameter(split, index).toDouble())
 
     private fun getSlopeFromParameter(par1: Double): Double {
         val t = par1.coerceIn(0.0, 1.0)

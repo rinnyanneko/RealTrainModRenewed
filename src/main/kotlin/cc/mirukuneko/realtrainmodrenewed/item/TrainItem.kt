@@ -47,7 +47,7 @@ class TrainItem : Item {
         @JvmStatic
         fun accepts(category: Category?, definition: VehicleDefinition?): Boolean {
             if (definition == null || definition.isCarType()) return false
-            val type = (definition.vehicleType ?: "").uppercase(Locale.ROOT)
+            val type = definition.vehicleType.uppercase(Locale.ROOT)
             val test = type == "TEST"
             return when (category ?: Category.ELECTRIC) {
                 Category.TEST -> test
@@ -80,7 +80,7 @@ class TrainItem : Item {
     constructor() : this(Category.ELECTRIC)
     constructor(category: Category) : this(category, Properties())
     constructor(category: Category, properties: Properties) : super(properties) {
-        this.category = category ?: Category.ELECTRIC
+        this.category = category
     }
 
     fun accepts(definition: VehicleDefinition): Boolean = accepts(category, definition)
@@ -128,6 +128,7 @@ class TrainItem : Item {
         return InteractionResult.SUCCESS
     }
 
+    @Deprecated("Overrides Minecraft's deprecated tooltip extension hook")
     override fun appendHoverText(stack: ItemStack, context: TooltipContext, display: net.minecraft.world.item.component.TooltipDisplay, tooltip: Consumer<Component>, flag: TooltipFlag) {
         val selectedId = stack.get(RealTrainModRenewedComponents.SELECTED_MODEL_ID.get())
         if (!selectedId.isNullOrBlank()) {
@@ -138,7 +139,7 @@ class TrainItem : Item {
 
     private fun isLookingAtBlock(level: Level, player: Player): Boolean {
         val start = player.getEyePosition(1.0f)
-        val end = start.add(player.getViewVector(1.0f).scale(player.blockInteractionRange().toDouble()))
+        val end = start.add(player.getViewVector(1.0f).scale(player.blockInteractionRange()))
         return level.clip(ClipContext(start, end, ClipContext.Block.OUTLINE, ClipContext.Fluid.NONE, player)).type == HitResult.Type.BLOCK
     }
 
@@ -226,8 +227,7 @@ class TrainItem : Item {
         var bestDistSq = Double.POSITIVE_INFINITY
         for (cx in centerChunkX - RAIL_CORE_SCAN_RADIUS_CHUNKS..centerChunkX + RAIL_CORE_SCAN_RADIUS_CHUNKS) {
             for (cz in centerChunkZ - RAIL_CORE_SCAN_RADIUS_CHUNKS..centerChunkZ + RAIL_CORE_SCAN_RADIUS_CHUNKS) {
-                val chunkCenter = BlockPos((cx shl 4) + 8, clickedPos.y, (cz shl 4) + 8)
-                if (!level.hasChunkAt(chunkCenter)) continue
+                if (!level.hasChunk(cx, cz)) continue
                 val chunk = level.getChunk(cx, cz)
                 for (pos in chunk.blockEntities.keys) {
                     val core = level.getBlockEntity(pos) as? LargeRailCoreBlockEntity ?: continue

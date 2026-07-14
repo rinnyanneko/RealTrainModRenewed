@@ -170,9 +170,9 @@ open class TrainEntityRenderer(context: EntityRendererProvider.Context) :
                 )
             }
             val doorTransform = object : MqoModelLoader.GroupTransform {
-                override fun apply(stack: PoseStack, groupName: String?) {
-                    applyDoorTransform(stack, definition.leftDoors, groupName, entity.doorMoveL, true)
-                    applyDoorTransform(stack, definition.rightDoors, groupName, entity.doorMoveR, false)
+                override fun apply(poseStack: PoseStack, groupName: String?) {
+                    applyDoorTransform(poseStack, definition.leftDoors, groupName, entity.doorMoveL, true)
+                    applyDoorTransform(poseStack, definition.rightDoors, groupName, entity.doorMoveR, false)
                 }
 
                 override fun mayModify(groupName: String?): Boolean {
@@ -285,7 +285,7 @@ open class TrainEntityRenderer(context: EntityRendererProvider.Context) :
         }
 
         private fun resolveTrainPackedLight(entity: TrainEntity?, fallbackPackedLight: Int): Int {
-            if (entity == null || entity.level() == null) {
+            if (entity == null) {
                 return fallbackPackedLight
             }
             return try {
@@ -422,7 +422,7 @@ open class TrainEntityRenderer(context: EntityRendererProvider.Context) :
                 return false
             }
             for (objectName in objects) {
-                if (objectName != null && objectName.equals(groupName, ignoreCase = true)) {
+                if (objectName.equals(groupName, ignoreCase = true)) {
                     return true
                 }
             }
@@ -457,7 +457,7 @@ open class TrainEntityRenderer(context: EntityRendererProvider.Context) :
 
             for (rollsign in definition.rollsigns) {
                 val uv = rollsign.uv()
-                if (uv == null || uv.size < 4) {
+                if (uv.size < 4) {
                     continue
                 }
                 val uMin = uv[0]
@@ -469,7 +469,7 @@ open class TrainEntityRenderer(context: EntityRendererProvider.Context) :
                 val signLight = if (rollsign.disableLighting()) 0x00F000F0 else packedLight
 
                 for (quad in rollsign.pos()) {
-                    if (quad == null || quad.size < 4) {
+                    if (quad.size < 4) {
                         continue
                     }
                     emitRollsignQuad(
@@ -693,7 +693,7 @@ open class TrainEntityRenderer(context: EntityRendererProvider.Context) :
         }
 
         private fun shouldSkipInlineBogie(selfDrawsRunningGear: Boolean, bogieDef: VehicleDefinition.BogieDefinition?): Boolean {
-            if (bogieDef == null || bogieDef.modelFile() == null || bogieDef.modelFile().isBlank()) {
+            if (bogieDef == null || bogieDef.modelFile().isBlank()) {
                 return true
             }
             if (BogieRenderer.isDummyBogieModel(bogieDef.modelFile())) {
@@ -843,7 +843,8 @@ open class TrainEntityRenderer(context: EntityRendererProvider.Context) :
             billRight: Vector3f,
             billUp: Vector3f,
         ) {
-            if (light == null || light.position() == null) return
+            if (light == null) return
+            val position = light.position()
 
             val argb = if (light.color() == 0) -1 else light.color()
             var baseAlpha = argb ushr 24 and 0xFF
@@ -852,9 +853,9 @@ open class TrainEntityRenderer(context: EntityRendererProvider.Context) :
             val green = argb ushr 8 and 0xFF
             val blue = argb and 0xFF
 
-            val cx = light.position().x.toFloat()
-            val cy = light.position().y.toFloat()
-            val cz = light.position().z.toFloat()
+            val cx = position.x.toFloat()
+            val cy = position.y.toFloat()
+            val cz = position.z.toFloat()
             val baseSize = max(light.radius() * 0.4f, 0.10f)
 
             val nx = normalMatrix.m20()

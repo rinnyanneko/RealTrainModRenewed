@@ -119,7 +119,7 @@ open class IftttEditorScreen(tile: IftttBlockEntity) : Screen(Component.literal(
             rebuild()
             return
         }
-        minecraft!!.setScreen(
+        minecraft.setScreen(
             IftttMaterialScreen(
                 this,
                 created,
@@ -135,7 +135,7 @@ open class IftttEditorScreen(tile: IftttBlockEntity) : Screen(Component.literal(
     }
 
     private fun editEntry(container: IFTTTContainer, index: Int, isThis: Boolean) {
-        minecraft!!.setScreen(
+        minecraft.setScreen(
             IftttMaterialScreen(
                 this,
                 container,

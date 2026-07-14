@@ -68,9 +68,6 @@ object LegacyScriptSoundManager {
             return
         }
         val minecraft = Minecraft.getInstance()
-        if (minecraft.soundManager == null) {
-            return
-        }
         if (!looping) {
             val oneShotKey = key(train.uuid, soundId)
             val now = System.currentTimeMillis()
@@ -138,9 +135,6 @@ object LegacyScriptSoundManager {
             return
         }
         val minecraft = Minecraft.getInstance()
-        if (minecraft.soundManager == null) {
-            return
-        }
         val key = key(train.uuid, soundChannel(namespace, soundName, soundId))
         var sound = ACTIVE[key]
         if (sound == null || sound.isStopped) {
@@ -193,9 +187,6 @@ object LegacyScriptSoundManager {
         }
         val soundId = Identifier.tryParse(soundIdStr.trim().lowercase(Locale.ROOT)) ?: return
         val minecraft = Minecraft.getInstance()
-        if (minecraft.soundManager == null) {
-            return
-        }
         val instance = SimpleSoundInstance(
             soundId,
             SoundSource.RECORDS,
@@ -225,10 +216,7 @@ object LegacyScriptSoundManager {
     fun stopAt(x: Double, y: Double, z: Double) {
         val sound = SPEAKER_SOUNDS.remove(posKey(x, y, z))
         if (sound != null) {
-            val minecraft = Minecraft.getInstance()
-            if (minecraft.soundManager != null) {
-                minecraft.soundManager.stop(sound)
-            }
+            Minecraft.getInstance().soundManager.stop(sound)
         }
     }
 
@@ -321,7 +309,7 @@ object LegacyScriptSoundManager {
             return 0.06f
         }
         for (speed in definition.getNotchMaxSpeeds()) {
-            if (speed != null && speed > 0.0f) {
+            if (speed > 0.0f) {
                 return max(0.005f, speed / 72.0f)
             }
         }
@@ -486,9 +474,6 @@ object LegacyScriptSoundManager {
     @JvmStatic
     fun playLeverClick() {
         val minecraft = Minecraft.getInstance()
-        if (minecraft.soundManager == null) {
-            return
-        }
         val now = System.currentTimeMillis()
         if (now - lastLeverClickMs < LEVER_CLICK_DEBOUNCE_MS) {
             return

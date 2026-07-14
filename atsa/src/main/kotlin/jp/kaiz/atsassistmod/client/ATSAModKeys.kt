@@ -12,7 +12,7 @@ import org.lwjgl.glfw.GLFW
 object ATSAModKeys {
     @JvmField
     val CATEGORY: KeyMapping.Category =
-        KeyMapping.Category.register(Identifier.fromNamespaceAndPath(ATSAssistMod.MODID, "main"))
+        KeyMapping.Category(Identifier.fromNamespaceAndPath(ATSAssistMod.MODID, "main"))
 
     @JvmField
     val EMERGENCY_BRAKE = KeyMapping(

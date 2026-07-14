@@ -12,7 +12,7 @@ import org.lwjgl.glfw.GLFW
 
 object TrainControlKeyMappings {
     private val CATEGORY: KeyMapping.Category =
-        KeyMapping.Category.register(Identifier.fromNamespaceAndPath(RealTrainModRenewed.MODID, "controls"))
+        KeyMapping.Category(Identifier.fromNamespaceAndPath(RealTrainModRenewed.MODID, "controls"))
 
     @JvmField val OPEN_CONTROL: KeyMapping = key("open_control", GLFW.GLFW_KEY_E)
     @JvmField val POWER_OFF: KeyMapping = key("power_off", GLFW.GLFW_KEY_S)
@@ -28,6 +28,7 @@ object TrainControlKeyMappings {
 
     @JvmStatic
     fun register(event: RegisterKeyMappingsEvent) {
+        event.registerCategory(CATEGORY)
         event.register(OPEN_CONTROL)
         event.register(POWER_OFF)
         event.register(BRAKE_OFF)

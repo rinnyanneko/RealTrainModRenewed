@@ -233,7 +233,7 @@ open class BogieRenderer {
         bogieDef: VehicleDefinition.BogieDefinition?,
         parentDef: VehicleDefinition?,
     ): MqoModel? {
-        if (bogieDef == null || bogieDef.modelFile() == null || bogieDef.modelFile().isBlank()) {
+        if (bogieDef == null || bogieDef.modelFile().isBlank()) {
             return null
         }
 
@@ -244,7 +244,7 @@ open class BogieRenderer {
         var textureOverrides = bogieDef.textureOverrides()
         if (modelFile.lowercase(Locale.ROOT).endsWith(".class")) {
             modelFile = DEFAULT_CLASS_BOGIE_MODEL
-            if (textureOverrides == null || textureOverrides.isEmpty()) {
+            if (textureOverrides.isEmpty()) {
                 textureOverrides = mapOf("default" to "textures/train/bogie.png")
             }
         }
@@ -252,7 +252,7 @@ open class BogieRenderer {
         var bogieModel = MqoModelLoader.loadModelForVehiclePart(parentDef, modelFile, textureOverrides, bogieDef.scriptPath())
         if (bogieModel == null) {
             var fallbackOverrides = textureOverrides
-            if (fallbackOverrides == null || fallbackOverrides.isEmpty()) {
+            if (fallbackOverrides.isEmpty()) {
                 fallbackOverrides = mapOf("default" to "textures/train/bogie.png")
             }
             bogieModel = MqoModelLoader.loadModelForVehiclePart(parentDef, DEFAULT_CLASS_BOGIE_MODEL, fallbackOverrides)

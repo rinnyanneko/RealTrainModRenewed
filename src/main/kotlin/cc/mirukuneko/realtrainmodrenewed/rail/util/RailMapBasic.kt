@@ -98,16 +98,16 @@ open class RailMapBasic(
     override fun getHorizontalPathLength(): Double =
         lineHorizontal?.length ?: getLength()
 
-    override fun getNearlestPoint(par1: Int, par2: Double, par3: Double): Int =
-        lineHorizontal!!.getNearlestPoint(par1, par2, par3)
+    override fun getNearlestPoint(split: Int, x: Double, z: Double): Int =
+        lineHorizontal!!.getNearlestPoint(split, x, z)
 
-    override fun getRailPos(par1: Int, par2: Int): DoubleArray =
-        lineHorizontal!!.getPoint(par1, par2)
+    override fun getRailPos(split: Int, index: Int): DoubleArray =
+        lineHorizontal!!.getPoint(split, index)
 
-    override fun getRailHeight(par1: Int, par2: Int): Double {
+    override fun getRailHeight(split: Int, index: Int): Double {
         val railWidth = 3.0f
-        var height = lineVertical!!.getPoint(par1, par2)[1]
-        val cant = getCant(par1, par2)
+        var height = lineVertical!!.getPoint(split, index)[1]
+        val cant = getCant(split, index)
         if (cant != 0.0F) {
             val h2 = abs(sin(Math.toRadians(cant.toDouble())) * railWidth * 0.5f)
             height += h2
@@ -115,14 +115,14 @@ open class RailMapBasic(
         return height
     }
 
-    override fun getRailYaw(par1: Int, par2: Int): Float =
-        Math.toDegrees(lineHorizontal!!.getSlope(par1, par2)).toFloat()
+    override fun getRailYaw(split: Int, index: Int): Float =
+        Math.toDegrees(lineHorizontal!!.getSlope(split, index)).toFloat()
 
-    override fun getRailPitch(par1: Int, par2: Int): Float =
-        Math.toDegrees(lineVertical!!.getSlope(par1, par2)).toFloat()
+    override fun getRailPitch(split: Int, index: Int): Float =
+        Math.toDegrees(lineVertical!!.getSlope(split, index)).toFloat()
 
-    override fun getRailRoll(split: Int, t: Int): Float {
-        val ft = 2.0f * t.toFloat() / split.toFloat()
+    override fun getRailRoll(split: Int, index: Int): Float {
+        val ft = 2.0f * index.toFloat() / split.toFloat()
         val c1 = if (ft <= 1.0f) (1.0f - ft) * startRP.cantEdge else (ft - 1.0f) * -endRP.cantEdge
         val c2 = if (ft <= 1.0f) ft * startRP.cantCenter else (2.0f - ft) * startRP.cantCenter
         return c1 + c2

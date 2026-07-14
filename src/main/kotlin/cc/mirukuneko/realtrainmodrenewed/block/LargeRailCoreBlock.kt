@@ -49,12 +49,12 @@ class LargeRailCoreBlock : BaseEntityBlock {
 
         @JvmStatic
         fun removeRailNetwork(level: Level, corePos: BlockPos?, core: LargeRailCoreBlockEntity?) {
-            if (level == null || corePos == null) return
+            if (corePos == null) return
             val prev = RailMap.suppressRailRemoval.get()
             RailMap.suppressRailRemoval.set(true)
             try {
                 val maps = core?.allRailMaps ?: emptyArray()
-                for (map in maps) map?.removeRailBlocks(level, corePos)
+                for (map in maps) map.removeRailBlocks(level, corePos)
                 removeRemainingCollisionBlocks(level, corePos, maps)
                 if (level.getBlockState(corePos).block is LargeRailCoreBlock) level.removeBlock(corePos, false)
             } finally { RailMap.suppressRailRemoval.set(prev) }
@@ -65,7 +65,6 @@ class LargeRailCoreBlock : BaseEntityBlock {
             var minY = corePos.y - 2; var maxY = corePos.y + 2
             var minZ = corePos.z - 2; var maxZ = corePos.z + 2
             for (map in maps) {
-                if (map == null) continue
                 val split = RailMap.curveSplitForLength(map.getHorizontalPathLength())
                 val samples = max(16, split + 1)
                 for (i in 0 until samples) {
@@ -150,7 +149,7 @@ class LargeRailCoreBlock : BaseEntityBlock {
         return InteractionResult.PASS
     }
 
-    override fun getCloneItemStack(level: LevelReader, pos: BlockPos, state: BlockState, includeData: Boolean): ItemStack {
+    override fun getCloneItemStack(level: LevelReader, pos: BlockPos, state: BlockState, includeData: Boolean, player: Player): ItemStack {
         val be = level.getBlockEntity(pos)
         return if (be is LargeRailCoreBlockEntity) createRailCloneStack(pos, be) else ItemStack.EMPTY
     }

@@ -17,7 +17,7 @@ abstract class SwitchType(@JvmField val id: Byte) {
 
     open fun onUpdate(level: Level?) {
         for (point in points) {
-            point?.onUpdate(level)
+            point.onUpdate(level)
         }
     }
 

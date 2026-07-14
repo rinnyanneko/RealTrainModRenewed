@@ -93,9 +93,6 @@ open class SpeakerScreen(pos: BlockPos) : Screen(Component.literal("スピーカ
         candidateButtons.clear()
 
         val minecraft = Minecraft.getInstance()
-        if (minecraft.soundManager == null) {
-            return
-        }
         val query = searchBox?.value?.trim()?.lowercase(Locale.ROOT) ?: ""
 
         var shown = 0

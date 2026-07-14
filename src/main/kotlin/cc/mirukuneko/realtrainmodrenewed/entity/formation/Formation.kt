@@ -97,7 +97,7 @@ class Formation(@JvmField var id: String, size: Int) {
     fun getLoadedFormationNumber(): Int {
         var count = 0
         for (entry in entries) {
-            if (entry != null && entry.train != null) count++
+            if (entry != null) count++
         }
         return count
     }

@@ -348,11 +348,8 @@ open class TrainControlScreen(private val train: TrainEntity) : Screen(Component
     }
 
     private fun renderPlayerInventory(graphics: GuiGraphicsExtractor, left: Int, top: Int) {
-        val minecraft = minecraft
-        if (minecraft == null || minecraft.player == null) {
-            return
-        }
-        val inventory = minecraft.player!!.inventory
+        val player = minecraft.player ?: return
+        val inventory = player.inventory
         if (selectedTab == ControlTab.INVENTORY) {
             for (row in 0 until 3) {
                 for (col in 0 until 9) {

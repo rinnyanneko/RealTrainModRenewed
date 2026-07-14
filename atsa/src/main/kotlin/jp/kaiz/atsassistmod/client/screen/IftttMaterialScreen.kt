@@ -62,11 +62,11 @@ open class IftttMaterialScreen(
         container.setFromGui(this)
         container.setOnce(onceBox?.selected() == true)
         onDone.accept(container)
-        minecraft!!.setScreen(parent)
+        minecraft.setScreen(parent)
     }
 
     private fun back() {
-        minecraft!!.setScreen(parent)
+        minecraft.setScreen(parent)
     }
 
     override fun extractRenderState(g: GuiGraphicsExtractor, mouseX: Int, mouseY: Int, partial: Float) {

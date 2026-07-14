@@ -85,7 +85,7 @@ class MarkerBlock(val isSwitch: Boolean, properties: BlockBehaviour.Properties) 
             var previewStack = stack
             var startTag = stack.get(RealTrainModRenewedComponents.RAIL_PREVIEW_START.get())
             if (startTag == null) {
-                val altStack = WrenchItem.findPlayerPreviewStack(player ?: return false)
+                val altStack = WrenchItem.findPlayerPreviewStack(player)
                 val altTag = if (altStack.isEmpty) null else altStack.get(RealTrainModRenewedComponents.RAIL_PREVIEW_START.get())
                 if (altTag != null && NbtCompat.getBoolean(altTag, "WrenchMode")) { previewStack = altStack; startTag = altTag }
             }
@@ -111,7 +111,7 @@ class MarkerBlock(val isSwitch: Boolean, properties: BlockBehaviour.Properties) 
             if (wrenchMode && startBe !is MarkerBlockEntity && startBe !is LargeRailCoreBlockEntity && !startTag.contains("StartRP")) { player.sendOverlayMessage(Component.literal("コピー元のレール情報が見つかりません")); return false }
 
             val start = resolvePreviewStart(startBe, startTag) ?: return false
-            val prop = createRailProperties(player ?: return false, selectedModelId)
+            val prop = createRailProperties(player, selectedModelId)
             val created = if (wrenchMode) {
                 createRailsFromWrenchPreview(level, startPos, start, startTag, prop, player.abilities.instabuild, selectedModelId)
             } else {
@@ -294,7 +294,7 @@ class MarkerBlock(val isSwitch: Boolean, properties: BlockBehaviour.Properties) 
     }
 
     private fun shouldPlaceDiagonal(forced: Boolean, player: Player): Boolean {
-        if (forced || player == null) return forced
+        if (forced) return true
         val yaw = Mth.positiveModulo(player.yRot + 180f, 360f)
         val rem = Mth.positiveModulo(yaw, 90f)
         return rem >= 22.5f && rem < 67.5f
@@ -326,7 +326,7 @@ class MarkerBlock(val isSwitch: Boolean, properties: BlockBehaviour.Properties) 
         }
         if (maps.isEmpty()) return false
         val prop = createRailProperties(player ?: return false, selectedModelId)
-        return createRail(level, pos, rps, prop, true, player?.abilities?.instabuild ?: false, selectedModelId)
+        return createRail(level, pos, rps, prop, true, player.abilities.instabuild, selectedModelId)
     }
 
     fun searchAllMarkers(level: Level, pos: BlockPos): List<RailPosition> {
@@ -338,7 +338,7 @@ class MarkerBlock(val isSwitch: Boolean, properties: BlockBehaviour.Properties) 
             val be = level.getBlockEntity(cur)
             if (be is MarkerBlockEntity) {
                 val rp = be.markerRP
-                if (rp != null && rp.posX.toDouble().let { it * it } + rp.posZ.toDouble().let { it * it } > 0.001) found.add(rp)
+                if (rp != null && rp.posX.let { it * it } + rp.posZ.let { it * it } > 0.001) found.add(rp)
             }
             for (dx in -SEARCH_DISTANCE..SEARCH_DISTANCE) for (dy in -SEARCH_HEIGHT..SEARCH_HEIGHT) for (dz in -SEARCH_DISTANCE..SEARCH_DISTANCE) {
                 if (abs(dx) > SEARCH_DISTANCE || abs(dz) > SEARCH_DISTANCE) continue
