@@ -60,7 +60,9 @@ jobs:
           ls -lah artifacts
 
       - name: Upload jar artifact
-        uses: https://code.forgejo.org/forgejo/upload-artifact@v3
+        timeout-minutes: 10
+        uses: https://data.forgejo.org/actions/upload-artifact@ff15f0306b3f739f7b6fd43fb5d26cd321bd4de5 # v3.2.1
         with:
           name: RealTrainModRenewed.jar
           path: artifacts/RealTrainModRenewed.jar
+          if-no-files-found: error

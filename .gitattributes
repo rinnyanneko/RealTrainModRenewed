@@ -9,3 +9,6 @@ gradlew text eol=lf
 *.gradle text eol=lf
 *.properties text eol=lf
 *.toml text eol=lf
+.gitattributes text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf
