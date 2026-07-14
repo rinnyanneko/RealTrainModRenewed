@@ -61,8 +61,9 @@ jobs:
 
       - name: Upload jar artifact
         timeout-minutes: 10
-        uses: https://data.forgejo.org/actions/upload-artifact@ff15f0306b3f739f7b6fd43fb5d26cd321bd4de5 # v3.2.1
+        uses: https://data.forgejo.org/forgejo/upload-artifact@16871d9e8cfcf27ff31822cac382bbb5450f1e1e # v4
         with:
           name: RealTrainModRenewed.jar
           path: artifacts/RealTrainModRenewed.jar
           if-no-files-found: error
+          compression-level: 0
