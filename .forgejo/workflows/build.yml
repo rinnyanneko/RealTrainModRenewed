@@ -43,6 +43,8 @@ jobs:
         run: ls -lah build/libs
 
       - name: Prepare jar artifact
+        env:
+          ARTIFACT_NAME: RealTrainModRenewed-${{ forgejo.sha }}.jar
         run: |
           mkdir -p artifacts
           JAR_FILE=$(find build/libs -maxdepth 1 -name "*.jar" \
@@ -56,14 +58,14 @@ jobs:
           fi
 
           echo "Selected jar: $JAR_FILE"
-          cp "$JAR_FILE" artifacts/RealTrainModRenewed.jar
+          cp "$JAR_FILE" "artifacts/$ARTIFACT_NAME"
           ls -lah artifacts
 
       - name: Upload jar artifact
         timeout-minutes: 10
         uses: https://data.forgejo.org/forgejo/upload-artifact@16871d9e8cfcf27ff31822cac382bbb5450f1e1e # v4
         with:
-          name: RealTrainModRenewed.jar
-          path: artifacts/RealTrainModRenewed.jar
+          name: RealTrainModRenewed-${{ forgejo.sha }}.jar
+          path: artifacts/RealTrainModRenewed-${{ forgejo.sha }}.jar
           if-no-files-found: error
           compression-level: 0
