@@ -37,7 +37,7 @@ jobs:
         run: chmod +x ./gradlew
 
       - name: Build
-        run: ./gradlew build --no-daemon
+        run: sh ./gradlew build --no-daemon
 
       - name: List jars
         run: ls -lah build/libs
