@@ -66,12 +66,9 @@ abstract class SwitchType(@JvmField val id: Byte) {
 
         override fun onBlockChanged(level: Level?) {
             if (level == null || allRailMap.size < 2) return
-            if (allRailMap[0].startRP.checkRSInput(level)) {
-                allRailMap[0].setState(false)
-                allRailMap[1].setState(true)
-            } else {
-                allRailMap[0].setState(true)
-                allRailMap[1].setState(false)
+            val activeRail = points.firstOrNull()?.getActiveRailMap(level) as? RailMapSwitch ?: return
+            for (railMap in allRailMap) {
+                railMap.setState(railMap === activeRail)
             }
         }
     }

@@ -17,6 +17,8 @@ import net.minecraft.core.BlockPos
 import net.minecraft.network.chat.Component
 import net.minecraft.world.entity.player.Player
 import net.minecraft.world.level.Level
+import net.minecraft.world.level.block.Block
+import net.minecraft.world.level.block.Blocks
 import net.minecraft.world.level.block.entity.BlockEntity
 import java.util.Locale
 
@@ -61,7 +63,14 @@ class SrbRailBridge {
             toModelId(modelId)
         )
         if (level == null || start == null || end == null) return false
-        val ok = MarkerBlock.buildRailForScript(level, listOf(start, end), toModelId(modelId))
+        val car = toCar(world) ?: return false
+        if (!canEditRail(car, listOf(start, end))) return false
+        val ok = MarkerBlock.buildRailForScript(
+            level,
+            listOf(start, end),
+            toModelId(modelId),
+            canEdit = car::canScriptEditAt,
+        )
         RealTrainModRenewed.LOGGER.debug("[RTM-DBG] SRB buildNormalRail result={}", ok)
         return ok
     }
@@ -70,38 +79,54 @@ class SrbRailBridge {
         val level = toLevel(world)
         if (level == null || rpsRaw == null || rpsRaw.size < 2) return false
         val rps = rpsRaw.filterIsInstance<RailPosition>()
-        return MarkerBlock.buildRailForScript(level, rps, toModelId(modelId))
+        val car = toCar(world) ?: return false
+        if (rps.size != rpsRaw.size || !canEditRail(car, rps)) return false
+        return MarkerBlock.buildRailForScript(level, rps, toModelId(modelId), canEdit = car::canScriptEditAt)
     }
 
     fun deleteRail(world: Any?, x: Int, y: Int, z: Int): Boolean {
         val level = toLevel(world) ?: return false
         val pos = BlockPos(x, y, z)
+        val car = toCar(world) ?: return false
+        if (!canEditRailBlocks(car, listOf(pos))) return false
         val block = level.getBlockState(pos).block
         if (block is LargeRailCoreBlock) {
-            level.removeBlock(pos, false)
+            val core = level.getBlockEntity(pos) as? LargeRailCoreBlockEntity ?: return false
+            LargeRailCoreBlock.removeRailNetwork(level, pos, core)
             return true
         }
         if (block is RailCollisionBlock) {
             val corePos = (level.getBlockEntity(pos) as? RailCollisionBlockEntity)?.corePos
             if (corePos != null && level.getBlockState(corePos).block is LargeRailCoreBlock) {
-                level.removeBlock(corePos, false)
+                val core = level.getBlockEntity(corePos) as? LargeRailCoreBlockEntity ?: return false
+                LargeRailCoreBlock.removeRailNetwork(level, corePos, core)
                 return true
             }
-            level.removeBlock(pos, false)
-            return true
         }
         return false
+    }
+
+    fun placeSupportBlock(world: Any?, x: Int, y: Int, z: Int): Boolean {
+        val level = toLevel(world) ?: return false
+        if (level.isClientSide) return false
+        val pos = BlockPos(x, y, z)
+        val car = toCar(world) ?: return false
+        if (!canEditRailBlocks(car, listOf(pos), requireRail = true)) return false
+
+        val state = level.getBlockState(pos)
+        if (!state.canBeReplaced()) return true
+        return level.setBlock(pos, Blocks.WHITE_WOOL.defaultBlockState(), Block.UPDATE_ALL)
     }
 
     fun heldRailModelId(playerObj: Any?): String {
         val player = playerObj as? Player ?: return ""
         val main = player.mainHandItem
         if (main.item is RailItem) {
-            return LegacyItemStackBridge.getSelectedModelId(main) ?: ""
+            return LegacyItemStackBridge.getSelectedModelId(main)
         }
         val off = player.offhandItem
         if (off.item is RailItem) {
-            return LegacyItemStackBridge.getSelectedModelId(off) ?: ""
+            return LegacyItemStackBridge.getSelectedModelId(off)
         }
         return ""
     }
@@ -143,6 +168,18 @@ class SrbRailBridge {
         val pos = blockEntity.blockPos
         return intArrayOf(pos.x, pos.y, pos.z)
     }
+
+    private fun canEditRail(car: CarEntity, positions: List<RailPosition>): Boolean =
+        heldRailModelId(car.scriptHostPlayer()).isNotBlank() && positions.all {
+            car.canScriptEditAt(BlockPos(it.blockX, it.blockY, it.blockZ))
+        }
+
+    private fun canEditRailBlocks(
+        car: CarEntity,
+        positions: List<BlockPos>,
+        requireRail: Boolean = false,
+    ): Boolean = (!requireRail || heldRailModelId(car.scriptHostPlayer()).isNotBlank()) &&
+        positions.all(car::canScriptEditAt)
 
     companion object {
         private var lastCoreLog = 0L
@@ -189,6 +226,8 @@ class SrbRailBridge {
             is CarEntity.CarWorldCompat -> world.getLevel()
             else -> null
         }
+
+        private fun toCar(world: Any?): CarEntity? = (world as? CarEntity.CarWorldCompat)?.getCar()
 
         private fun toModelId(modelId: Any?): String? =
             modelId?.toString()?.takeUnless { it.isBlank() }

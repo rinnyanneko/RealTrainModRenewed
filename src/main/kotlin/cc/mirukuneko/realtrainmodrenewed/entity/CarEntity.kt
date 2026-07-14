@@ -15,6 +15,7 @@ import cc.mirukuneko.realtrainmodrenewed.util.RealTrainModRenewedConstants.SECON
 import cc.mirukuneko.realtrainmodrenewed.util.RealTrainModRenewedConstants.TICK_PER_SECOND
 import cc.mirukuneko.realtrainmodrenewed.util.UnitConverter
 import net.minecraft.nbt.CompoundTag
+import net.minecraft.core.BlockPos
 import net.minecraft.network.protocol.Packet
 import net.minecraft.network.protocol.game.ClientGamePacketListener
 import net.minecraft.network.protocol.game.ClientboundAddEntityPacket
@@ -35,6 +36,7 @@ import net.minecraft.world.level.Level
 import net.minecraft.world.phys.Vec3
 import net.neoforged.neoforge.network.PacketDistributor
 import javax.script.ScriptEngine
+import java.util.UUID
 import kotlin.math.abs
 
 class CarEntity(type: EntityType<out CarEntity>, level: Level) : Entity(type, level) {
@@ -58,6 +60,25 @@ class CarEntity(type: EntityType<out CarEntity>, level: Level) : Entity(type, le
         private const val STEERING_WHEEL_MAX_ANGLE: Float = 630.0f
         private const val ACCELERATOR_STROKE_CHANGE_RATE: Float = 1.0f / TICK_PER_SECOND / 3.0f
         private const val BRAKE_STROKE_CHANGE_RATE: Float = 1.0f / TICK_PER_SECOND
+        private const val MAX_SCRIPT_DATA_LENGTH = 32_768
+        private const val MAX_SRB_EDIT_DISTANCE = 512.0
+        private val SRB_CLIENT_BOOLEAN_KEYS = setOf(
+            "buildComplete",
+            "changeMarker",
+            "isBuilding",
+            "isEndEdit",
+            "isHideHelp",
+            "isSetUnderBlock",
+        )
+        private val SRB_CLIENT_KEYS = SRB_CLIENT_BOOLEAN_KEYS + setOf("buildData", "deleteRailData", "railHeight")
+        private val SRB_TRANSIENT_KEYS = setOf(
+            "buildComplete",
+            "buildData",
+            "deleteRailData",
+            "hostPlayerEntityId",
+            "isBuilding",
+            "isEndEdit",
+        )
     }
 
     // RTM compat fields
@@ -78,6 +99,7 @@ class CarEntity(type: EntityType<out CarEntity>, level: Level) : Entity(type, le
     private var serverScriptEngine: ScriptEngine? = null
     private var attemptedServerScriptLoad: Boolean = false
     private val scriptData: MutableMap<String, String> = HashMap()
+    private var scriptHostPlayerUuid: UUID? = null
     private var scriptDataDirty: Boolean = false
     private var acceleratorStroke: Float = 0f
     private var brakeStroke: Float = 0f
@@ -95,17 +117,134 @@ class CarEntity(type: EntityType<out CarEntity>, level: Level) : Entity(type, le
     fun setScriptDataValue(key: String?, value: String?) {
         if (key.isNullOrBlank()) return
         val v = value ?: ""
+        if (!level().isClientSide && key == "hostPlayerEntityId") {
+            scriptHostPlayerUuid = v.toIntOrNull()
+                ?.let(level()::getEntity)
+                ?.let { it as? Player }
+                ?.uuid
+        }
         val prev = scriptData.put(key, v)
         if (v != prev) scriptDataDirty = true
     }
     fun applyScriptDataSync(data: Map<String, String>?) { if (data != null) scriptData.putAll(data) }
     fun scriptDataMap(): Map<String, String> = scriptData
 
+    fun canAcceptScriptDataFrom(player: Player): Boolean {
+        if (player.level() !== level()) return false
+        if (player.vehicle === this) return true
+        if (player.distanceToSqr(this) > 64.0 * 64.0) return false
+        return scriptHostPlayerUuid == player.uuid
+    }
+
+    fun applyClientScriptData(player: Player, key: String, value: String): Boolean {
+        if (!canAcceptScriptDataFrom(player) || key.length > 64 || value.length > MAX_SCRIPT_DATA_LENGTH) return false
+        if (!isSuperRailBuilderVehicle()) {
+            setScriptDataValue(key, value)
+            return true
+        }
+        if (key !in SRB_CLIENT_KEYS) return false
+        val valid = when (key) {
+            in SRB_CLIENT_BOOLEAN_KEYS -> value == "true" || value == "false" || value == "1" || value == "0"
+            "railHeight" -> value.toIntOrNull() in -256..256
+            "buildData" -> value.isEmpty() || validateSrbBuildData(player, value)
+            "deleteRailData" -> value.isEmpty() || validateSrbDeleteData(player, value)
+            else -> false
+        }
+        if (!valid) {
+            if (key == "buildData" || key == "deleteRailData") cancelSrbBuild()
+            return false
+        }
+        setScriptDataValue(key, value)
+        return true
+    }
+
+    fun scriptHostPlayer(): Player? {
+        val uuid = scriptHostPlayerUuid ?: return null
+        return level().players().firstOrNull { it.uuid == uuid }
+    }
+
+    fun canScriptEditAt(pos: BlockPos): Boolean {
+        val player = scriptHostPlayer() ?: return false
+        if (player.distanceToSqr(pos.center) > MAX_SRB_EDIT_DISTANCE * MAX_SRB_EDIT_DISTANCE) return false
+        return level().isInWorldBounds(pos) && level().mayInteract(player, pos)
+    }
+
+    private fun validateSrbBuildData(player: Player, value: String): Boolean = try {
+        val array = com.google.gson.JsonParser.parseString(value.replace('☆', ',')).asJsonArray
+        array.size() in 2..32 && array.all { element ->
+            val obj = element.asJsonObject
+            val x = obj.get("blockX")?.asDouble ?: return@all false
+            val y = obj.get("blockY")?.asDouble ?: return@all false
+            val z = obj.get("blockZ")?.asDouble ?: return@all false
+            x.isFinite() && y.isFinite() && z.isFinite() &&
+                isValidSrbRailGeometry(obj) &&
+                canPlayerEditAt(player, BlockPos.containing(x, y, z))
+        }
+    } catch (_: RuntimeException) {
+        false
+    }
+
+    private fun validateSrbDeleteData(player: Player, value: String): Boolean = try {
+        val array = com.google.gson.JsonParser.parseString(value.replace('☆', ',')).asJsonArray
+        if (array.size() != 3) return false
+        val coordinates = array.map { it.asDouble }
+        coordinates.all(Double::isFinite) && canPlayerEditAt(
+            player,
+            BlockPos.containing(coordinates[0], coordinates[1], coordinates[2]),
+        )
+    } catch (_: RuntimeException) {
+        false
+    }
+
+    private fun canPlayerEditAt(player: Player, pos: BlockPos): Boolean {
+        if (!level().isInWorldBounds(pos)) return false
+        if (player.distanceToSqr(pos.center) > MAX_SRB_EDIT_DISTANCE * MAX_SRB_EDIT_DISTANCE) return false
+        return level().mayInteract(player, pos)
+    }
+
+    private fun cancelSrbBuild() {
+        setScriptDataValue("isBuilding", "false")
+        setScriptDataValue("buildComplete", "false")
+        setScriptDataValue("buildData", "")
+        setScriptDataValue("deleteRailData", "")
+    }
+
+    private fun refreshSrbHostSession() {
+        if (!isSuperRailBuilderVehicle() || scriptHostPlayerUuid == null) return
+        val host = scriptHostPlayer()
+        val storedEntityId = getScriptDataValue("hostPlayerEntityId").toIntOrNull()
+        if (host != null && host.id == storedEntityId) return
+        try {
+            serverScriptEngine?.eval("if (typeof hostPlayerList !== 'undefined') hostPlayerList.remove(entity);")
+        } catch (_: Throwable) {
+        }
+        scriptHostPlayerUuid = null
+        setScriptDataValue("hostPlayerEntityId", "")
+        cancelSrbBuild()
+        setScriptDataValue("isEndEdit", "false")
+    }
+
+    private fun isValidSrbRailGeometry(obj: com.google.gson.JsonObject): Boolean {
+        fun numberIn(name: String, range: ClosedFloatingPointRange<Double>): Boolean {
+            val value = obj.get(name)?.asDouble ?: return false
+            return value.isFinite() && value in range
+        }
+        return numberIn("markerDir", 0.0..7.0) &&
+            numberIn("switchType", 0.0..1.0) &&
+            numberIn("height", -128.0..127.0) &&
+            numberIn("anchorLength", -1.0..1_024.0) &&
+            numberIn("anchorPitch", -90.0..90.0) &&
+            numberIn("anchorYaw", -36_000.0..36_000.0) &&
+            numberIn("cantCenter", -180.0..180.0) &&
+            numberIn("cantEdge", -180.0..180.0)
+    }
+
     // Legacy compat
     class CarWorldCompat(private val car: CarEntity) {
         @JvmField var field_72995_K: Boolean = false
         fun isClientSide(): Boolean { field_72995_K = car.level().isClientSide; return field_72995_K }
         fun getLevel(): Level = car.level()
+        fun getCar(): CarEntity = car
         fun func_175625_s(pos: net.minecraft.core.BlockPos) = car.level().getBlockEntity(pos)
         fun func_175625_s(x: Double, y: Double, z: Double) = car.level().getBlockEntity(net.minecraft.core.BlockPos(x.toInt(), y.toInt(), z.toInt()))
         fun func_73045_a(id: Any?): Entity? {
@@ -145,11 +284,21 @@ class CarEntity(type: EntityType<out CarEntity>, level: Level) : Entity(type, le
     override fun readAdditionalSaveData(tag: ValueInput) {
         setVehicleId(tag.getStringOr("VehicleId", "")); scriptData.clear()
         tag.read("ScriptData", CompoundTag.CODEC).ifPresent { sd -> for (key in sd.keySet()) scriptData[key] = sd.getStringOr(key, "") }
+        scriptHostPlayerUuid = null
+        if (isSuperRailBuilderVehicle()) SRB_TRANSIENT_KEYS.forEach(scriptData::remove)
     }
     override fun addAdditionalSaveData(tag: ValueOutput) {
         tag.putString("VehicleId", vehicleId)
-        if (scriptData.isNotEmpty()) { val sd = CompoundTag(); scriptData.forEach { (k, v) -> sd.putString(k, v) }; tag.store("ScriptData", CompoundTag.CODEC, sd) }
+        if (scriptData.isNotEmpty()) {
+            val sd = CompoundTag()
+            scriptData.forEach { (key, value) ->
+                if (!isSuperRailBuilderVehicle() || key !in SRB_TRANSIENT_KEYS) sd.putString(key, value)
+            }
+            tag.store("ScriptData", CompoundTag.CODEC, sd)
+        }
     }
+
+    private fun isSuperRailBuilderVehicle(): Boolean = vehicleId.contains("superrailbuilder", ignoreCase = true)
 
     override fun interact(player: Player, hand: InteractionHand, location: Vec3): InteractionResult {
         if (canAddPassenger(player)) { player.startRiding(this); return InteractionResult.SUCCESS }
@@ -203,6 +352,7 @@ class CarEntity(type: EntityType<out CarEntity>, level: Level) : Entity(type, le
 
         if (!level().isClientSide) {
             ensureServerScriptLoaded()
+            refreshSrbHostSession()
             if (serverScriptEngine != null) {
                 TrainScriptSystem.invokeServerScriptOnUpdate(serverScriptEngine!!, this)
                 yRot = field_70177_z; xRot = field_70125_A; yRotO = field_70177_z; xRotO = field_70125_A

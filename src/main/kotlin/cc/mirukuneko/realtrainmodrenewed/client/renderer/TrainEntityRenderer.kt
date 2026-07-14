@@ -124,9 +124,7 @@ open class TrainEntityRenderer(context: EntityRendererProvider.Context) :
                 poseStack.mulPose(Axis.XP.rotationDegrees(-renderPitch))
             }
 
-            val yawDelta = Mth.wrapDegrees(entity.yRot - entity.yRotO)
-            val horizSpeed = entity.deltaMovement.horizontalDistance().toFloat()
-            val bankAngle = Mth.clamp(-yawDelta * horizSpeed * 5.0f, -10.0f, 10.0f)
+            val bankAngle = entity.getVisualRoll(partialTicks)
             if (abs(bankAngle) > 0.01f) {
                 poseStack.mulPose(Axis.ZP.rotationDegrees(bankAngle))
             }

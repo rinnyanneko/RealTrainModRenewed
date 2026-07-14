@@ -5738,7 +5738,7 @@ class TrainScriptSystem private constructor() {
          * RTMU ネイティブ敷設(__SRB__ ブリッジ)へ差し替える上書き定義を末尾に追加する。
          * GUI・制御フロー(onUpdate/dataMap)・render はそのまま活かし、低レベル RTM/MCP API の不一致を回避する。
          */
-        private fun appendSuperRailBuilderOverrides(script: String?): String? {
+        internal fun appendSuperRailBuilderOverrides(script: String?): String? {
             if (script == null || !script.contains("SuperRailBuilderVersion")) {
                 return script
             }
@@ -5772,6 +5772,7 @@ class TrainScriptSystem private constructor() {
                 sb.append("  buildBranchRail = function(world, rps, railItem) { try { var l=new java.util.ArrayList(); for(var i=0;i<rps.length;i++) l.add(rps[i]); __SRB__.buildBranchRail(world, l, railItem); } catch(e){} };\n")
                 sb.append("  deleteRail = function(world, x, y, z) { try { return __SRB__.deleteRail(world, x|0, y|0, z|0); } catch(e){ return false; } };\n")
                 sb.append("  deleteRailRP = function(world, rp) { return deleteRail(world, rp.blockX, rp.blockY, rp.blockZ); };\n")
+                sb.append("  setBlock = function(world, x, y, z, block, meta, flag) { try { return __SRB__.placeSupportBlock(world, x|0, y|0, z|0); } catch(e){ return false; } };\n")
             }
             sb.append("} catch(e){} })();\n")
             return script + sb.toString()

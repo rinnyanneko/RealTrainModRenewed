@@ -131,12 +131,18 @@ class MarkerBlock(val isSwitch: Boolean, properties: BlockBehaviour.Properties) 
             placeRailFromItem(level, placePos, player, stack, selectedId)
 
         @JvmStatic
-        fun buildRailForScript(level: Level, railPositions: List<RailPosition>, selectedModelId: String?): Boolean {
+        fun buildRailForScript(
+            level: Level,
+            railPositions: List<RailPosition>,
+            selectedModelId: String?,
+            isCreative: Boolean = false,
+            canEdit: ((BlockPos) -> Boolean)? = null,
+        ): Boolean {
             if (railPositions.size < 2) return false
             val prop = RailProperties.createDefault()
             selectedModelId?.let { RailRegistry.getById(it) }?.let { prop.ballastWidth = it.ballastWidth }
             val core = BlockPos(railPositions[0].blockX, railPositions[0].blockY, railPositions[0].blockZ)
-            return createRail(level, core, railPositions, prop, true, true, selectedModelId)
+            return createRail(level, core, railPositions, prop, true, isCreative, selectedModelId, canEdit)
         }
 
         private fun resolvePreviewStart(startBe: BlockEntity?, tag: CompoundTag): RailPosition? = when {
@@ -189,7 +195,17 @@ class MarkerBlock(val isSwitch: Boolean, properties: BlockBehaviour.Properties) 
             return prop
         }
 
-        @JvmStatic fun createRail(level: Level, corePos: BlockPos, rps: List<RailPosition>, prop: RailProperties, setRail: Boolean, isCreative: Boolean, selectedModelId: String?): Boolean {
+        @JvmStatic
+        fun createRail(
+            level: Level,
+            corePos: BlockPos,
+            rps: List<RailPosition>,
+            prop: RailProperties,
+            setRail: Boolean,
+            isCreative: Boolean,
+            selectedModelId: String?,
+            canEdit: ((BlockPos) -> Boolean)? = null,
+        ): Boolean {
             if (rps.size < 2) return false
             val maker = RailMaker(rps.toTypedArray())
             val switch = maker.getSwitch()
@@ -202,7 +218,14 @@ class MarkerBlock(val isSwitch: Boolean, properties: BlockBehaviour.Properties) 
                 }
                 result
             }
-            for (map in maps) if (!map.canPlaceRail(level, isCreative, prop)) return false
+            if (canEdit != null && !canEdit(corePos)) return false
+            for (map in maps) {
+                if (!map.canPlaceRail(level, isCreative, prop)) return false
+                if (canEdit != null && map.getRailBlockList(prop, true).any { rail ->
+                        !canEdit(BlockPos(rail[0], rail[1], rail[2]))
+                    }
+                ) return false
+            }
             if (!setRail) return true
             val prev = RailMap.suppressRailRemoval.get(); RailMap.suppressRailRemoval.set(true)
             try {

@@ -127,6 +127,7 @@ class TrainEntity(type: EntityType<*>, level: Level) : Entity(type, level) {
     // 位置(同期オフセット)のレール継ぎ目グリッチ除去用。0=後/1=前。
     private val clientBogieOffRejectCount = intArrayOf(0, 0)
     private var interactionHitboxRefreshCooldown = 0
+    private var lastInteriorCarryPose: InteriorBodyPose? = null
 
     /** 診断用: STALL ログのスパム防止クールダウン(tick)。  */
     private var stallLogCooldown = 0
@@ -183,6 +184,8 @@ class TrainEntity(type: EntityType<*>, level: Level) : Entity(type, level) {
     var seatRotation: Float = 0f
     private val bogieHitboxUuids: MutableMap<Int, UUID?> = HashMap<Int, UUID?>()
     private val seatHitboxUuids: MutableMap<Int?, UUID> = HashMap<Int?, UUID>()
+    private val floorHitboxUuids: MutableMap<Int, UUID> = HashMap()
+    private var floorLayoutSignature = 0
 
     fun initializeOnRail(map: RailMap?, split: Int, index: Int) {
         if (map == null || split <= 0) {
@@ -772,6 +775,7 @@ class TrainEntity(type: EntityType<*>, level: Level) : Entity(type, level) {
                 setRot(getYRot(), getXRot())
             }
             updateClientBogieOffsetInterpolation()
+            carryInteriorPlayers()
             return
         }
 
@@ -820,6 +824,7 @@ class TrainEntity(type: EntityType<*>, level: Level) : Entity(type, level) {
                 // これをしないと後続車の台車がクライアントで剛体描画になりカーブでズレる。
                 syncBogieRenderOffsets()
                 refreshInteractionHitboxes(force = true)
+                carryInteriorPlayers()
                 return
             }
 
@@ -887,6 +892,7 @@ class TrainEntity(type: EntityType<*>, level: Level) : Entity(type, level) {
             // 端台車のワールド位置をクライアントへ同期(カーブで台車をレール上に正確に描くため)。
             syncBogieRenderOffsets()
             refreshInteractionHitboxes(force = !isNoGravity)
+            carryInteriorPlayers()
 
             hurtMarked = abs(speed) > 0.001f
         }
@@ -2019,8 +2025,10 @@ class TrainEntity(type: EntityType<*>, level: Level) : Entity(type, level) {
             pitch = Mth.clamp(pitch, prevPitch - maxPitchDelta, prevPitch + maxPitchDelta)
         }
         yaw = keepNearestYaw(yaw, getYRot())
+        val roll = computeBodyRoll()
         val centerSample = resolveBodyCenterSample(front, rear)
-        val center = Vec3(centerSample.x, centerSample.y + TRAIN_BODY_HEIGHT_OFFSET, centerSample.z)
+        val rolledCenter = applyBodyCenterOffset(centerSample, yaw, roll)
+        val center = Vec3(rolledCenter.x, rolledCenter.y + TRAIN_BODY_HEIGHT_OFFSET, rolledCenter.z)
         if (move) {
             setPos(center.x, center.y, center.z)
             setRot(yaw, pitch)
@@ -2029,12 +2037,13 @@ class TrainEntity(type: EntityType<*>, level: Level) : Entity(type, level) {
         }
         setYRot(yaw)
         setXRot(pitch)
+        bodyRoll = roll
         setYHeadRot(yaw)
         setYBodyRot(yaw)
         return yaw
     }
 
-    private fun computeBodyRoll(front: RailSample?, rear: RailSample?): Float {
+    private fun computeBodyRoll(): Float {
         if (isRailAnchorUsable(frontRailAnchor) && isRailAnchorUsable(rearRailAnchor)) {
             val frontRoll = sampleRailRoll(frontRailAnchor!!.map, frontRailAnchor!!.split, frontRailAnchor!!.index)
             val rearRoll = sampleRailRoll(rearRailAnchor!!.map, rearRailAnchor!!.split, rearRailAnchor!!.index)
@@ -4992,6 +5001,7 @@ class TrainEntity(type: EntityType<*>, level: Level) : Entity(type, level) {
                 train.ejectPassengers()
                 train.discardBogieHitboxes()
                 train.discardSeatHitboxes()
+                train.discardFloorHitboxes()
                 train.seatAssignments.clear()
                 train.syncSeatAssignmentsToEntityData()
                 train.speed = 0.0f
@@ -5009,6 +5019,7 @@ class TrainEntity(type: EntityType<*>, level: Level) : Entity(type, level) {
         decouple()
         discardBogieHitboxes()
         discardSeatHitboxes()
+        discardFloorHitboxes()
         seatAssignments.clear()
         syncSeatAssignmentsToEntityData()
         this.speed = 0.0f
@@ -6551,6 +6562,79 @@ class TrainEntity(type: EntityType<*>, level: Level) : Entity(type, level) {
         return !level().getBlockState(belowPos).isAir() || !level().getFluidState(feetPos).isEmpty()
     }
 
+    fun localPointToWorld(local: Vec3): Vec3 {
+        return localPointToWorld(local, currentInteriorBodyPose())
+    }
+
+    fun getInteriorFloorBounds(
+        localX: Double,
+        localY: Double,
+        localZ: Double,
+        width: Double,
+        length: Double,
+        height: Double,
+    ): AABB {
+        val pose = currentInteriorBodyPose()
+        val center = localPointToWorld(Vec3(localX, localY, localZ), pose)
+        val rotation = pose.rotation()
+        val widthAxis = rotation.transform(Vector3f((width * 0.5).toFloat(), 0.0f, 0.0f))
+        val heightAxis = rotation.transform(Vector3f(0.0f, (height * 0.5).toFloat(), 0.0f))
+        val lengthAxis = rotation.transform(Vector3f(0.0f, 0.0f, (length * 0.5).toFloat()))
+        val extentX = abs(widthAxis.x) + abs(heightAxis.x) + abs(lengthAxis.x)
+        val extentY = abs(widthAxis.y) + abs(heightAxis.y) + abs(lengthAxis.y)
+        val extentZ = abs(widthAxis.z) + abs(heightAxis.z) + abs(lengthAxis.z)
+        return AABB(
+            center.x - extentX,
+            center.y - extentY,
+            center.z - extentZ,
+            center.x + extentX,
+            center.y + extentY,
+            center.z + extentZ,
+        )
+    }
+
+    private fun currentInteriorBodyPose(): InteriorBodyPose {
+        val definition = getById(vehicleId) ?: getSelected()
+        return InteriorBodyPose(
+            position = position(),
+            yaw = yRot,
+            pitch = xRot,
+            roll = bodyRoll,
+            modelOffset = definition?.modelOffset ?: Vec3.ZERO,
+            modelScale = max(0.01f, definition?.modelScale ?: 1.0f),
+            vehicleId = vehicleId,
+        )
+    }
+
+    private fun localPointToWorld(local: Vec3, pose: InteriorBodyPose): Vec3 {
+        val transformed = Vector3f(
+            (pose.modelOffset.x + local.x * pose.modelScale).toFloat(),
+            (pose.modelOffset.y + local.y * pose.modelScale).toFloat(),
+            (pose.modelOffset.z + local.z * pose.modelScale).toFloat(),
+        )
+        pose.rotation().transform(transformed)
+        return pose.position.add(transformed.x.toDouble(), transformed.y.toDouble(), transformed.z.toDouble())
+    }
+
+    private fun worldPointToLocal(world: Vec3, pose: InteriorBodyPose): Vec3 {
+        val transformed = Vector3f(
+            (world.x - pose.position.x).toFloat(),
+            (world.y - pose.position.y).toFloat(),
+            (world.z - pose.position.z).toFloat(),
+        )
+        pose.rotation().conjugate().transform(transformed)
+        transformed.sub(
+            pose.modelOffset.x.toFloat(),
+            pose.modelOffset.y.toFloat(),
+            pose.modelOffset.z.toFloat(),
+        )
+        return Vec3(
+            (transformed.x / pose.modelScale).toDouble(),
+            (transformed.y / pose.modelScale).toDouble(),
+            (transformed.z / pose.modelScale).toDouble(),
+        )
+    }
+
     private fun localToWorld(local: Vec3): Vec3 {
         var def = getById(
             this.vehicleId
@@ -6624,13 +6708,11 @@ class TrainEntity(type: EntityType<*>, level: Level) : Entity(type, level) {
         val renderX = if (staleOldPos) this.getX() else Mth.lerp(partialTicks.toDouble(), this.xo, this.getX())
         val renderY = if (staleOldPos) this.getY() else Mth.lerp(partialTicks.toDouble(), this.yo, this.getY())
         val renderZ = if (staleOldPos) this.getZ() else Mth.lerp(partialTicks.toDouble(), this.zo, this.getZ())
-        // TrainEntityRenderer と同じ式で yaw / pitch / bank を求める。
+        // TrainEntityRenderer と同じ yaw / pitch / roll を使う。
         val renderYaw = if (staleOldPos) getYRot() else Mth.rotLerp(partialTicks, this.yRotO, getYRot())
         val renderPitch =
             Mth.clamp(if (staleOldPos) getXRot() else Mth.lerp(partialTicks, this.xRotO, getXRot()), -45.0f, 45.0f)
-        val yawDelta = Mth.wrapDegrees(getYRot() - this.yRotO)
-        val horizSpeed = getDeltaMovement().horizontalDistance().toFloat()
-        val bankAngle = Mth.clamp(-yawDelta * horizSpeed * 5.0f, -10.0f, 10.0f)
+        val bankAngle = getVisualRoll(partialTicks)
         // レンダラの回転(YP yaw → XP -pitch → ZP bank)を組み、その逆(共役)で world ベクトルを戻す。
         val q = Quaternionf()
             .rotateY(Math.toRadians(renderYaw.toDouble()).toFloat())
@@ -6767,6 +6849,65 @@ class TrainEntity(type: EntityType<*>, level: Level) : Entity(type, level) {
         }
     }
 
+    private fun ensureFloorHitboxes() {
+        if (level().isClientSide) return
+        val definition = getById(vehicleId) ?: getSelected()
+        val modelScale = max(0.01f, definition?.modelScale ?: 1.0f)
+        val usableHalfLength = max(1.0, trainHalfLength - 0.4)
+        val localFloorWidth = max(1.0, trainHalfWidth * 2.0 - 0.2 / modelScale)
+        val columnCount = if (localFloorWidth * modelScale > 1.8) 2 else 1
+        val localColumnStep = localFloorWidth / columnCount
+        val tileWidth = (localColumnStep * modelScale + FLOOR_TILE_OVERLAP).toFloat()
+        val tileHeight = Mth.clamp(TrainFloorEntity.DEFAULT_FLOOR_HEIGHT * modelScale, 0.12f, 0.3f)
+        val worldLength = usableHalfLength * 2.0 * modelScale
+        val rowCount = max(1, ceil(worldLength / FLOOR_TILE_TARGET_LENGTH).toInt())
+        val localRowStep = usableHalfLength * 2.0 / rowCount
+        val tileLength = (localRowStep * modelScale + FLOOR_TILE_OVERLAP).toFloat()
+        val tileCount = rowCount * columnCount
+        val layoutSignature = Objects.hash(
+            rowCount,
+            columnCount,
+            tileWidth.toBits(),
+            tileLength.toBits(),
+            tileHeight.toBits(),
+            vehicleId,
+        )
+        val layoutIsComplete = floorHitboxUuids.size == tileCount &&
+            (0 until tileCount).all { resolveFloorHitbox(it) != null }
+        if (layoutIsComplete && floorLayoutSignature == layoutSignature) return
+
+        for (row in 0 until rowCount) {
+            val localZ = (-usableHalfLength + (row + 0.5) * localRowStep).toFloat()
+            for (column in 0 until columnCount) {
+                val tileIndex = row * columnCount + column
+                val localX = (-localFloorWidth * 0.5 + (column + 0.5) * localColumnStep).toFloat()
+                var floor = resolveFloorHitbox(tileIndex)
+                if (floor == null) {
+                    floor = RealTrainModRenewedEntities.TRAIN_FLOOR.get()
+                        .create(level(), EntitySpawnReason.SPAWN_ITEM_USE) ?: continue
+                    floor.attachToTrain(this, localX, localZ, tileWidth, tileLength, tileHeight)
+                    level().addFreshEntity(floor)
+                    floorHitboxUuids[tileIndex] = floor.uuid
+                } else {
+                    floor.attachToTrain(this, localX, localZ, tileWidth, tileLength, tileHeight)
+                }
+                floor.setOldPosAndRot()
+            }
+        }
+        floorHitboxUuids.keys.toList().filter { it >= tileCount }.forEach { staleIndex ->
+            resolveFloorHitbox(staleIndex)?.discard()
+            floorHitboxUuids.remove(staleIndex)
+        }
+        floorLayoutSignature = layoutSignature
+    }
+
+    private fun resolveFloorHitbox(tileIndex: Int): TrainFloorEntity? {
+        if (level() !is ServerLevel) return null
+        val uuid = floorHitboxUuids[tileIndex] ?: return null
+        return serverLevel.getEntity(uuid)
+            ?.takeIf { it.isAlive } as? TrainFloorEntity
+    }
+
     private fun getOrCreateSeatHitbox(seatIndex: Int): TrainSeatEntity? {
         if (level() == null || level().isClientSide() || seatIndex < 0) {
             return null
@@ -6864,14 +7005,44 @@ class TrainEntity(type: EntityType<*>, level: Level) : Entity(type, level) {
         seatHitboxUuids.clear()
     }
 
+    private fun discardFloorHitboxes() {
+        if (level() is ServerLevel) {
+            floorHitboxUuids.values.forEach { uuid ->
+                (serverLevel.getEntity(uuid) as? TrainFloorEntity)?.discard()
+            }
+            val searchBox = boundingBox.inflate(64.0)
+            serverLevel.getEntitiesOfClass(TrainFloorEntity::class.java, searchBox).forEach { floor ->
+                if (floor.belongsToTrain(id) || floor.getTrain() == null) floor.discard()
+            }
+        }
+        floorHitboxUuids.clear()
+        floorLayoutSignature = 0
+    }
+
     @JvmRecord
     private data class BogieViewHit(val train: TrainEntity?, val bogieIndex: Int, val localHit: Vec3?)
+
+    private data class InteriorBodyPose(
+        val position: Vec3,
+        val yaw: Float,
+        val pitch: Float,
+        val roll: Float,
+        val modelOffset: Vec3,
+        val modelScale: Float,
+        val vehicleId: String?,
+    ) {
+        fun rotation(): Quaternionf = Quaternionf()
+            .rotateY(Math.toRadians(yaw.toDouble()).toFloat())
+            .rotateX(Math.toRadians(-pitch.toDouble()).toFloat())
+            .rotateZ(Math.toRadians(roll.toDouble()).toFloat())
+    }
 
     override fun remove(reason: RemovalReason) {
         if (!level().isClientSide()) {
             ejectPassengers()
             discardBogieHitboxes()
             discardSeatHitboxes()
+            discardFloorHitboxes()
             seatAssignments.clear()
             syncSeatAssignmentsToEntityData()
             // Invalidate Formation so remaining cars rebuild without this train on next tick
@@ -7279,7 +7450,49 @@ class TrainEntity(type: EntityType<*>, level: Level) : Entity(type, level) {
         }
         ensureBogieHitboxes()
         ensureSeatHitboxes()
+        ensureFloorHitboxes()
         interactionHitboxRefreshCooldown = if (movingEnoughToMissInteractionHitboxes || force) 0 else 20
+    }
+
+    private fun carryInteriorPlayers() {
+        val currentPose = currentInteriorBodyPose()
+        val previousPose = lastInteriorCarryPose
+        lastInteriorCarryPose = currentPose
+        if (previousPose == null || previousPose.vehicleId != currentPose.vehicleId) return
+
+        val translation = currentPose.position.subtract(previousPose.position)
+        val yawDelta = Mth.wrapDegrees(currentPose.yaw - previousPose.yaw)
+        val pitchDelta = Mth.wrapDegrees(currentPose.pitch - previousPose.pitch)
+        val rollDelta = Mth.wrapDegrees(currentPose.roll - previousPose.roll)
+        if (translation.lengthSqr() > 4.0 || maxOf(abs(yawDelta), abs(pitchDelta), abs(rollDelta)) > 30.0f) return
+        if (
+            translation.lengthSqr() < 1.0E-10 &&
+            maxOf(abs(yawDelta), abs(pitchDelta), abs(rollDelta)) < 1.0E-4f
+        ) return
+
+        val modelRadius = max(trainHalfLength, max(trainHalfWidth, trainHalfHeight)) * currentPose.modelScale
+        val searchRadius = modelRadius + currentPose.modelOffset.length() + 2.0
+        val searchBox = AABB(
+            min(previousPose.position.x, currentPose.position.x) - searchRadius,
+            min(previousPose.position.y, currentPose.position.y) - searchRadius,
+            min(previousPose.position.z, currentPose.position.z) - searchRadius,
+            max(previousPose.position.x, currentPose.position.x) + searchRadius,
+            max(previousPose.position.y, currentPose.position.y) + searchRadius,
+            max(previousPose.position.z, currentPose.position.z) + searchRadius,
+        )
+        for (player in level().getEntitiesOfClass(Player::class.java, searchBox)) {
+            if (player.isPassenger || player.isSpectator) continue
+            val local = worldPointToLocal(player.position(), previousPose)
+            if (abs(local.x) > trainHalfWidth - 0.12) continue
+            if (abs(local.z) > max(1.0, trainHalfLength - 0.25)) continue
+            if (local.y < -0.05 || local.y > 2.6) continue
+
+            val target = localPointToWorld(local, currentPose)
+            val carryDelta = target.subtract(player.position())
+            if (carryDelta.lengthSqr() in 1.0E-10..4.0) {
+                player.move(MoverType.SHULKER_BOX, carryDelta)
+            }
+        }
     }
 
     fun moveAsFormationFollower(leader: TrainEntity?, leaderSide: Int, followerSide: Int, speed: Float) {
@@ -7479,6 +7692,8 @@ class TrainEntity(type: EntityType<*>, level: Level) : Entity(type, level) {
         private const val BOGIE_RENDER_LIFT = 0.02
         private const val DEFAULT_HALF_WIDTH = 1.35
         private const val DEFAULT_HALF_HEIGHT = 2.2
+        private const val FLOOR_TILE_TARGET_LENGTH = 2.4
+        private const val FLOOR_TILE_OVERLAP = 0.08
         private const val TRAIN_BODY_MARGIN = 1.2
         private const val COUPLED_CLEARANCE = -0.06
         private const val COUPLER_CONTACT_DISTANCE = 0.35
@@ -7769,6 +7984,13 @@ class TrainEntity(type: EntityType<*>, level: Level) : Entity(type, level) {
                     seat.ejectPassengers()
                     seat.discard()
                 }
+            }
+            for (floor in serverLevel.getEntitiesOfClass<TrainFloorEntity>(
+                TrainFloorEntity::class.java,
+                bounds.inflate(2.0)
+            )) {
+                val train = floor.getTrain()
+                if (train == null || !train.isAlive || train.isRemoved) floor.discard()
             }
         }
 

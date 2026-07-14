@@ -54,7 +54,7 @@ class LargeRailCoreBlock : BaseEntityBlock {
             RailMap.suppressRailRemoval.set(true)
             try {
                 val maps = core?.allRailMaps ?: emptyArray()
-                for (map in maps) map?.removeRailBlocks(level)
+                for (map in maps) map?.removeRailBlocks(level, corePos)
                 removeRemainingCollisionBlocks(level, corePos, maps)
                 if (level.getBlockState(corePos).block is LargeRailCoreBlock) level.removeBlock(corePos, false)
             } finally { RailMap.suppressRailRemoval.set(prev) }
@@ -161,5 +161,9 @@ class LargeRailCoreBlock : BaseEntityBlock {
     }
 
     override fun <T : BlockEntity> getTicker(level: Level, state: BlockState, type: BlockEntityType<T>): BlockEntityTicker<T>? =
-        null
+        createTickerHelper(
+            type,
+            RealTrainModRenewedBlockEntities.LARGE_RAIL_CORE.get(),
+            LargeRailCoreBlockEntity::tick,
+        )
 }

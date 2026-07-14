@@ -4,6 +4,7 @@ package cc.mirukuneko.realtrainmodrenewed
 
 import cc.mirukuneko.realtrainmodrenewed.entity.TrainBogieEntity
 import cc.mirukuneko.realtrainmodrenewed.entity.TrainEntity
+import cc.mirukuneko.realtrainmodrenewed.entity.TrainFloorEntity
 import cc.mirukuneko.realtrainmodrenewed.entity.TrainSeatEntity
 import net.minecraft.core.registries.Registries
 import net.minecraft.resources.Identifier
@@ -28,6 +29,10 @@ object RealTrainModRenewedEntities {
     @JvmField
     val TRAIN_SEAT: DeferredHolder<EntityType<*>, EntityType<TrainSeatEntity>> =
         ENTITIES.register("train_seat", Supplier { EntityTypeHelper.createSeatType() })
+
+    @JvmField
+    val TRAIN_FLOOR: DeferredHolder<EntityType<*>, EntityType<TrainFloorEntity>> =
+        ENTITIES.register("train_floor", Supplier { EntityTypeHelper.createFloorType() })
 
     private fun key(path: String): ResourceKey<EntityType<*>> =
         ResourceKey.create(Registries.ENTITY_TYPE, Identifier.fromNamespaceAndPath(RealTrainModRenewed.MODID, path))

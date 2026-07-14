@@ -7,6 +7,7 @@ import cc.mirukuneko.realtrainmodrenewed.block.RailCollisionBlock
 import cc.mirukuneko.realtrainmodrenewed.block.MarkerBlock
 import cc.mirukuneko.realtrainmodrenewed.RealTrainModRenewedBlocks
 import cc.mirukuneko.realtrainmodrenewed.blockentity.RailCollisionBlockEntity
+import cc.mirukuneko.realtrainmodrenewed.blockentity.BallastBlockEntity
 import cc.mirukuneko.realtrainmodrenewed.rail.math.BezierCurve
 import cc.mirukuneko.realtrainmodrenewed.rail.math.CurveMath
 import net.minecraft.core.BlockPos
@@ -235,7 +236,7 @@ abstract class RailMap {
     }
 
     /** 旧道床ブロックを中心線沿いに軽量スキャンして撤去する。 */
-    fun removeRailBlocks(level: Level) {
+    fun removeRailBlocks(level: Level, ownerCorePos: BlockPos) {
         val len = getLength()
         val split = curveSplitForLength(getHorizontalPathLength())
         val samples = maxOf(3, split + 1)
@@ -250,10 +251,12 @@ abstract class RailMap {
                 for (dz in -1..1) {
                     for (dy in -1..0) {
                         val pos = BlockPos(x + dx, y + dy, z + dz)
-                        val block = level.getBlockState(pos).block
-                        if (block is BallastBlock || block is RailCollisionBlock) {
-                            level.removeBlock(pos, false)
+                        val owned = when (val blockEntity = level.getBlockEntity(pos)) {
+                            is BallastBlockEntity -> blockEntity.corePos == ownerCorePos
+                            is RailCollisionBlockEntity -> blockEntity.corePos == ownerCorePos
+                            else -> false
                         }
+                        if (owned) level.removeBlock(pos, false)
                     }
                 }
             }

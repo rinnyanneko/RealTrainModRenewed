@@ -25,6 +25,24 @@ import net.minecraft.world.phys.AABB
 class LargeRailCoreBlockEntity(pos: BlockPos, state: BlockState) :
     BlockEntity(RealTrainModRenewedBlockEntities.LARGE_RAIL_CORE.get(), pos, state) {
 
+    companion object {
+        @JvmStatic
+        fun tick(level: Level, pos: BlockPos, state: BlockState, blockEntity: LargeRailCoreBlockEntity) {
+            blockEntity.switchType?.onUpdate(level)
+            if (blockEntity.switchStateDirty) {
+                blockEntity.refreshSwitchState()
+            }
+            if (blockEntity.switchProgress < 1.0f) {
+                blockEntity.switchProgress = minOf(1.0f, blockEntity.switchProgress + 0.04f)
+                if (level.isClientSide) {
+                    blockEntity.requestModelDataUpdate()
+                } else {
+                    blockEntity.setChanged()
+                }
+            }
+        }
+    }
+
     private enum class SwitchLayout { NONE, BASIC, SINGLE_CROSS, SCISSORS, DIAMOND }
 
     @JvmField
@@ -48,6 +66,7 @@ class LargeRailCoreBlockEntity(pos: BlockPos, state: BlockState) :
         cachedAllRailMaps = buildRailMaps(); railMapCacheDirty = false; return cachedAllRailMaps.clone()
     }
     val activeRailMaps: Array<RailMap> get() {
+        if (switchStateDirty && level != null) refreshSwitchState()
         val maps = allRailMaps; if (maps.size <= 1) return maps
         if (switchType != null) return switchType!!.getOpenRailMaps().toTypedArray()
         val layout = detectSwitchLayout()
@@ -83,6 +102,21 @@ class LargeRailCoreBlockEntity(pos: BlockPos, state: BlockState) :
     }
 
     fun getRailPositions(): Array<RailPosition?>? = railPositions
+
+    /** Legacy RTM rail scripts treat both base and core tiles through this accessor. */
+    fun getRailCore(): LargeRailCoreBlockEntity = this
+
+    /** Legacy name used by SuperRailBuilder when inspecting switch points. */
+    fun getSwitch(): SwitchType? = switchType
+
+    /**
+     * Legacy scripts pass a nullable direction argument even for ordinary rails.
+     * Switch-aware callers use [allRailMaps], so this accessor stays read-only and
+     * returns the first map without refreshing redstone state during rendering.
+     */
+    @Suppress("UNUSED_PARAMETER")
+    fun getRailMap(direction: Any?): RailMap? = railMap ?: allRailMaps.firstOrNull()
+
     fun getCachedRenderBounds(): AABB {
         if (renderBoundsDirty || cachedRenderBounds == null) {
             cachedRenderBounds = computeRenderBounds()

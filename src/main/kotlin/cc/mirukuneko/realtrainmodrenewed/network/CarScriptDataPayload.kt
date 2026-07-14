@@ -42,7 +42,7 @@ data class CarScriptDataPayload(
             context.enqueueWork {
                 val player = context.player()
                 val car = player.level().getEntity(payload.entityId) as? CarEntity ?: return@enqueueWork
-                car.setScriptDataValue(payload.key, payload.value)
+                car.applyClientScriptData(player, payload.key, payload.value)
             }
         }
     }
