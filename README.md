@@ -21,7 +21,7 @@ Minecraft while maintaining compatibility with the existing RTM ecosystem.
 
 - **CurseForge:** https://www.curseforge.com/minecraft/mc-mods/realtrainmodrenewed
 - **Modrinth:** https://modrinth.com/mod/realtrainmodrenewed
-- **Releases:** https://code.mirukuneko.cc/mirukuneko/RealTrainModRenewed/releases
+- **Canary version:** https://code.mirukuneko.cc/mirukuneko/RealTrainModRenewed/actions
 
 ---
 
@@ -30,17 +30,6 @@ Minecraft while maintaining compatibility with the existing RTM ecosystem.
 - **Main:** https://code.mirukuneko.cc/mirukuneko/RealTrainModRenewed
 - **Issues & PRs:** https://codeberg.org/mirukuneko/RealTrainModRenewed
 - **Mirror:** https://github.com/rinnyanneko/RealTrainModRenewed
-
----
-
-## Goals
-
-- [x] Port RealTrainMod to modern Minecraft with NeoForge
-- [ ] **Maintain compatibility with legacy RTM model packs, vehicles, rails, signals**
-- [x] Gradually rewrite the codebase in Kotlin
-- [ ] **Improve maintainability and developer experience**
-- [ ] Target the next NeoForge LTS when available
-- [ ] New feature...?
 
 ---
 

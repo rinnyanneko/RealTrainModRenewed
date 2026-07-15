@@ -44,7 +44,7 @@ jobs:
 
       - name: Prepare jar artifact
         env:
-          ARTIFACT_NAME: RealTrainModRenewed-${{ forgejo.sha }}.jar
+          ARTIFACT_NAME: RTMR-${{ forgejo.sha }}.jar
         run: |
           mkdir -p artifacts
           JAR_FILE=$(find build/libs -maxdepth 1 -name "*.jar" \
@@ -65,7 +65,7 @@ jobs:
         timeout-minutes: 10
         uses: https://data.forgejo.org/forgejo/upload-artifact@16871d9e8cfcf27ff31822cac382bbb5450f1e1e # v4
         with:
-          name: RealTrainModRenewed-${{ forgejo.sha }}.jar
-          path: artifacts/RealTrainModRenewed-${{ forgejo.sha }}.jar
+          name: RTMR-${{ forgejo.sha }}.jar
+          path: artifacts/RTMR-${{ forgejo.sha }}.jar
           if-no-files-found: error
           compression-level: 0
