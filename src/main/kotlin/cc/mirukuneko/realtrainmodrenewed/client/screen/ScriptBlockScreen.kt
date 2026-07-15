@@ -15,7 +15,7 @@ import net.minecraft.core.BlockPos
 import net.minecraft.network.chat.Component
 import java.util.regex.Pattern
 
-open class ScriptBlockScreen(pos: BlockPos) : Screen(Component.literal("scriptブロック")) {
+open class ScriptBlockScreen(pos: BlockPos) : Screen(Component.translatable("block.realtrainmodrenewed.script_block")) {
     private val pos: BlockPos = pos.immutable()
     private val lines = mutableListOf<EditBox>()
     private var runOnRedstone: Boolean = true
@@ -33,7 +33,14 @@ open class ScriptBlockScreen(pos: BlockPos) : Screen(Component.literal("script�
         val startY = 38
         val splitLines = splitScript(readScript())
         for (i in 0 until LINE_COUNT) {
-            val line = EditBox(font, x, startY + i * 18, boxWidth, 16, Component.literal("line$i"))
+            val line = EditBox(
+                font,
+                x,
+                startY + i * 18,
+                boxWidth,
+                16,
+                Component.translatable("screen.realtrainmodrenewed.script.line", i + 1),
+            )
             line.setMaxLength(LINE_LENGTH)
             line.setValue(if (i < splitLines.size) splitLines[i] else "")
             addRenderableWidget(line)
@@ -44,14 +51,14 @@ open class ScriptBlockScreen(pos: BlockPos) : Screen(Component.literal("script�
         }
 
         addRenderableWidget(CycleButton.onOffBuilder(runOnRedstone)
-            .create(x, startY + LINE_COUNT * 18 + 8, 120, 20, Component.literal("赤石実行")) { _, value -> runOnRedstone = value })
-        addRenderableWidget(Button.builder(Component.literal("貼り付け")) { pasteClipboard() }
+            .create(x, startY + LINE_COUNT * 18 + 8, 120, 20, Component.translatable("screen.realtrainmodrenewed.script.run_on_redstone")) { _, value -> runOnRedstone = value })
+        addRenderableWidget(Button.builder(Component.translatable("button.realtrainmodrenewed.paste")) { pasteClipboard() }
             .bounds(x + 128, startY + LINE_COUNT * 18 + 8, 70, 20)
             .build())
-        addRenderableWidget(Button.builder(Component.literal("保存")) { submit(false) }
+        addRenderableWidget(Button.builder(Component.translatable("button.realtrainmodrenewed.save")) { submit(false) }
             .bounds(x + 206, startY + LINE_COUNT * 18 + 8, 70, 20)
             .build())
-        addRenderableWidget(Button.builder(Component.literal("保存して実行")) { submit(true) }
+        addRenderableWidget(Button.builder(Component.translatable("button.realtrainmodrenewed.save_execute")) { submit(true) }
             .bounds(x + 284, startY + LINE_COUNT * 18 + 8, 110, 20)
             .build())
         addRenderableWidget(Button.builder(Component.translatable("gui.cancel")) { onClose() }
@@ -123,9 +130,9 @@ open class ScriptBlockScreen(pos: BlockPos) : Screen(Component.literal("script�
         super.extractRenderState(graphics, mouseX, mouseY, partialTick)
         val x = width / 2
         graphics.centeredText(font, title, x, 12, 0xFFFFFF)
-        graphics.centeredText(font, Component.literal("level / world / pos / x / y / z / powered / redstone / train を使えます"), x, 24, 0xAAAAAA)
+        graphics.centeredText(font, Component.translatable("screen.realtrainmodrenewed.script.variables_hint"), x, 24, 0xAAAAAA)
         if (lastError.isNotBlank()) {
-            graphics.centeredText(font, Component.literal("前回: $lastError"), x, height - 14, 0xFF7777)
+            graphics.centeredText(font, Component.translatable("screen.realtrainmodrenewed.script.previous_error", lastError), x, height - 14, 0xFF7777)
         }
     }
 

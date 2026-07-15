@@ -3806,7 +3806,7 @@ class TrainEntity(type: EntityType<*>, level: Level) : Entity(type, level) {
                 playerId,
                 CouplingSelection(getUUID(), selectedBogieIndex, null, -1, level().getGameTime())
             )
-            player.sendOverlayMessage(Component.literal("連結モード: もう片方の列車の台車を選択してください"))
+            player.sendOverlayMessage(Component.translatable("message.realtrainmodrenewed.coupling.select_other_bogie"))
             return
         }
         if (selection.first == getUUID()) {
@@ -3817,7 +3817,7 @@ class TrainEntity(type: EntityType<*>, level: Level) : Entity(type, level) {
                 -1,
                 level().getGameTime()
             )
-            player.sendOverlayMessage(Component.literal("連結モード: 端點已更新，請選擇另一輛列車"))
+            player.sendOverlayMessage(Component.translatable("message.realtrainmodrenewed.coupling.endpoint_updated"))
             return
         }
         COUPLING_MODE.put(
@@ -3830,7 +3830,7 @@ class TrainEntity(type: EntityType<*>, level: Level) : Entity(type, level) {
                 level().getGameTime()
             )
         )
-        player.sendOverlayMessage(Component.literal("連結モード: 2両をゆっくり接触させてください"))
+        player.sendOverlayMessage(Component.translatable("message.realtrainmodrenewed.coupling.move_together"))
     }
 
     private fun findNearestBogieIndex(worldPosition: Vec3): Int {
@@ -3890,7 +3890,7 @@ class TrainEntity(type: EntityType<*>, level: Level) : Entity(type, level) {
                 ) {
                     COUPLING_MODE.remove(entry.key)
                     if (player != null) {
-                        player.sendOverlayMessage(Component.literal("連結しました"))
+                        player.sendOverlayMessage(Component.translatable("message.realtrainmodrenewed.coupling.connected"))
                     }
                 }
             }
@@ -4285,7 +4285,7 @@ class TrainEntity(type: EntityType<*>, level: Level) : Entity(type, level) {
                 || otherTrain.coupleFormationsRtMLike(otherTrain, otherSide, this, thisSide)
         if (coupled) {
             clearCouplingModeInvolving(this, otherTrain)
-            notifyCouplingChat(Component.literal("連結しました"), otherTrain, null)
+            notifyCouplingChat(Component.translatable("message.realtrainmodrenewed.coupling.connected"), otherTrain, null)
         }
         return coupled
     }
@@ -4391,7 +4391,7 @@ class TrainEntity(type: EntityType<*>, level: Level) : Entity(type, level) {
                 request.sourceTrain.clearBogieActivation()
                 request.targetTrain.clearBogieActivation()
                 clearCouplingModeInvolving(request.sourceTrain, request.targetTrain)
-                notifyCouplingChat(Component.literal("連結しました"), request.targetTrain, null)
+                notifyCouplingChat(Component.translatable("message.realtrainmodrenewed.coupling.connected"), request.targetTrain, null)
                 return
             }
             if (!isCouplingModeActiveBetween(request.sourceTrain, request.targetTrain)) {
@@ -4689,7 +4689,7 @@ class TrainEntity(type: EntityType<*>, level: Level) : Entity(type, level) {
             ) {
                 clearBogieActivation()
                 other.clearBogieActivation()
-                notifyCouplingChat(Component.literal("連結しました"), other, player)
+                notifyCouplingChat(Component.translatable("message.realtrainmodrenewed.coupling.connected"), other, player)
                 return true
             }
         }
@@ -4717,7 +4717,7 @@ class TrainEntity(type: EntityType<*>, level: Level) : Entity(type, level) {
         ) return false
         sourceRaw.clearBogieActivation()
         secondTrain.clearBogieActivation()
-        sourceRaw.notifyCouplingChat(Component.literal("連結しました"), secondTrain, player)
+        sourceRaw.notifyCouplingChat(Component.translatable("message.realtrainmodrenewed.coupling.connected"), secondTrain, player)
         return true
     }
 

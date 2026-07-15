@@ -43,7 +43,7 @@ data class BindSignalReceiverPayload(
                 val player = context.player() as? ServerPlayer ?: return@enqueueWork
                 val data = SignalNetworkSavedData.get(player.level())
                 if (!data.hasChannel(payload.channel)) {
-                    player.sendOverlayMessage(Component.literal("その番号の信号は見つかりません"))
+                    player.sendOverlayMessage(Component.translatable("message.realtrainmodrenewed.signal.not_found"))
                     return@enqueueWork
                 }
                 when (val blockEntity = player.level().getBlockEntity(payload.pos)) {
@@ -57,7 +57,10 @@ data class BindSignalReceiverPayload(
                     }
                     else -> return@enqueueWork
                 }
-                player.sendOverlayMessage(Component.literal("信号番号 ${payload.channel} を受信しました"))
+                player.sendOverlayMessage(Component.translatable(
+                    "message.realtrainmodrenewed.signal.received",
+                    payload.channel,
+                ))
             }
         }
     }

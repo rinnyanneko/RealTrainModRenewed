@@ -1493,9 +1493,7 @@ class TrainScriptSystem private constructor() {
         private fun computeReplaySignature(pass: Int, entity: Any?): ReplayKey? {
             if (!replayCacheAllowed) return null
             if (entity !is TrainEntity) return null
-            if (abs(entity.speed) > 0.001f) {
-                return null
-            }
+            if (abs(entity.speed) > 0.001f) return null
             val doorL = Math.round(entity.doorMoveL * 32.0f)
             val doorR = Math.round(entity.doorMoveR * 32.0f)
             val lightMode = entity.lightMode
@@ -5750,10 +5748,8 @@ class TrainScriptSystem private constructor() {
             sb.append("  hasPlayerMarker = function(player){ return false; };\n")
             sb.append("  getPlayerRail = function(player) { try { var p = (player && player.__srbReal)?player.__srbReal:player; var id = __SRB__.heldRailModelId(p); return (id && (''+id).length>0)?(''+id):null; } catch(e){ return null; } };\n")
             // doFollowing: ホストプレイヤーの上へ車体をテレポート(MCP field を避け getX/Y/Z を使う)。
-            // doFollowing はサーバ側のみで車をプレイヤー上へ移動させ、クライアントはサーバ同期＋補間で
-            // 滑らかに追従する。マーカーは MCWrapper.getPosX(=レンダー補間位置)基準で描くので一致して荒ぶらない。
-            // クライアントで毎フレーム動かすと描画とズレるため、ここでは動かさない。
-            sb.append("  doFollowing = function(entity, hostPlayer){ try{ if(!entity||!hostPlayer) return; var w=entity.field_70170_p; if(w && w.isClientSide() && w.isClientSide()) return; var p=hostPlayer.__srbReal?hostPlayer.__srbReal:hostPlayer; if(!p||!p.getX) return; entity.func_70107_b(p.getX(), p.getY()+2, p.getZ()); try{entity.field_70159_w=0; entity.field_70181_x=0; entity.field_70179_y=0;}catch(e2){} }catch(e){} };\n")
+            // サーバ側の追従を専用経路に集約し、通常の自動車物理と重複して移動しないようにする。
+            sb.append("  doFollowing = function(entity, hostPlayer){ try{ if(!entity||!hostPlayer) return; var w=entity.field_70170_p; if(w && w.isClientSide() && w.isClientSide()) return; var p=hostPlayer.__srbReal?hostPlayer.__srbReal:hostPlayer; if(!p||!p.getX) return; entity.followSrbHost(p.getX(), p.getY()+2, p.getZ()); }catch(e){} };\n")
             // getTileEntity: 1.12.2 の net.minecraft.util.math.BlockPos を new せず、座標直接版 func_175625_s を使う。
             // 当たり判定/道床ブロックはコアに解決して返す(__SRB__.railCoreAt)。レール沿いどこでも接続検出が効き、
             // 接続マーカーが接線ロックされる(本家挙動)。フォールバックで素の func_175625_s。

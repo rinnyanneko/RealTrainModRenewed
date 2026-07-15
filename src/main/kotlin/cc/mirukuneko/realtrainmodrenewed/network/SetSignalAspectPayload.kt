@@ -44,17 +44,20 @@ data class SetSignalAspectPayload(
                 val blockEntity = player.level().getBlockEntity(payload.pos) as? SignalRemoteBlockEntity ?: return@enqueueWork
                 val linkedChannel = blockEntity.linkedChannel
                 if (linkedChannel <= 0) {
-                    player.sendOverlayMessage(Component.literal("この変更機はまだ信号に接続されていません"))
+                    player.sendOverlayMessage(Component.translatable("message.realtrainmodrenewed.signal.changer_unlinked"))
                     return@enqueueWork
                 }
                 val data = SignalNetworkSavedData.get(player.level())
                 if (!data.hasChannel(linkedChannel)) {
-                    player.sendOverlayMessage(Component.literal("信号番号が無効になっています"))
+                    player.sendOverlayMessage(Component.translatable("message.realtrainmodrenewed.signal.invalid_channel"))
                     return@enqueueWork
                 }
                 val aspect = SignalAspect.byId(payload.aspectId)
                 data.setAspect(player.level().server, linkedChannel, aspect)
-                player.sendOverlayMessage(Component.literal("${aspect.label} に変更しました"))
+                player.sendOverlayMessage(Component.translatable(
+                    "message.realtrainmodrenewed.signal.aspect_changed",
+                    Component.translatable(aspect.translationKey),
+                ))
             }
         }
     }

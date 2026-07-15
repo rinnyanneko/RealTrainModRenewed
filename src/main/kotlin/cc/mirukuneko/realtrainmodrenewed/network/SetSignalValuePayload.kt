@@ -44,17 +44,20 @@ data class SetSignalValuePayload(
                 val blockEntity = player.level().getBlockEntity(payload.pos) as? SignalRemoteBlockEntity ?: return@enqueueWork
                 val linkedChannel = blockEntity.linkedChannel
                 if (linkedChannel <= 0) {
-                    player.sendOverlayMessage(Component.literal("先に信号番号を入力してください"))
+                    player.sendOverlayMessage(Component.translatable("message.realtrainmodrenewed.signal.enter_channel_first"))
                     return@enqueueWork
                 }
                 val data = SignalNetworkSavedData.get(player.level())
                 if (!data.hasChannel(linkedChannel)) {
-                    player.sendOverlayMessage(Component.literal("信号番号が無効になっています"))
+                    player.sendOverlayMessage(Component.translatable("message.realtrainmodrenewed.signal.invalid_channel"))
                     return@enqueueWork
                 }
                 val aspect = SignalAspect.byLegacyValue(payload.signalValue)
                 data.setAspect(player.level().server, linkedChannel, aspect)
-                player.sendOverlayMessage(Component.literal("signal値 ${payload.signalValue} を送信しました"))
+                player.sendOverlayMessage(Component.translatable(
+                    "message.realtrainmodrenewed.signal.value_sent",
+                    payload.signalValue,
+                ))
             }
         }
     }

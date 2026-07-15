@@ -32,11 +32,15 @@ class VehicleFormationItem(properties: Properties) : Item(properties) {
 
         val formation = FormationManager.instance.getFormation(formationId)
         if (formation == null) {
-            player.sendSystemMessage(Component.literal("Formation not found: $formationId"))
+            player.sendSystemMessage(Component.translatable("message.realtrainmodrenewed.formation.not_found", formationId))
             return InteractionResult.FAIL
         }
 
-        player.sendSystemMessage(Component.literal("Formation: $formationId, size: ${formation.size()}"))
+        player.sendSystemMessage(Component.translatable(
+            "message.realtrainmodrenewed.formation.summary",
+            formationId,
+            formation.size(),
+        ))
         return InteractionResult.SUCCESS
     }
 }

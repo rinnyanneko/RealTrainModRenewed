@@ -48,7 +48,7 @@ class WireItem : Item, ModelSelectableItem {
         val clicked = level.getBlockEntity(clickedPos)
         if (clicked !is InstalledObjectBlockEntity
             || (clicked.category != InstalledObjectCategory.INSULATOR && clicked.category != InstalledObjectCategory.OVERHEAD_LINE_POLE)) {
-            if (!level.isClientSide) player.sendOverlayMessage(Component.literal("ワイヤーは碍子同士でのみ設置できます"))
+            if (!level.isClientSide) player.sendOverlayMessage(Component.translatable("message.realtrainmodrenewed.wire.insulators_only"))
             return InteractionResult.FAIL
         }
 
@@ -58,7 +58,7 @@ class WireItem : Item, ModelSelectableItem {
                 val tag = CompoundTag()
                 tag.putInt("X", clickedPos.x); tag.putInt("Y", clickedPos.y); tag.putInt("Z", clickedPos.z)
                 stack.set(RealTrainModRenewedComponents.WIRE_PLACEMENT_START.get(), tag)
-                player.sendOverlayMessage(Component.literal("始点の碍子を記録しました"))
+                player.sendOverlayMessage(Component.translatable("message.realtrainmodrenewed.wire.start_selected"))
             }
             return if (level.isClientSide) InteractionResult.SUCCESS else InteractionResult.SUCCESS_SERVER
         }
@@ -67,14 +67,14 @@ class WireItem : Item, ModelSelectableItem {
         if (startPos == clickedPos) {
             if (!level.isClientSide) {
                 stack.remove(RealTrainModRenewedComponents.WIRE_PLACEMENT_START.get())
-                player.sendOverlayMessage(Component.literal("ワイヤー設置を解除しました"))
+                player.sendOverlayMessage(Component.translatable("message.realtrainmodrenewed.wire.selection_cleared"))
             }
             return if (level.isClientSide) InteractionResult.SUCCESS else InteractionResult.SUCCESS_SERVER
         }
 
         val mid = BlockPos((startPos.x + clickedPos.x) shr 1, (startPos.y + clickedPos.y) shr 1, (startPos.z + clickedPos.z) shr 1)
         if (!level.getBlockState(mid).canBeReplaced()) {
-            if (!level.isClientSide) player.sendOverlayMessage(Component.literal("ワイヤー中央にブロックがあるため設置できません"))
+            if (!level.isClientSide) player.sendOverlayMessage(Component.translatable("message.realtrainmodrenewed.wire.obstructed"))
             return InteractionResult.FAIL
         }
 
@@ -88,7 +88,7 @@ class WireItem : Item, ModelSelectableItem {
             }
             stack.remove(RealTrainModRenewedComponents.WIRE_PLACEMENT_START.get())
             if (!player.abilities.instabuild) stack.shrink(1)
-            player.sendOverlayMessage(Component.literal("ワイヤーを設置しました"))
+            player.sendOverlayMessage(Component.translatable("message.realtrainmodrenewed.wire.placed"))
         }
         return if (level.isClientSide) InteractionResult.SUCCESS else InteractionResult.SUCCESS_SERVER
     }

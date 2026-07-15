@@ -103,6 +103,6 @@ object ClientHooksClient {
         if (player == null || message.isNullOrBlank()) {
             return
         }
-        player.sendSystemMessage(Component.literal("[RTMU Script] $message"))
+        player.sendSystemMessage(Component.translatable("message.realtrainmodrenewed.script.error", message))
     }
 }

@@ -88,7 +88,7 @@ class WrenchItem : Item {
             liveCantCenter = rp.cantCenter
             liveCantEdge = rp.cantEdge
             liveCantRandom = rp.cantRandom
-            player.sendSystemMessage(Component.literal("Wrench edit mode: look to bend, right-click to finish"))
+            player.sendSystemMessage(Component.translatable("message.realtrainmodrenewed.wrench.edit_mode"))
         }
 
         private fun confirmEdit(level: Level, pos: BlockPos, player: Player) {
@@ -140,11 +140,11 @@ class WrenchItem : Item {
                 if (editingMarker == null) {
                     editingMarker = clickedPos.immutable()
                     editingPair = null
-                    player.sendSystemMessage(Component.literal("首個マーカー選択。次で2つ目を選択"))
+                    player.sendSystemMessage(Component.translatable("message.realtrainmodrenewed.wrench.first_marker"))
                     return InteractionResult.SUCCESS
                 } else if (editingPair == null) {
                     editingPair = clickedPos.immutable()
-                    player.sendSystemMessage(Component.literal("2つ目のマーカー選択。レール配置中..."))
+                    player.sendSystemMessage(Component.translatable("message.realtrainmodrenewed.wrench.second_marker"))
                     return InteractionResult.SUCCESS
                 }
             }

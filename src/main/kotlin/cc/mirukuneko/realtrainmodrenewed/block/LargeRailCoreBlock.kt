@@ -143,7 +143,11 @@ class LargeRailCoreBlock : BaseEntityBlock {
         if (stack.item is WrenchItem && !level.isClientSide) {
             val core = level.getBlockEntity(pos) as? LargeRailCoreBlockEntity
             if (core != null && core.allRailMaps.size >= 2 && core.cycleSwitch())
-                player.sendOverlayMessage(Component.literal("分岐切替: ${core.activeSegmentIndex + 1}/${core.allRailMaps.size} 番線"))
+                player.sendOverlayMessage(Component.translatable(
+                    "message.realtrainmodrenewed.rail.branch_changed",
+                    core.activeSegmentIndex + 1,
+                    core.allRailMaps.size,
+                ))
             return if (level.isClientSide) InteractionResult.SUCCESS else InteractionResult.SUCCESS_SERVER
         }
         return InteractionResult.PASS

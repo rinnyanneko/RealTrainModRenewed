@@ -113,7 +113,7 @@ class TrainItem : Item {
         val train = TrainEntity.create(level, spawnVehicleId ?: def.id, spawnData.x, spawnData.y, spawnData.z, spawnData.yaw, def.trainDistance)
             ?: run {
                 RealTrainModRenewed.LOGGER.warn("Train placement failed: could not create vehicle id={} display={} at ({}, {}, {})", spawnVehicleId ?: def.id, def.displayName, spawnData.x, spawnData.y, spawnData.z)
-                player.sendOverlayMessage(Component.literal("列車を生成できませんでした(モデルIDを確認)"))
+                player.sendOverlayMessage(Component.translatable("message.realtrainmodrenewed.train.spawn_failed"))
                 return InteractionResult.FAIL
             }
         train.initializeOnRail(spawnData.map, spawnData.split, spawnData.index)

@@ -17,7 +17,8 @@ import net.minecraft.network.chat.Component
  * マーカー設定GUI (RTM の GuiRailMarker 相当)。
  * カント(傾き)とアンカー(曲線制御)を設定する。設定後にレールアイテムで右クリックすると反映される。
  */
-open class MarkerConfigScreen(pos: BlockPos) : Screen(Component.literal("マーカー設定 (カント/曲線)")) {
+open class MarkerConfigScreen(pos: BlockPos) :
+    Screen(Component.translatable("screen.realtrainmodrenewed.marker_config.title")) {
     private val pos: BlockPos = pos.immutable()
     private lateinit var cantCenterBox: EditBox
     private lateinit var cantEdgeBox: EditBox
@@ -50,9 +51,9 @@ open class MarkerConfigScreen(pos: BlockPos) : Screen(Component.literal("マー�
         anchorLenVBox = labeledBox(x, y + 204, boxW, anchorLenV.toString())
         setInitialFocus(cantCenterBox)
 
-        addRenderableWidget(Button.builder(Component.literal("保存")) { submit() }
+        addRenderableWidget(Button.builder(Component.translatable("button.realtrainmodrenewed.save")) { submit() }
             .bounds(width / 2 - 122, y + 240, 75, 20).build())
-        addRenderableWidget(Button.builder(Component.literal("リセット")) { resetValues() }
+        addRenderableWidget(Button.builder(Component.translatable("button.realtrainmodrenewed.reset")) { resetValues() }
             .bounds(width / 2 - 38, y + 240, 75, 20).build())
         addRenderableWidget(Button.builder(Component.translatable("gui.cancel")) { onClose() }
             .bounds(width / 2 + 46, y + 240, 75, 20).build())
@@ -116,13 +117,13 @@ open class MarkerConfigScreen(pos: BlockPos) : Screen(Component.literal("マー�
         val x = width / 2 - 45
         val y = height / 2 - 105
         g.centeredText(font, title, width / 2, y - 24, 0xFFFFFF)
-        g.text(font, Component.literal("カント中心 (度)"), x, y, 0xFFFFFF)
-        g.text(font, Component.literal("カント端 (度)"), x, y + 34, 0xFFFFFF)
-        g.text(font, Component.literal("カント揺らぎ"), x, y + 68, 0xFFFFFF)
-        g.text(font, Component.literal("アンカー方位 (度)"), x, y + 102, 0xFFFFFF)
-        g.text(font, Component.literal("アンカー勾配 (度)"), x, y + 136, 0xFFFFFF)
-        g.text(font, Component.literal("アンカー水平長 (-1=直線)"), x, y + 170, 0xAAAAAA)
-        g.text(font, Component.literal("アンカー垂直長"), x, y + 204, 0xAAAAAA)
+        g.text(font, Component.translatable("screen.realtrainmodrenewed.marker_config.cant_center"), x, y, 0xFFFFFF)
+        g.text(font, Component.translatable("screen.realtrainmodrenewed.marker_config.cant_edge"), x, y + 34, 0xFFFFFF)
+        g.text(font, Component.translatable("screen.realtrainmodrenewed.marker_config.cant_random"), x, y + 68, 0xFFFFFF)
+        g.text(font, Component.translatable("screen.realtrainmodrenewed.marker_config.anchor_yaw"), x, y + 102, 0xFFFFFF)
+        g.text(font, Component.translatable("screen.realtrainmodrenewed.marker_config.anchor_pitch"), x, y + 136, 0xFFFFFF)
+        g.text(font, Component.translatable("screen.realtrainmodrenewed.marker_config.anchor_horizontal"), x, y + 170, 0xAAAAAA)
+        g.text(font, Component.translatable("screen.realtrainmodrenewed.marker_config.anchor_vertical"), x, y + 204, 0xAAAAAA)
     }
 
     override fun isPauseScreen(): Boolean = false

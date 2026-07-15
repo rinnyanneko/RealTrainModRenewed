@@ -240,7 +240,13 @@ open class ModelSelectScreen @JvmOverloads constructor(
             graphics.fill(boxX, boxY + boxH - 1, boxX + boxW, boxY + boxH, -0xa5a590)
             graphics.fill(boxX, boxY, boxX + 1, boxY + boxH, -0xa5a590)
             graphics.fill(boxX + boxW - 1, boxY, boxX + boxW, boxY + boxH, -0xa5a590)
-            graphics.centeredText(font, Component.literal("No preview image"), left + width / 2, imageTop + imageHeight / 2 - 4, -0x555556)
+            graphics.centeredText(
+                font,
+                Component.translatable("screen.realtrainmodrenewed.no_preview"),
+                left + width / 2,
+                imageTop + imageHeight / 2 - 4,
+                -0x555556,
+            )
         }
     }
 

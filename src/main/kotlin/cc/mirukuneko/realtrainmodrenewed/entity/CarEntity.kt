@@ -42,9 +42,18 @@ import kotlin.math.abs
 internal const val DATA_MAP_SYNC_FLAG = 1
 internal const val DATA_MAP_SAVE_FLAG = 2
 internal const val DATA_MAP_ALL_FLAGS = DATA_MAP_SYNC_FLAG or DATA_MAP_SAVE_FLAG
+internal const val DATA_MAP_RETRY_TICKS = 5
 
 internal fun shouldSyncDataMap(flags: Int): Boolean = flags and DATA_MAP_SYNC_FLAG != 0
 internal fun shouldSaveDataMap(flags: Int): Boolean = flags and DATA_MAP_SAVE_FLAG != 0
+internal fun isDataMapUpdate(currentValue: String?, currentFlags: Int?, value: String, flags: Int): Boolean =
+    currentValue != value || currentFlags != flags
+internal fun shouldSendClientDataMapUpdate(
+    currentValue: String?,
+    pendingValue: String?,
+    value: String,
+    ticksSinceLastSend: Int,
+): Boolean = currentValue != value && (pendingValue != value || ticksSinceLastSend >= DATA_MAP_RETRY_TICKS)
 internal fun dataMapString(value: Any?): String = value?.toString() ?: ""
 internal fun dataMapBoolean(value: Any?): Boolean = when (value) {
     is Boolean -> value
@@ -88,6 +97,7 @@ class CarEntity(type: EntityType<out CarEntity>, level: Level) : Entity(type, le
         private const val BRAKE_STROKE_CHANGE_RATE: Float = 1.0f / TICK_PER_SECOND
         private const val MAX_SCRIPT_DATA_LENGTH = 32_768
         private const val MAX_SRB_EDIT_DISTANCE = 512.0
+        private const val SRB_FOLLOW_EPSILON_SQR = 1.0e-8
         private val SRB_CLIENT_BOOLEAN_KEYS = setOf(
             "buildComplete",
             "changeMarker",
@@ -127,6 +137,7 @@ class CarEntity(type: EntityType<out CarEntity>, level: Level) : Entity(type, le
     private val scriptData: MutableMap<String, String> = HashMap()
     private val scriptDataFlags: MutableMap<String, Int> = HashMap()
     private val pendingScriptDataSync: MutableMap<String, String> = LinkedHashMap()
+    private val pendingClientScriptData: MutableMap<String, PendingClientScriptData> = HashMap()
     private var scriptHostPlayerUuid: UUID? = null
     private var scriptDataDirty: Boolean = false
     private var acceleratorStroke: Float = 0f
@@ -136,6 +147,8 @@ class CarEntity(type: EntityType<out CarEntity>, level: Level) : Entity(type, le
     private var prevWs: Float = 0f
     private var isReversalLocked: Boolean = false
     private var deltaYaw: Float = 0f
+
+    private data class PendingClientScriptData(val value: String, val sentAtTick: Int)
 
     val vehicleId: String
         get() = entityData.get(DATA_VEHICLE_ID)
@@ -149,6 +162,8 @@ class CarEntity(type: EntityType<out CarEntity>, level: Level) : Entity(type, le
     private fun setScriptDataValue(key: String?, value: String?, flags: Int) {
         if (key.isNullOrBlank()) return
         val v = value ?: ""
+        val normalizedFlags = flags and DATA_MAP_ALL_FLAGS
+        if (!isDataMapUpdate(scriptData[key], scriptDataFlags[key], v, normalizedFlags)) return
         if (!level().isClientSide && key == "hostPlayerEntityId") {
             scriptHostPlayerUuid = v.toIntOrNull()
                 ?.let(level()::getEntity)
@@ -156,7 +171,6 @@ class CarEntity(type: EntityType<out CarEntity>, level: Level) : Entity(type, le
                 ?.uuid
         }
         val prev = scriptData.put(key, v)
-        val normalizedFlags = flags and DATA_MAP_ALL_FLAGS
         val previousFlags = scriptDataFlags.put(key, normalizedFlags)
         if (!level().isClientSide && shouldSyncDataMap(normalizedFlags) && (v != prev || previousFlags != normalizedFlags)) {
             pendingScriptDataSync[key] = v
@@ -166,7 +180,10 @@ class CarEntity(type: EntityType<out CarEntity>, level: Level) : Entity(type, le
     fun applyScriptDataSync(data: Map<String, String>?) {
         if (data == null) return
         scriptData.putAll(data)
-        data.keys.forEach { key -> scriptDataFlags[key] = DATA_MAP_SYNC_FLAG }
+        data.keys.forEach { key ->
+            scriptDataFlags[key] = DATA_MAP_SYNC_FLAG
+            pendingClientScriptData.remove(key)
+        }
     }
     fun scriptDataMap(): Map<String, String> = scriptData
 
@@ -333,9 +350,21 @@ class CarEntity(type: EntityType<out CarEntity>, level: Level) : Entity(type, le
         private fun apply(key: String, value: String, syncType: Int) {
             val flags = syncType and DATA_MAP_ALL_FLAGS
             if (car.level().isClientSide && shouldSyncDataMap(flags)) {
+                val pending = car.pendingClientScriptData[key]
+                val ticksSinceLastSend = pending?.let { car.tickCount - it.sentAtTick } ?: DATA_MAP_RETRY_TICKS
+                if (!shouldSendClientDataMapUpdate(
+                        car.scriptData[key],
+                        pending?.value,
+                        value,
+                        ticksSinceLastSend,
+                    )
+                ) {
+                    return
+                }
+                car.pendingClientScriptData[key] = PendingClientScriptData(value, car.tickCount)
                 try {
                     net.minecraft.client.Minecraft.getInstance().connection?.send(
-                        CarScriptDataPayload(car.id, key, value, flags)
+                        CarScriptDataPayload(car.id, key, value, flags),
                     )
                 } catch (_: Throwable) {
                 }
@@ -351,7 +380,24 @@ class CarEntity(type: EntityType<out CarEntity>, level: Level) : Entity(type, le
     fun func_184210_p() { stopRiding() }
     fun func_145782_y(): Int = id
     fun func_70106_y() { discard() }
-    fun func_70107_b(x: Double, y: Double, z: Double) { setPos(x, y, z) }
+    fun func_70107_b(x: Double, y: Double, z: Double) {
+        if (!isSuperRailBuilderVehicle()) {
+            setPos(x, y, z)
+        } else if (!level().isClientSide) {
+            followSrbHost(x, y, z)
+        }
+    }
+
+    fun followSrbHost(x: Double, y: Double, z: Double) {
+        deltaMovement = Vec3.ZERO
+        field_70159_w = 0.0
+        field_70181_x = 0.0
+        field_70179_y = 0.0
+        speed = 0f
+        if (distanceToSqr(x, y, z) > SRB_FOLLOW_EPSILON_SQR) {
+            setPos(x, y, z)
+        }
+    }
 
     override fun defineSynchedData(builder: SynchedEntityData.Builder) { builder.define(DATA_VEHICLE_ID, "") }
     override fun readAdditionalSaveData(tag: ValueInput) {
@@ -359,6 +405,7 @@ class CarEntity(type: EntityType<out CarEntity>, level: Level) : Entity(type, le
         scriptData.clear()
         scriptDataFlags.clear()
         pendingScriptDataSync.clear()
+        pendingClientScriptData.clear()
         val storedFlags = tag.read("ScriptDataFlags", CompoundTag.CODEC).orElse(null)
         tag.read("ScriptData", CompoundTag.CODEC).ifPresent { data ->
             for (key in data.keySet()) {
@@ -478,11 +525,16 @@ class CarEntity(type: EntityType<out CarEntity>, level: Level) : Entity(type, le
                 try {
                     val host = level().getEntity(hostId.toInt())
                     if (host != null) {
-                        setPos(host.x, host.y + 2.0, host.z); xOld = host.xOld; yOld = host.yOld + 2.0; zOld = host.zOld
+                        followSrbHost(host.x, host.y + 2.0, host.z); xOld = host.xOld; yOld = host.yOld + 2.0; zOld = host.zOld
                         xo = host.xo; yo = host.yo + 2.0; zo = host.zo; yRot = 0f; xRot = 0f; yRotO = 0f; xRotO = 0f
                     }
                 } catch (_: Exception) { }
             }
+        }
+
+        if (isSuperRailBuilderVehicle() && getScriptDataValue("hostPlayerEntityId").isNotEmpty()) {
+            followSrbHost(x, y, z)
+            return
         }
 
         prevSteeringWheelAngle = currentSteeringWheelAngle

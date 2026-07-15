@@ -77,7 +77,7 @@ object TrainCommands {
 
         val finalRemovedCount = removedCount
         source.sendSuccess(
-            { Component.literal("電車を $finalRemovedCount 両削除しました。残って見える場合はワールドを開き直してください。") },
+            { Component.translatable("command.realtrainmodrenewed.remove_trains.success", finalRemovedCount) },
             true,
         )
         return removedCount
@@ -89,7 +89,7 @@ object TrainCommands {
         val normalizedSpeed = 0.05F * speed
         player.abilities.setFlyingSpeed(normalizedSpeed)
         player.onUpdateAbilities()
-        source.sendSuccess({ Component.literal("飛行速度を $speed に設定しました。") }, false)
+        source.sendSuccess({ Component.translatable("command.realtrainmodrenewed.fly_speed.success", speed) }, false)
         return speed
     }
 

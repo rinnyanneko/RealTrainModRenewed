@@ -54,7 +54,7 @@ data class SelectModelPayload(
                     if (stack.item is TrainVehicleItem) {
                         LegacyItemStackBridge.setSelectedModelData(stack, safeModelId, safeDataMap)
                         player.sendSystemMessage(
-                            Component.literal("Selected model: $safeModelId. Now right-click on rail to spawn.")
+                            Component.translatable("message.realtrainmodrenewed.model.selected_spawn", safeModelId)
                         )
                         break
                     }

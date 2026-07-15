@@ -9,6 +9,8 @@ import cc.mirukuneko.realtrainmodrenewed.entity.dataMapBoolean
 import cc.mirukuneko.realtrainmodrenewed.entity.dataMapDouble
 import cc.mirukuneko.realtrainmodrenewed.entity.dataMapInt
 import cc.mirukuneko.realtrainmodrenewed.entity.dataMapString
+import cc.mirukuneko.realtrainmodrenewed.entity.isDataMapUpdate
+import cc.mirukuneko.realtrainmodrenewed.entity.shouldSendClientDataMapUpdate
 import cc.mirukuneko.realtrainmodrenewed.entity.shouldSaveDataMap
 import cc.mirukuneko.realtrainmodrenewed.entity.shouldSyncDataMap
 import kotlin.test.Test
@@ -65,6 +67,16 @@ class SuperRailBuilderCompatibilityTest {
     }
 
     @Test
+    fun `unchanged client data map values are not synchronized again`() {
+        assertFalse(isDataMapUpdate("true", DATA_MAP_SYNC_FLAG, "true", DATA_MAP_SYNC_FLAG))
+        assertTrue(isDataMapUpdate("false", DATA_MAP_SYNC_FLAG, "true", DATA_MAP_SYNC_FLAG))
+        assertTrue(isDataMapUpdate("true", 0, "true", DATA_MAP_SYNC_FLAG))
+        assertFalse(shouldSendClientDataMapUpdate("false", "true", "true", 1))
+        assertTrue(shouldSendClientDataMapUpdate("false", "true", "true", 5))
+        assertFalse(shouldSendClientDataMapUpdate("true", null, "true", 5))
+    }
+
+    @Test
     fun `server script receives native bridge overrides`() {
         val script =
             """
@@ -88,6 +100,7 @@ class SuperRailBuilderCompatibilityTest {
         assertTrue(compatible.lastIndexOf("deleteRail = function") > script.length)
         assertTrue(compatible.lastIndexOf("setBlock = function") > script.length)
         assertTrue(compatible.lastIndexOf("getTileEntity = function") > script.length)
+        assertTrue(compatible.contains("entity.followSrbHost"))
     }
 
     @Test

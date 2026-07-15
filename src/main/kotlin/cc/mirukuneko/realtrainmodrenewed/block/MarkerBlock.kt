@@ -93,22 +93,22 @@ class MarkerBlock(val isSwitch: Boolean, properties: BlockBehaviour.Properties) 
                 val mBlock = level.getBlockState(pos).block as? MarkerBlock ?: return false
                 if (mBlock.searchAllMarkers(level, pos).size >= 2) {
                     val created = mBlock.onMarkerActivated(level, pos, player, true, selectedModelId)
-                    if (created) player.sendOverlayMessage(Component.literal("レールを接続しました"))
+                    if (created) player.sendOverlayMessage(Component.translatable("message.realtrainmodrenewed.rail.connected"))
                     return created
                 }
-                player.sendOverlayMessage(Component.literal("接続できるマーカーが不足しています"))
+                player.sendOverlayMessage(Component.translatable("message.realtrainmodrenewed.rail.not_enough_markers"))
                 return false
             }
 
             val startPos = BlockPos(NbtCompat.getInt(startTag, "X"), NbtCompat.getInt(startTag, "Y"), NbtCompat.getInt(startTag, "Z"))
             val branchMode = NbtCompat.getBoolean(startTag, "BranchMode")
             val wrenchMode = NbtCompat.getBoolean(startTag, "WrenchMode") && (startTag.contains("EndRP") || startTag.contains("RailSegments"))
-            if (startPos == pos && !wrenchMode) { previewStack.remove(RealTrainModRenewedComponents.RAIL_PREVIEW_START.get()); player.sendOverlayMessage(Component.literal("レールプレビューを解除しました")); return false }
+            if (startPos == pos && !wrenchMode) { previewStack.remove(RealTrainModRenewedComponents.RAIL_PREVIEW_START.get()); player.sendOverlayMessage(Component.translatable("message.realtrainmodrenewed.rail.preview_cleared")); return false }
 
             val endBe = level.getBlockEntity(pos)
             val startBe = level.getBlockEntity(startPos)
-            if (!wrenchMode && endBe !is MarkerBlockEntity) { player.sendOverlayMessage(Component.literal("接続元または接続先のマーカーが見つかりません")); return false }
-            if (wrenchMode && startBe !is MarkerBlockEntity && startBe !is LargeRailCoreBlockEntity && !startTag.contains("StartRP")) { player.sendOverlayMessage(Component.literal("コピー元のレール情報が見つかりません")); return false }
+            if (!wrenchMode && endBe !is MarkerBlockEntity) { player.sendOverlayMessage(Component.translatable("message.realtrainmodrenewed.rail.marker_missing")); return false }
+            if (wrenchMode && startBe !is MarkerBlockEntity && startBe !is LargeRailCoreBlockEntity && !startTag.contains("StartRP")) { player.sendOverlayMessage(Component.translatable("message.realtrainmodrenewed.rail.copy_source_missing")); return false }
 
             val start = resolvePreviewStart(startBe, startTag) ?: return false
             val prop = createRailProperties(player, selectedModelId)
@@ -122,8 +122,8 @@ class MarkerBlock(val isSwitch: Boolean, properties: BlockBehaviour.Properties) 
                 if (branchMode) createOrAppendBranchRail(level, startPos, copyRailPosition(start), copyRailPosition(adjustedEnd), prop, player.abilities.instabuild, selectedModelId)
                 else createRail(level, startPos, listOf(copyRailPosition(start), copyRailPosition(adjustedEnd)), prop, true, player.abilities.instabuild, selectedModelId)
             }
-            if (created) player.sendOverlayMessage(Component.literal("レールを接続しました"))
-            else player.sendOverlayMessage(Component.literal("ここにはレールを敷けません"))
+            if (created) player.sendOverlayMessage(Component.translatable("message.realtrainmodrenewed.rail.connected"))
+            else player.sendOverlayMessage(Component.translatable("message.realtrainmodrenewed.rail.cannot_place"))
             return created
         }
 
@@ -305,10 +305,10 @@ class MarkerBlock(val isSwitch: Boolean, properties: BlockBehaviour.Properties) 
         if (stack.item is RailItem && !level.isClientSide) {
             val selectedId = stack.get(RealTrainModRenewedComponents.SELECTED_MODEL_ID.get())
             val count = searchAllMarkers(level, pos).size
-            if (count < 2) { player.sendOverlayMessage(Component.literal("接続できるマーカーが不足しています(2個以上必要)")); return InteractionResult.SUCCESS_SERVER }
+            if (count < 2) { player.sendOverlayMessage(Component.translatable("message.realtrainmodrenewed.rail.not_enough_markers_count", 2)); return InteractionResult.SUCCESS_SERVER }
             val created = onMarkerActivated(level, pos, player, true, selectedId)
-            if (created) { if (!player.abilities.instabuild) stack.shrink(1); player.sendOverlayMessage(Component.literal("レールを接続しました")) }
-            else player.sendOverlayMessage(Component.literal("ここにはレールを敷けません(障害物や形状を確認)"))
+            if (created) { if (!player.abilities.instabuild) stack.shrink(1); player.sendOverlayMessage(Component.translatable("message.realtrainmodrenewed.rail.connected")) }
+            else player.sendOverlayMessage(Component.translatable("message.realtrainmodrenewed.rail.cannot_place_check"))
         }
         return InteractionResult.TRY_WITH_EMPTY_HAND
     }
