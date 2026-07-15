@@ -87,7 +87,7 @@ config="${mod_id}.mixins.json"
     ordering="NONE"
     side="BOTH"
 
-# ATSA / ATS Assist is maintained as a separate subproject / separate JAR.
+# ATSA / ATS Assist is maintained in a separate repository and separate JAR.
 # It is not declared as a dependency here.
 
 # Features are specific properties of the game environment, that you may want to declare you require. This example declares

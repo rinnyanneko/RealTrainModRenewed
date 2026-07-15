@@ -5909,7 +5909,7 @@ class TrainScriptSystem private constructor() {
                             "var ModelLoader = { loadModel: function(resource, accuracy, options) { return { renderAll: function() {}, renderOnly: function() {}, renderPart: function() {}, objects: [] }; } };\n" +
                             "var ModelPackManager = { INSTANCE: { getResource: function(domain, path) { return { domain: domain, path: path, func_110624_b: function() { return domain; }, func_110623_a: function() { return path; } }; } } };\n" +
                             "var TrainState = { getStateType: function(value) { return value; }, suggestState: function(value, fallback) { return value == null ? fallback : value; } };\n" +
-                            "TrainState.TrainStateType = { Reverser: 0, Notch: 1, Rail: 2, Door: 4, Light: 5, Pantograph: 6, ChunkLoader: 7, Destination: 8, Sound: 9, Interior: 11 };\n" +
+                            "TrainState.TrainStateType = { Reverser: 0, Direction: 0, State_TrainDir: 0, Notch: 1, State_Notch: 1, Rail: 2, Signal: 2, State_Signal: 2, Door: 4, State_Door: 4, Light: 5, State_Light: 5, Pantograph: 6, State_Pantograph: 6, ChunkLoader: 7, State_ChunkLoader: 7, Destination: 8, State_Destination: 8, Sound: 9, Announcement: 9, State_Announcement: 9, Role: 10, State_Direction: 10, Interior: 11, InteriorLight: 11, State_InteriorLight: 11, Type: 12, State_Type: 12 };\n" +
                             "var RenderPass = {\n" +
                             "  NORMAL: { id: 0 },\n" +
                             "  TRANSPARENT: { id: 1 },\n" +

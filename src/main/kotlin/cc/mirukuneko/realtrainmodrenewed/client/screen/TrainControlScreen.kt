@@ -47,17 +47,22 @@ open class TrainControlScreen(private val train: TrainEntity) : Screen(Component
             addArrowButton(left + 4, top + 52, "<", "noop")
             addButton(left + 28, top + 52, 120, "チャンクロード", "noop", 0)
             addArrowButton(left + 152, top + 52, ">", "noop")
+            val rowHeight = 18
             val directionSupported = supportsDirectionControl()
-            addArrowButton(left + 4, top + 76, "<", "prev_destination").active = directionSupported
-            addButton(left + 28, top + 76, 120, destinationLabel(), "next_destination", 0).active = directionSupported
-            addArrowButton(left + 152, top + 76, ">", "next_destination").active = directionSupported
-            addArrowButton(left + 4, top + 100, "<", "prev_sound")
+            addArrowButton(left + 4, top + 73, rowHeight, "<", "prev_destination").active = directionSupported
+            addButton(left + 28, top + 73, 120, rowHeight, destinationLabel(), "next_destination", 0).active = directionSupported
+            addArrowButton(left + 152, top + 73, rowHeight, ">", "next_destination").active = directionSupported
+            val typeSupported = supportsTypeControl()
+            addArrowButton(left + 4, top + 92, rowHeight, "<", "prev_type").active = typeSupported
+            addButton(left + 28, top + 92, 120, rowHeight, typeSignLabel(), "next_type", 0).active = typeSupported
+            addArrowButton(left + 152, top + 92, rowHeight, ">", "next_type").active = typeSupported
+            addArrowButton(left + 4, top + 111, rowHeight, "<", "prev_sound")
             val announcementName = VehicleRegistry.getById(train.vehicleId)?.announcementNames
                 ?.getOrNull(train.soundIndex)
                 ?.takeIf { it.isNotBlank() }
                 ?: "アナウンス ${train.soundIndex + 1}"
-            addButton(left + 28, top + 100, 120, announcementName, "next_sound", 0)
-            addArrowButton(left + 152, top + 100, ">", "next_sound")
+            addButton(left + 28, top + 111, 120, rowHeight, announcementName, "next_sound", 0)
+            addArrowButton(left + 152, top + 111, rowHeight, ">", "next_sound")
         } else if (selectedTab == ControlTab.FUNCTION) {
             val definition = VehicleRegistry.getById(train.vehicleId)
             val options = resolveCustomButtonOptions(definition)
@@ -80,8 +85,20 @@ open class TrainControlScreen(private val train: TrainEntity) : Screen(Component
     }
 
     private fun addButton(x: Int, y: Int, width: Int, label: String, action: String, value: Int): Button {
+        return addButton(x, y, width, 20, label, action, value)
+    }
+
+    private fun addButton(
+        x: Int,
+        y: Int,
+        width: Int,
+        height: Int,
+        label: String,
+        action: String,
+        value: Int,
+    ): Button {
         val button = Button.builder(Component.literal(label)) { send(action, value) }
-            .bounds(x, y, width, 20)
+            .bounds(x, y, width, height)
             .build()
         if (action == "noop") {
             button.active = false
@@ -90,8 +107,12 @@ open class TrainControlScreen(private val train: TrainEntity) : Screen(Component
     }
 
     private fun addArrowButton(x: Int, y: Int, label: String, action: String): Button {
+        return addArrowButton(x, y, 20, label, action)
+    }
+
+    private fun addArrowButton(x: Int, y: Int, height: Int, label: String, action: String): Button {
         val button = Button.builder(Component.literal(label)) { send(action, 0) }
-            .bounds(x, y, 20, 20)
+            .bounds(x, y, 20, height)
             .build()
         if (action == "noop") {
             button.active = false
@@ -202,6 +223,17 @@ open class TrainControlScreen(private val train: TrainEntity) : Screen(Component
             definition.rollsigns.isNotEmpty()
     }
 
+    private fun typeSignLabel(): String {
+        val names = VehicleRegistry.getById(train.vehicleId)?.typeSignNames ?: emptyList()
+        if (names.isEmpty()) return "種別 null"
+        return "種別 ${names[Math.floorMod(train.typeSignIndex, names.size)]}"
+    }
+
+    private fun supportsTypeControl(): Boolean {
+        val definition = VehicleRegistry.getById(train.vehicleId) ?: return false
+        return definition.typeSignNames.isNotEmpty()
+    }
+
     private fun send(action: String, value: Int) {
         if (action == "noop") {
             return
@@ -233,6 +265,22 @@ open class TrainControlScreen(private val train: TrainEntity) : Screen(Component
             "prev_destination" -> {
                 val count = max(1, (train.resourceState.resourceSet.config.rollsignNames ?: emptyArray()).size)
                 train.destinationIndex = Math.floorMod(train.destinationIndex - 1, count)
+            }
+            "set_destination" -> {
+                val count = max(1, (train.resourceState.resourceSet.config.rollsignNames ?: emptyArray()).size)
+                train.destinationIndex = Math.floorMod(value, count)
+            }
+            "next_type" -> {
+                val count = max(1, VehicleRegistry.getById(train.vehicleId)?.typeSignNames?.size ?: 0)
+                train.typeSignIndex = (train.typeSignIndex + 1) % count
+            }
+            "prev_type" -> {
+                val count = max(1, VehicleRegistry.getById(train.vehicleId)?.typeSignNames?.size ?: 0)
+                train.typeSignIndex = Math.floorMod(train.typeSignIndex - 1, count)
+            }
+            "set_type" -> {
+                val count = max(1, VehicleRegistry.getById(train.vehicleId)?.typeSignNames?.size ?: 0)
+                train.typeSignIndex = Math.floorMod(value, count)
             }
             "next_sound" -> train.soundIndex = resolveNextSoundIndex(1)
             "prev_sound" -> train.soundIndex = resolveNextSoundIndex(-1)

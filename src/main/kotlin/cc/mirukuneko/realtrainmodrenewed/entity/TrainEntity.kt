@@ -240,6 +240,7 @@ class TrainEntity(type: EntityType<*>, level: Level) : Entity(type, level) {
         builder.define<Boolean>(REVERSE, false)
         builder.define<Int>(REVERSER, 1)
         builder.define<Int>(DESTINATION_INDEX, 0)
+        builder.define<Int>(TYPE_SIGN_INDEX, 0)
         builder.define<Int>(SOUND_INDEX, 0)
         builder.define<Float>(BODY_ROLL, 0.0f)
         builder.define<Float>(MAIN_RESERVOIR_PRESSURE, MAIN_RESERVOIR_NORMAL)
@@ -507,6 +508,23 @@ class TrainEntity(type: EntityType<*>, level: Level) : Entity(type, level) {
         }
         forEachFormationTrain(Consumer { train: TrainEntity? ->
             train!!.destinationIndex = index
+        })
+    }
+
+    var typeSignIndex: Int
+        get() = entityData.get<Int>(TYPE_SIGN_INDEX)
+        set(value) {
+            entityData.set<Int>(TYPE_SIGN_INDEX, max(0, value))
+        }
+
+    fun setTypeSignIndexForFormation(value: Int) {
+        val index = max(0, value)
+        if (level().isClientSide()) {
+            typeSignIndex = index
+            return
+        }
+        forEachFormationTrain(Consumer { train: TrainEntity? ->
+            train!!.typeSignIndex = index
         })
     }
 
@@ -4010,6 +4028,7 @@ class TrainEntity(type: EntityType<*>, level: Level) : Entity(type, level) {
         formationHead.setReverserForFormation(sourceTail.reverser)
         formationHead.setLightModeForFormation(sourceTail.lightMode)
         formationHead.setDestinationIndexForFormation(sourceTail.destinationIndex)
+        formationHead.setTypeSignIndexForFormation(sourceTail.typeSignIndex)
         val formationDriver =
             formationHead.formationDriver
         if (formationDriver != null) {
@@ -5071,7 +5090,7 @@ class TrainEntity(type: EntityType<*>, level: Level) : Entity(type, level) {
             9 -> this.soundIndex.toFloat()
             10 -> 1.0f - this.reverser
             11 -> this.interiorLightMode
-            12 -> this.brakeCylinderPressure
+            12 -> this.typeSignIndex.toFloat()
             13 -> this.brakePipePressure
             14 -> this.mainReservoirPressure
             15 -> this.legacyBrakeAirCount
@@ -5135,6 +5154,7 @@ class TrainEntity(type: EntityType<*>, level: Level) : Entity(type, level) {
             8 -> this.destinationIndex = max(0, Math.round(value))
             9 -> this.soundIndex = max(0, Math.round(value))
             11 -> this.isInteriorLightOn = value > 0.0f
+            12 -> this.setTypeSignIndexForFormation(max(0, Math.round(value)))
             else -> {}
         }
     }
@@ -5445,6 +5465,9 @@ class TrainEntity(type: EntityType<*>, level: Level) : Entity(type, level) {
             values.put("rollsign", train.destinationIndex)
             values.put("rollsignId", train.destinationIndex)
             values.put("maku", train.destinationIndex)
+            values.put("type", train.typeSignIndex)
+            values.put("typeSign", train.typeSignIndex)
+            values.put("typeSignId", train.typeSignIndex)
             values.put("sound", train.soundIndex)
             values.put("reverse", if (train.reverser < 0) 1 else 0)
             values.put("reverser", train.reverser)
@@ -7070,6 +7093,7 @@ class TrainEntity(type: EntityType<*>, level: Level) : Entity(type, level) {
             this.isReverse = tag.getBooleanOr("Reverse", false)
         }
         if (tag.getInt("DestinationIndex").isPresent()) this.destinationIndex = tag.getIntOr("DestinationIndex", 0)
+        if (tag.getInt("TypeSignIndex").isPresent()) this.typeSignIndex = tag.getIntOr("TypeSignIndex", 0)
         if (tag.getInt("SoundIndex").isPresent()) this.soundIndex = tag.getIntOr("SoundIndex", 0)
         if (!java.lang.Float.isNaN(tag.getFloatOr("BodyRoll", Float.NaN))) this.bodyRoll =
             tag.getFloatOr("BodyRoll", 0.0f)
@@ -7152,6 +7176,7 @@ class TrainEntity(type: EntityType<*>, level: Level) : Entity(type, level) {
         tag.putBoolean("Reverse", this.isReverse)
         tag.putInt("Reverser", this.reverser)
         tag.putInt("DestinationIndex", this.destinationIndex)
+        tag.putInt("TypeSignIndex", this.typeSignIndex)
         tag.putInt("SoundIndex", this.soundIndex)
         tag.putFloat("BodyRoll", this.bodyRoll)
         tag.putFloat("MainReservoirPressure", this.mainReservoirPressure)
@@ -7573,6 +7598,8 @@ class TrainEntity(type: EntityType<*>, level: Level) : Entity(type, level) {
             SynchedEntityData.defineId<Boolean>(TrainEntity::class.java, EntityDataSerializers.BOOLEAN)
         private val REVERSER = SynchedEntityData.defineId<Int>(TrainEntity::class.java, EntityDataSerializers.INT)
         private val DESTINATION_INDEX =
+            SynchedEntityData.defineId<Int>(TrainEntity::class.java, EntityDataSerializers.INT)
+        private val TYPE_SIGN_INDEX =
             SynchedEntityData.defineId<Int>(TrainEntity::class.java, EntityDataSerializers.INT)
         private val SOUND_INDEX = SynchedEntityData.defineId<Int>(TrainEntity::class.java, EntityDataSerializers.INT)
         private val BODY_ROLL = SynchedEntityData.defineId<Float>(TrainEntity::class.java, EntityDataSerializers.FLOAT)

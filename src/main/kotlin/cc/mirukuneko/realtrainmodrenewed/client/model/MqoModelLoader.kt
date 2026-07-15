@@ -265,6 +265,7 @@ object MqoModelLoader {
         SOUND_SCRIPT_SOURCE_CACHE.clear()
         TEXTURE_INFO_CACHE.clear()
         SCRIPT_TEXTURE_CACHE.clear()
+        AnimatedGifTextureCache.clear()
         RESOURCE_SEARCH_CACHE.clear()
         MISSING_SCRIPT_WARNINGS.clear()
         sharedPackCandidates = null
@@ -534,6 +535,28 @@ object MqoModelLoader {
             })
         }
         return info.location
+    }
+
+    @JvmStatic
+    fun resolvePackTextureByTick(
+        packName: String?,
+        texturePath: String?,
+        tick: Double,
+    ): Identifier? {
+        if (packName.isNullOrBlank() || texturePath.isNullOrBlank()) {
+            return fallbackTexture()
+        }
+        val binding = TextureBinding.parse(texturePath)
+        val path = binding.path ?: return fallbackTexture()
+        if (!path.endsWith(".gif", ignoreCase = true)) {
+            return resolvePackTexture(packName, texturePath)
+        }
+        val packPath = resolvePackPath(packName) ?: return fallbackTexture()
+        val normalizedPath = path.replace('\\', '/')
+        val cacheKey = "pack-gif|$packPath|$normalizedPath"
+        return AnimatedGifTextureCache.resolve(cacheKey, tick) {
+            openTexture(packPath, normalizedPath)
+        } ?: fallbackTexture()
     }
 
     @JvmStatic

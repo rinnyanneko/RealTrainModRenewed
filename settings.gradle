@@ -9,5 +9,4 @@ plugins {
     id 'org.gradle.toolchains.foojay-resolver-convention' version '1.0.0'
 }
 
-// ATSA (ATS Assist) を RTMU 依存の別mod(別jar)として分離。
-include 'atsa'
+rootProject.name = 'RealTrainModRenewed'

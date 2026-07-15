@@ -156,6 +156,26 @@ data class TrainControlPayload(
                         controlTrain.setDestinationIndexForFormation(Math.floorMod(controlTrain.destinationIndex - 1, count))
                     }
 
+                    "set_destination" -> {
+                        val count = max(1, (controlTrain.resourceState.resourceSet.config.rollsignNames ?: emptyArray()).size)
+                        controlTrain.setDestinationIndexForFormation(Math.floorMod(payload.value, count))
+                    }
+
+                    "set_type" -> {
+                        val count = max(1, VehicleRegistry.getById(controlTrain.vehicleId)?.typeSignNames?.size ?: 0)
+                        controlTrain.setTypeSignIndexForFormation(Math.floorMod(payload.value, count))
+                    }
+
+                    "next_type" -> {
+                        val count = max(1, VehicleRegistry.getById(controlTrain.vehicleId)?.typeSignNames?.size ?: 0)
+                        controlTrain.setTypeSignIndexForFormation((controlTrain.typeSignIndex + 1) % count)
+                    }
+
+                    "prev_type" -> {
+                        val count = max(1, VehicleRegistry.getById(controlTrain.vehicleId)?.typeSignNames?.size ?: 0)
+                        controlTrain.setTypeSignIndexForFormation(Math.floorMod(controlTrain.typeSignIndex - 1, count))
+                    }
+
                     "next_sound" -> controlTrain.soundIndex = resolveNextSoundIndex(controlTrain, 1)
                     "prev_sound" -> controlTrain.soundIndex = resolveNextSoundIndex(controlTrain, -1)
                     "play_selected_announcement" -> playSelectedAnnouncement(sourceTrain, controlTrain)

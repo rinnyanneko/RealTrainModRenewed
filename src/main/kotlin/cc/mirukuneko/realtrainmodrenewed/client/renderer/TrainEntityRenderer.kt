@@ -236,7 +236,8 @@ open class TrainEntityRenderer(context: EntityRendererProvider.Context) :
                 RealTrainModRenewed.LOGGER.debug("Inline bogie render failed for {}: {}", entity.vehicleId, throwable.toString())
             }
             if (renderRollsigns) {
-                renderConfiguredRollsigns(entity, definition, poseStack, buffer, trainPackedLight)
+                renderConfiguredRollsigns(entity, definition, poseStack, buffer, trainPackedLight, partialTicks)
+                renderConfiguredTypeSigns(entity, definition, poseStack, buffer, trainPackedLight, partialTicks)
             }
             if (renderLights) {
                 renderConfiguredLights(entity, definition, model, poseStack, buffer, renderYaw, ridingThisTrain)
@@ -437,25 +438,73 @@ open class TrainEntityRenderer(context: EntityRendererProvider.Context) :
             poseStack: PoseStack,
             buffer: MultiBufferSource,
             packedLight: Int,
+            partialTicks: Float,
         ) {
-            if (definition == null || definition.rollsigns.isEmpty()) {
+            if (definition == null) {
                 return
             }
-            val texturePath = definition.rollsignTexture
-            if (texturePath.isNullOrBlank()) {
+            renderConfiguredSignPanels(
+                entity.destinationIndex,
+                entity.tickCount + partialTicks.toDouble(),
+                definition.packName,
+                definition.rollsignTexture,
+                definition.rollsignNames,
+                definition.rollsigns,
+                poseStack,
+                buffer,
+                packedLight,
+            )
+        }
+
+        private fun renderConfiguredTypeSigns(
+            entity: TrainEntity,
+            definition: VehicleDefinition?,
+            poseStack: PoseStack,
+            buffer: MultiBufferSource,
+            packedLight: Int,
+            partialTicks: Float,
+        ) {
+            if (definition == null) {
                 return
             }
-            val texture = MqoModelLoader.resolvePackTexture(definition.packName, texturePath)
-            val count = max(1, if (definition.rollsignNames.isEmpty()) 1 else definition.rollsignNames.size)
-            val destinationIndex = Math.floorMod(entity.destinationIndex, count)
-            val segmentV0 = destinationIndex / count.toFloat()
-            val segmentV1 = (destinationIndex + 1.0f) / count.toFloat()
-            val consumer = buffer.getBuffer(RenderTypes.entityCutout(texture ?: return))
+            renderConfiguredSignPanels(
+                entity.typeSignIndex,
+                entity.tickCount + partialTicks.toDouble(),
+                definition.packName,
+                definition.typeSignTexture,
+                definition.typeSignNames,
+                definition.typeSigns,
+                poseStack,
+                buffer,
+                packedLight,
+            )
+        }
+
+        private fun renderConfiguredSignPanels(
+            rawIndex: Int,
+            tick: Double,
+            packName: String,
+            texturePath: String,
+            names: List<String>,
+            panels: List<VehicleDefinition.RollsignDefinition>,
+            poseStack: PoseStack,
+            buffer: MultiBufferSource,
+            packedLight: Int,
+        ) {
+            if (panels.isEmpty() || texturePath.isBlank()) {
+                return
+            }
+            val texture = MqoModelLoader.resolvePackTextureByTick(packName, texturePath, tick) ?: return
+            val count = max(1, names.size)
+            val selectedIndex = Math.floorMod(rawIndex, count)
+            val segmentV0 = selectedIndex / count.toFloat()
+            val segmentV1 = (selectedIndex + 1.0f) / count.toFloat()
+            val consumer = buffer.getBuffer(RenderTypes.entityCutout(texture))
             val pose = poseStack.last()
             val matrix = pose.pose()
             val normalMatrix = pose.normal()
 
-            for (rollsign in definition.rollsigns) {
+            for (rollsign in panels) {
                 val uv = rollsign.uv()
                 if (uv.size < 4) {
                     continue
@@ -466,7 +515,7 @@ open class TrainEntityRenderer(context: EntityRendererProvider.Context) :
                 val baseVMax = uv[3]
                 val vMin = Mth.lerp(segmentV0, baseVMin, baseVMax)
                 val vMax = Mth.lerp(segmentV1, baseVMin, baseVMax)
-                val signLight = if (rollsign.disableLighting()) 0x00F000F0 else packedLight
+                val signLight = if (rollsign.disableLighting()) packedLight else 0x00F000F0
 
                 for (quad in rollsign.pos()) {
                     if (quad.size < 4) {
