@@ -17,6 +17,7 @@ data class CarScriptDataPayload(
     val entityId: Int,
     val key: String,
     val value: String,
+    val flags: Int,
 ) : CustomPacketPayload {
     override fun type(): CustomPacketPayload.Type<out CustomPacketPayload> = TYPE
 
@@ -34,6 +35,8 @@ data class CarScriptDataPayload(
             { payload -> payload.key },
             ByteBufCodecs.STRING_UTF8,
             { payload -> payload.value },
+            ByteBufCodecs.INT,
+            { payload -> payload.flags },
             ::CarScriptDataPayload,
         )
 
@@ -42,7 +45,7 @@ data class CarScriptDataPayload(
             context.enqueueWork {
                 val player = context.player()
                 val car = player.level().getEntity(payload.entityId) as? CarEntity ?: return@enqueueWork
-                car.applyClientScriptData(player, payload.key, payload.value)
+                car.applyClientScriptData(player, payload.key, payload.value, payload.flags)
             }
         }
     }

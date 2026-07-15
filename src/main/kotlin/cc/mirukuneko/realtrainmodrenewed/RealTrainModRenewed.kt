@@ -3,6 +3,7 @@
 package cc.mirukuneko.realtrainmodrenewed
 
 import cc.mirukuneko.realtrainmodrenewed.compat.webctc.WebCtcCompat
+import cc.mirukuneko.realtrainmodrenewed.entity.CarEntity
 import cc.mirukuneko.realtrainmodrenewed.installedobject.InstalledObjectPackLoader
 import cc.mirukuneko.realtrainmodrenewed.installedobject.SpeakerSoundConfig
 import cc.mirukuneko.realtrainmodrenewed.item.CrowbarItem
@@ -69,6 +70,7 @@ open class RealTrainModRenewed(
         NeoForge.EVENT_BUS.addListener { event: ServerStoppingEvent -> WebCtcCompat.onServerStopping(event) }
         NeoForge.EVENT_BUS.addListener { event: AttackEntityEvent -> CrowbarItem.onAttackEntity(event) }
         NeoForge.EVENT_BUS.addListener { event: BreakBlockEvent -> CrowbarItem.onBreakBlock(event) }
+        NeoForge.EVENT_BUS.addListener(this::onStartTracking)
         NeoForge.EVENT_BUS.addListener { _: ServerStartingEvent -> SpeakerSoundConfig.load() }
         NeoForge.EVENT_BUS.addListener { event: PlayerEvent.PlayerLoggedInEvent ->
             val player = event.entity
@@ -95,6 +97,12 @@ open class RealTrainModRenewed(
 
     private fun registerNetwork(event: RegisterPayloadHandlersEvent) {
         RealTrainModRenewedNetwork.registerPayloadHandlers(event)
+    }
+
+    private fun onStartTracking(event: PlayerEvent.StartTracking) {
+        val player = event.entity as? ServerPlayer ?: return
+        val car = event.target as? CarEntity ?: return
+        car.syncScriptDataTo(player)
     }
 
     private fun buildCreativeTabContents(event: BuildCreativeModeTabContentsEvent) {

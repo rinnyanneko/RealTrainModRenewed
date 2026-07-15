@@ -39,6 +39,32 @@ import javax.script.ScriptEngine
 import java.util.UUID
 import kotlin.math.abs
 
+internal const val DATA_MAP_SYNC_FLAG = 1
+internal const val DATA_MAP_SAVE_FLAG = 2
+internal const val DATA_MAP_ALL_FLAGS = DATA_MAP_SYNC_FLAG or DATA_MAP_SAVE_FLAG
+
+internal fun shouldSyncDataMap(flags: Int): Boolean = flags and DATA_MAP_SYNC_FLAG != 0
+internal fun shouldSaveDataMap(flags: Int): Boolean = flags and DATA_MAP_SAVE_FLAG != 0
+internal fun dataMapString(value: Any?): String = value?.toString() ?: ""
+internal fun dataMapBoolean(value: Any?): Boolean = when (value) {
+    is Boolean -> value
+    is Number -> value.toInt() != 0
+    is String -> value.equals("true", ignoreCase = true) || value == "1"
+    else -> false
+}
+internal fun dataMapInt(value: Any?): Int = when (value) {
+    is Number -> value.toInt()
+    is Boolean -> if (value) 1 else 0
+    is String -> value.toIntOrNull() ?: value.toDoubleOrNull()?.let(Math::round)?.toInt() ?: 0
+    else -> 0
+}
+internal fun dataMapDouble(value: Any?): Double = when (value) {
+    is Number -> value.toDouble()
+    is Boolean -> if (value) 1.0 else 0.0
+    is String -> value.toDoubleOrNull() ?: 0.0
+    else -> 0.0
+}
+
 class CarEntity(type: EntityType<out CarEntity>, level: Level) : Entity(type, level) {
     companion object {
         private val DATA_VEHICLE_ID: EntityDataAccessor<String> = SynchedEntityData.defineId(CarEntity::class.java, EntityDataSerializers.STRING)
@@ -99,6 +125,8 @@ class CarEntity(type: EntityType<out CarEntity>, level: Level) : Entity(type, le
     private var serverScriptEngine: ScriptEngine? = null
     private var attemptedServerScriptLoad: Boolean = false
     private val scriptData: MutableMap<String, String> = HashMap()
+    private val scriptDataFlags: MutableMap<String, Int> = HashMap()
+    private val pendingScriptDataSync: MutableMap<String, String> = LinkedHashMap()
     private var scriptHostPlayerUuid: UUID? = null
     private var scriptDataDirty: Boolean = false
     private var acceleratorStroke: Float = 0f
@@ -115,6 +143,10 @@ class CarEntity(type: EntityType<out CarEntity>, level: Level) : Entity(type, le
 
     fun getScriptDataValue(key: String): String = scriptData[key] ?: ""
     fun setScriptDataValue(key: String?, value: String?) {
+        setScriptDataValue(key, value, DATA_MAP_ALL_FLAGS)
+    }
+
+    private fun setScriptDataValue(key: String?, value: String?, flags: Int) {
         if (key.isNullOrBlank()) return
         val v = value ?: ""
         if (!level().isClientSide && key == "hostPlayerEntityId") {
@@ -124,10 +156,30 @@ class CarEntity(type: EntityType<out CarEntity>, level: Level) : Entity(type, le
                 ?.uuid
         }
         val prev = scriptData.put(key, v)
-        if (v != prev) scriptDataDirty = true
+        val normalizedFlags = flags and DATA_MAP_ALL_FLAGS
+        val previousFlags = scriptDataFlags.put(key, normalizedFlags)
+        if (!level().isClientSide && shouldSyncDataMap(normalizedFlags) && (v != prev || previousFlags != normalizedFlags)) {
+            pendingScriptDataSync[key] = v
+            scriptDataDirty = true
+        }
     }
-    fun applyScriptDataSync(data: Map<String, String>?) { if (data != null) scriptData.putAll(data) }
+    fun applyScriptDataSync(data: Map<String, String>?) {
+        if (data == null) return
+        scriptData.putAll(data)
+        data.keys.forEach { key -> scriptDataFlags[key] = DATA_MAP_SYNC_FLAG }
+    }
     fun scriptDataMap(): Map<String, String> = scriptData
+
+    fun syncableScriptData(): Map<String, String> = scriptData.filterKeys { key ->
+        shouldSyncDataMap(scriptDataFlags[key] ?: DATA_MAP_ALL_FLAGS)
+    }
+
+    fun syncScriptDataTo(player: net.minecraft.server.level.ServerPlayer) {
+        val snapshot = syncableScriptData()
+        if (snapshot.isNotEmpty()) {
+            PacketDistributor.sendToPlayer(player, CarScriptDataSyncPayload(id, snapshot))
+        }
+    }
 
     fun canAcceptScriptDataFrom(player: Player): Boolean {
         if (player.level() !== level()) return false
@@ -136,10 +188,11 @@ class CarEntity(type: EntityType<out CarEntity>, level: Level) : Entity(type, le
         return scriptHostPlayerUuid == player.uuid
     }
 
-    fun applyClientScriptData(player: Player, key: String, value: String): Boolean {
+    fun applyClientScriptData(player: Player, key: String, value: String, flags: Int): Boolean {
         if (!canAcceptScriptDataFrom(player) || key.length > 64 || value.length > MAX_SCRIPT_DATA_LENGTH) return false
+        if (flags !in 0..DATA_MAP_ALL_FLAGS || !shouldSyncDataMap(flags)) return false
         if (!isSuperRailBuilderVehicle()) {
-            setScriptDataValue(key, value)
+            setScriptDataValue(key, value, flags)
             return true
         }
         if (key !in SRB_CLIENT_KEYS) return false
@@ -154,7 +207,7 @@ class CarEntity(type: EntityType<out CarEntity>, level: Level) : Entity(type, le
             if (key == "buildData" || key == "deleteRailData") cancelSrbBuild()
             return false
         }
-        setScriptDataValue(key, value)
+        setScriptDataValue(key, value, flags)
         return true
     }
 
@@ -254,21 +307,41 @@ class CarEntity(type: EntityType<out CarEntity>, level: Level) : Entity(type, le
         fun func_180495_p(pos: net.minecraft.core.BlockPos) = car.level().getBlockState(pos)
     }
 
-    class ResourceStateCompat(car: CarEntity) { val dataMap: DataMapCompat = DataMapCompat(car) }
+    val resourceState: ResourceStateCompat
+        get() = ResourceStateCompat(this)
+
+    class ResourceStateCompat(private val car: CarEntity) {
+        val dataMap: DataMapCompat = DataMapCompat(car)
+        val resourceName: String
+            get() = car.vehicleId
+        val name: String
+            get() = car.vehicleId
+    }
     class DataMapCompat(private val car: CarEntity) {
         fun getString(key: String): String = car.getScriptDataValue(key)
         fun getBoolean(key: String): Boolean = getString(key).let { it.equals("true", ignoreCase = true) || it == "1" }
         fun getInt(key: String): Int = try { getString(key).toInt() } catch (_: Exception) { 0 }
         fun getDouble(key: String): Double = try { getString(key).toDouble() } catch (_: Exception) { 0.0 }
         fun setString(key: String, value: String?, syncType: Int) = apply(key, value ?: "", syncType)
+        fun setString(key: String, value: Any?, syncType: Int) = apply(key, dataMapString(value), syncType)
         fun setBoolean(key: String, value: Boolean, syncType: Int) = apply(key, value.toString(), syncType)
+        fun setBoolean(key: String, value: Any?, syncType: Int) = apply(key, dataMapBoolean(value).toString(), syncType)
         fun setInt(key: String, value: Int, syncType: Int) = apply(key, value.toString(), syncType)
+        fun setInt(key: String, value: Any?, syncType: Int) = apply(key, dataMapInt(value).toString(), syncType)
         fun setDouble(key: String, value: Double, syncType: Int) = apply(key, value.toString(), syncType)
+        fun setDouble(key: String, value: Any?, syncType: Int) = apply(key, dataMapDouble(value).toString(), syncType)
         private fun apply(key: String, value: String, syncType: Int) {
-            car.setScriptDataValue(key, value)
-            if (syncType != 0 && car.level().isClientSide) {
-                try { net.minecraft.client.Minecraft.getInstance().connection?.send(CarScriptDataPayload(car.id, key, value)) } catch (_: Throwable) { }
+            val flags = syncType and DATA_MAP_ALL_FLAGS
+            if (car.level().isClientSide && shouldSyncDataMap(flags)) {
+                try {
+                    net.minecraft.client.Minecraft.getInstance().connection?.send(
+                        CarScriptDataPayload(car.id, key, value, flags)
+                    )
+                } catch (_: Throwable) {
+                }
+                return
             }
+            car.setScriptDataValue(key, value, flags)
         }
     }
 
@@ -282,26 +355,55 @@ class CarEntity(type: EntityType<out CarEntity>, level: Level) : Entity(type, le
 
     override fun defineSynchedData(builder: SynchedEntityData.Builder) { builder.define(DATA_VEHICLE_ID, "") }
     override fun readAdditionalSaveData(tag: ValueInput) {
-        setVehicleId(tag.getStringOr("VehicleId", "")); scriptData.clear()
-        tag.read("ScriptData", CompoundTag.CODEC).ifPresent { sd -> for (key in sd.keySet()) scriptData[key] = sd.getStringOr(key, "") }
+        setVehicleId(tag.getStringOr("VehicleId", ""))
+        scriptData.clear()
+        scriptDataFlags.clear()
+        pendingScriptDataSync.clear()
+        val storedFlags = tag.read("ScriptDataFlags", CompoundTag.CODEC).orElse(null)
+        tag.read("ScriptData", CompoundTag.CODEC).ifPresent { data ->
+            for (key in data.keySet()) {
+                scriptData[key] = data.getStringOr(key, "")
+                scriptDataFlags[key] = storedFlags?.getIntOr(key, DATA_MAP_ALL_FLAGS) ?: DATA_MAP_ALL_FLAGS
+            }
+        }
         scriptHostPlayerUuid = null
-        if (isSuperRailBuilderVehicle()) SRB_TRANSIENT_KEYS.forEach(scriptData::remove)
+        if (isSuperRailBuilderVehicle()) {
+            SRB_TRANSIENT_KEYS.forEach { key ->
+                scriptData.remove(key)
+                scriptDataFlags.remove(key)
+            }
+        }
+        pendingScriptDataSync.putAll(syncableScriptData())
+        scriptDataDirty = pendingScriptDataSync.isNotEmpty()
     }
     override fun addAdditionalSaveData(tag: ValueOutput) {
         tag.putString("VehicleId", vehicleId)
-        if (scriptData.isNotEmpty()) {
+        val savedData = scriptData.filterKeys { key ->
+            shouldSaveDataMap(scriptDataFlags[key] ?: DATA_MAP_ALL_FLAGS) &&
+                (!isSuperRailBuilderVehicle() || key !in SRB_TRANSIENT_KEYS)
+        }
+        if (savedData.isNotEmpty()) {
             val sd = CompoundTag()
-            scriptData.forEach { (key, value) ->
-                if (!isSuperRailBuilderVehicle() || key !in SRB_TRANSIENT_KEYS) sd.putString(key, value)
+            val flags = CompoundTag()
+            savedData.forEach { (key, value) ->
+                sd.putString(key, value)
+                flags.putInt(key, scriptDataFlags[key] ?: DATA_MAP_ALL_FLAGS)
             }
             tag.store("ScriptData", CompoundTag.CODEC, sd)
+            tag.store("ScriptDataFlags", CompoundTag.CODEC, flags)
         }
     }
 
     private fun isSuperRailBuilderVehicle(): Boolean = vehicleId.contains("superrailbuilder", ignoreCase = true)
 
     override fun interact(player: Player, hand: InteractionHand, location: Vec3): InteractionResult {
-        if (canAddPassenger(player)) { player.startRiding(this); return InteractionResult.SUCCESS }
+        if (canAddPassenger(player)) {
+            if (level().isClientSide && isSuperRailBuilderVehicle()) {
+                setScriptDataValue("prevIsClick", "true", 0)
+            }
+            player.startRiding(this)
+            return InteractionResult.SUCCESS
+        }
         return InteractionResult.PASS
     }
     override fun canAddPassenger(passenger: Entity): Boolean = passengers.size < RIDING_CAPACITY
@@ -357,9 +459,16 @@ class CarEntity(type: EntityType<out CarEntity>, level: Level) : Entity(type, le
                 TrainScriptSystem.invokeServerScriptOnUpdate(serverScriptEngine!!, this)
                 yRot = field_70177_z; xRot = field_70125_A; yRotO = field_70177_z; xRotO = field_70125_A
             }
-            if (scriptDataDirty && scriptData.isNotEmpty()) {
+            if (scriptDataDirty) {
                 scriptDataDirty = false
-                PacketDistributor.sendToPlayersTrackingEntityAndSelf(this, CarScriptDataSyncPayload(id, HashMap(scriptData)))
+                val snapshot = HashMap(pendingScriptDataSync)
+                pendingScriptDataSync.clear()
+                if (snapshot.isNotEmpty()) {
+                    PacketDistributor.sendToPlayersTrackingEntityAndSelf(
+                        this,
+                        CarScriptDataSyncPayload(id, snapshot),
+                    )
+                }
             }
         }
 

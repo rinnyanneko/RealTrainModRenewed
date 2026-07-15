@@ -2,12 +2,68 @@
 // Copyright © 2026 mirukuneko and RealTrainModRenewed contributors
 package cc.mirukuneko.realtrainmodrenewed.script
 
+import cc.mirukuneko.realtrainmodrenewed.entity.DATA_MAP_ALL_FLAGS
+import cc.mirukuneko.realtrainmodrenewed.entity.DATA_MAP_SAVE_FLAG
+import cc.mirukuneko.realtrainmodrenewed.entity.DATA_MAP_SYNC_FLAG
+import cc.mirukuneko.realtrainmodrenewed.entity.dataMapBoolean
+import cc.mirukuneko.realtrainmodrenewed.entity.dataMapDouble
+import cc.mirukuneko.realtrainmodrenewed.entity.dataMapInt
+import cc.mirukuneko.realtrainmodrenewed.entity.dataMapString
+import cc.mirukuneko.realtrainmodrenewed.entity.shouldSaveDataMap
+import cc.mirukuneko.realtrainmodrenewed.entity.shouldSyncDataMap
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 
 class SuperRailBuilderCompatibilityTest {
+    @Test
+    fun `car exposes legacy resource state accessors`() {
+        val loader = javaClass.classLoader
+        val carClass = assertNotNull(
+            loader.getResourceAsStream("cc/mirukuneko/realtrainmodrenewed/entity/CarEntity.class")
+        ).use { it.readBytes().toString(Charsets.ISO_8859_1) }
+        val resourceStateClass = assertNotNull(
+            loader.getResourceAsStream(
+                "cc/mirukuneko/realtrainmodrenewed/entity/CarEntity\$ResourceStateCompat.class"
+            )
+        ).use { it.readBytes().toString(Charsets.ISO_8859_1) }
+        val dataMapClass = assertNotNull(
+            loader.getResourceAsStream(
+                "cc/mirukuneko/realtrainmodrenewed/entity/CarEntity\$DataMapCompat.class"
+            )
+        ).use { it.readBytes().toString(Charsets.ISO_8859_1) }
+
+        assertTrue(carClass.contains("getResourceState"))
+        assertTrue(resourceStateClass.contains("getDataMap"))
+        assertTrue(resourceStateClass.contains("getResourceName"))
+        assertTrue(dataMapClass.contains("(Ljava/lang/String;Ljava/lang/Object;I)V"))
+    }
+
+    @Test
+    fun `data map sync and save flags remain independent`() {
+        assertEquals(1, DATA_MAP_SYNC_FLAG)
+        assertEquals(2, DATA_MAP_SAVE_FLAG)
+        assertTrue(shouldSyncDataMap(DATA_MAP_SYNC_FLAG))
+        assertFalse(shouldSaveDataMap(DATA_MAP_SYNC_FLAG))
+        assertFalse(shouldSyncDataMap(DATA_MAP_SAVE_FLAG))
+        assertTrue(shouldSaveDataMap(DATA_MAP_SAVE_FLAG))
+        assertTrue(shouldSyncDataMap(DATA_MAP_ALL_FLAGS))
+        assertTrue(shouldSaveDataMap(DATA_MAP_ALL_FLAGS))
+    }
+
+    @Test
+    fun `legacy data map accepts script number and boolean values`() {
+        assertEquals("7", dataMapString(7))
+        assertEquals("1200", dataMapString(1200L))
+        assertEquals("", dataMapString(null))
+        assertTrue(dataMapBoolean(1))
+        assertFalse(dataMapBoolean(0))
+        assertEquals(2, dataMapInt(2.6))
+        assertEquals(2.5, dataMapDouble("2.5"))
+    }
+
     @Test
     fun `server script receives native bridge overrides`() {
         val script =
