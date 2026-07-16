@@ -240,7 +240,13 @@ open class ModelSelectScreen @JvmOverloads constructor(
             graphics.fill(boxX, boxY + boxH - 1, boxX + boxW, boxY + boxH, -0xa5a590)
             graphics.fill(boxX, boxY, boxX + 1, boxY + boxH, -0xa5a590)
             graphics.fill(boxX + boxW - 1, boxY, boxX + boxW, boxY + boxH, -0xa5a590)
-            graphics.centeredText(font, Component.literal("No preview image"), left + width / 2, imageTop + imageHeight / 2 - 4, -0x555556)
+            graphics.centeredText(
+                font,
+                Component.translatable("screen.realtrainmodrenewed.no_preview"),
+                left + width / 2,
+                imageTop + imageHeight / 2 - 4,
+                -0x555556,
+            )
         }
     }
 
@@ -250,12 +256,12 @@ open class ModelSelectScreen @JvmOverloads constructor(
         var model: MqoModelLoader.MqoModel? = null
         try {
             val vehicleDefinition = VehicleRegistry.getById(id)
-            if (vehicleDefinition != null && vehicleDefinition.getModelFile() != null && vehicleDefinition.getModelFile().isNotBlank()) {
+            if (vehicleDefinition != null && vehicleDefinition.getModelFile().isNotBlank()) {
                 model = MqoModelLoader.loadModelForVehicle(vehicleDefinition)
             }
             if (model == null) {
                 val installedObjectDefinition = InstalledObjectRegistry.getById(id)
-                if (installedObjectDefinition != null && installedObjectDefinition.modelFile != null && installedObjectDefinition.modelFile.isNotBlank()) {
+                if (installedObjectDefinition != null && installedObjectDefinition.modelFile.isNotBlank()) {
                     model = MqoModelLoader.loadModelFromPack(
                         installedObjectDefinition.packName,
                         installedObjectDefinition.modelFile,
@@ -267,7 +273,7 @@ open class ModelSelectScreen @JvmOverloads constructor(
             }
             if (model == null) {
                 val railDefinition = RailRegistry.getById(id)
-                if (railDefinition != null && railDefinition.modelFile != null && railDefinition.modelFile.isNotBlank()) {
+                if (railDefinition != null && railDefinition.modelFile.isNotBlank()) {
                     model = MqoModelLoader.loadModelFromPack(
                         railDefinition.packName,
                         railDefinition.modelFile,
@@ -288,7 +294,7 @@ open class ModelSelectScreen @JvmOverloads constructor(
     }
 
     private fun getOrCreatePreviewEntity(definition: VehicleDefinition?, model: MqoModelLoader.MqoModel): TrainEntity? {
-        if (definition == null || definition.id == null) {
+        if (definition == null) {
             return null
         }
         if (previewEntity != null && definition.id == previewEntityId) {
@@ -473,9 +479,6 @@ open class ModelSelectScreen @JvmOverloads constructor(
             var maxZ = (bounds[5] * scale + offset.z).toFloat()
 
             for (bogie in vehicleDef.getBogies()) {
-                if (bogie == null || bogie.position() == null) {
-                    continue
-                }
                 val pos = bogie.position()
                 val x = (pos.x * scale + offset.x).toFloat()
                 val y = ((pos.y + 0.24) * scale + offset.y).toFloat()
@@ -542,7 +545,7 @@ open class ModelSelectScreen @JvmOverloads constructor(
         }
 
         private fun shouldSkipPreviewBogie(selfDrawsRunningGear: Boolean, bogieDef: VehicleDefinition.BogieDefinition?): Boolean {
-            if (bogieDef == null || bogieDef.modelFile() == null || bogieDef.modelFile().isBlank()) {
+            if (bogieDef == null || bogieDef.modelFile().isBlank()) {
                 return true
             }
             if (BogieRenderer.isDummyBogieModel(bogieDef.modelFile())) {

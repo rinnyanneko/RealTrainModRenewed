@@ -14,7 +14,7 @@ import net.minecraft.client.gui.screens.Screen
 import net.minecraft.core.BlockPos
 import net.minecraft.network.chat.Component
 
-open class SignalReceiverScreen(pos: BlockPos) : Screen(Component.literal("受信機")) {
+open class SignalReceiverScreen(pos: BlockPos) : Screen(Component.translatable("block.realtrainmodrenewed.signal_receiver")) {
 
     private val pos: BlockPos = pos.immutable()
     private lateinit var channelBox: EditBox
@@ -23,14 +23,14 @@ open class SignalReceiverScreen(pos: BlockPos) : Screen(Component.literal("受�
         val boxWidth = 140
         val x = (width - boxWidth) / 2
         val y = height / 2 - 18
-        channelBox = EditBox(font, x, y, boxWidth, 20, Component.literal("番号"))
+        channelBox = EditBox(font, x, y, boxWidth, 20, Component.translatable("screen.realtrainmodrenewed.signal.channel"))
         channelBox.setMaxLength(10)
         readCurrentValue()
         addRenderableWidget(channelBox)
         setInitialFocus(channelBox)
 
         addRenderableWidget(
-            Button.builder(Component.literal("接続")) { submit() }
+            Button.builder(Component.translatable("button.realtrainmodrenewed.connect")) { submit() }
                 .bounds(width / 2 - 75, y + 30, 70, 20)
                 .build()
         )
@@ -60,7 +60,7 @@ open class SignalReceiverScreen(pos: BlockPos) : Screen(Component.literal("受�
             onClose()
         } catch (_: NumberFormatException) {
             Minecraft.getInstance().player?.sendOverlayMessage(
-                Component.literal("番号を入力してください")
+                Component.translatable("message.realtrainmodrenewed.signal.enter_channel")
             )
         }
     }
@@ -68,7 +68,7 @@ open class SignalReceiverScreen(pos: BlockPos) : Screen(Component.literal("受�
     override fun extractRenderState(graphics: GuiGraphicsExtractor, mouseX: Int, mouseY: Int, partialTick: Float) {
         super.extractRenderState(graphics, mouseX, mouseY, partialTick)
         graphics.centeredText(font, title, width / 2, height / 2 - 40, 0xFFFFFF)
-        graphics.centeredText(font, Component.literal("通信機で表示した番号を入力"), width / 2, height / 2 - 28, 0xAAAAAA)
+        graphics.centeredText(font, Component.translatable("screen.realtrainmodrenewed.signal_receiver.hint"), width / 2, height / 2 - 28, 0xAAAAAA)
     }
 
     override fun isPauseScreen(): Boolean = false

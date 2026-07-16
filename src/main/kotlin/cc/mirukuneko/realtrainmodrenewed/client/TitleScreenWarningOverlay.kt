@@ -68,7 +68,7 @@ object TitleScreenWarningOverlay {
     private fun drawLines(
         graphics: GuiGraphicsExtractor,
         minecraft: Minecraft,
-        lines: List<String>,
+        lines: List<Component>,
         x: Int,
         y: Int,
         color: Int

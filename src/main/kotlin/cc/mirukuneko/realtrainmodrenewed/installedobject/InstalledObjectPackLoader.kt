@@ -213,7 +213,7 @@ object InstalledObjectPackLoader {
             val wireDeflection = parseFloat(obj, "deflectionCoefficient", parseFloat(model, "deflectionCoefficient", 0.0F))
             val wireAttachPos = parseVec3(obj, "wireAttachPos", 1.0 / 16.0)
 
-            val def = InstalledObjectDefinition(id ?: "", name ?: "", packName, category, modelFile ?: "",
+            val def = InstalledObjectDefinition(id, name ?: "", packName, category, modelFile,
                 scriptPath ?: "", buttonTexture, textures, offset, scale, smoothing,
                 width, height, depth, signTexture ?: "", emissiveTexture ?: "",
                 runningSound ?: "", signalLights, renderObjects, scriptBodyPos, signFrame, backTexture)
@@ -245,8 +245,8 @@ object InstalledObjectPackLoader {
             val buttonTexture = getString(obj, "buttonTexture")
             val runningSound = firstNonBlank(getString(obj, "sound_Running"), getString(obj, "soundRunning"))
 
-            LOADED.add(InstalledObjectDefinition(id ?: "", name ?: "", packName, InstalledObjectCategory.SIGNBOARD,
-                modelFile ?: "", scriptPath ?: "", buttonTexture, textures, offset, scale, true,
+            LOADED.add(InstalledObjectDefinition(id, name ?: "", packName, InstalledObjectCategory.SIGNBOARD,
+                modelFile, scriptPath ?: "", buttonTexture, textures, offset, scale, true,
                 width, height, depth, signTexture ?: "", emissiveTexture ?: "",
                 runningSound ?: "", emptyMap(), emptyList(), Vec3.ZERO, signFrame, backTexture))
         } catch (e: Exception) {

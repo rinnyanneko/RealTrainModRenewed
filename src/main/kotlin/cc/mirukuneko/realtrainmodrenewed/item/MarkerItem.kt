@@ -18,6 +18,7 @@ class MarkerItem : BlockItem {
         this.diagonal = diagonal
     }
 
+    @Deprecated("Overrides Minecraft's deprecated tooltip extension hook")
     override fun appendHoverText(stack: ItemStack, context: TooltipContext, display: net.minecraft.world.item.component.TooltipDisplay, tooltip: Consumer<Component>, flag: TooltipFlag) {
         tooltip.accept(Component.translatable("tooltip.realtrainmodrenewed.marker.place_pair").withStyle(ChatFormatting.GRAY))
         tooltip.accept(Component.translatable("tooltip.realtrainmodrenewed.marker.configure").withStyle(ChatFormatting.DARK_GRAY))

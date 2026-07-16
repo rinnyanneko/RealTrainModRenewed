@@ -54,7 +54,13 @@ data class UpdateScriptBlockPayload(
                 val executed = payload.executeNow && blockEntity.runScript(serverLevel)
                 serverLevel.sendBlockUpdated(payload.pos, blockEntity.blockState, blockEntity.blockState, 3)
                 player.sendOverlayMessage(
-                    Component.literal(if (executed) "スクリプトを実行しました" else "スクリプトブロックを保存しました")
+                    Component.translatable(
+                        if (executed) {
+                            "message.realtrainmodrenewed.script.executed"
+                        } else {
+                            "message.realtrainmodrenewed.script.saved"
+                        },
+                    )
                 )
             }
         }

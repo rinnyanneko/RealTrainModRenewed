@@ -157,7 +157,7 @@ class VehicleDefinition(
 
         private fun toImmutableNestedList(options: List<List<String>>?): List<List<String>> {
             if (options.isNullOrEmpty()) return emptyList()
-            return options.map { it?.toList() ?: emptyList() }.toList()
+            return options.map { it.toList() }.toList()
         }
     }
 
@@ -176,6 +176,9 @@ class VehicleDefinition(
     @JvmField var soundDeceleration: String = ""
     @JvmField var soundDecelerationStop: String = ""
     @JvmField var announcementNames: List<String> = emptyList()
+    @JvmField var typeSignNames: List<String> = emptyList()
+    @JvmField var typeSignTexture: String = ""
+    @JvmField var typeSigns: List<RollsignDefinition> = emptyList()
 
     fun getId(): String = id
     fun getDisplayName(): String = displayName
@@ -215,6 +218,9 @@ class VehicleDefinition(
     fun getHornSound(): String = hornSound
     fun getAnnouncementSounds(): List<String> = announcementSounds
     fun getAnnouncementNames(): List<String> = announcementNames
+    fun getTypeSignNames(): List<String> = typeSignNames
+    fun getTypeSignTexture(): String = typeSignTexture
+    fun getTypeSigns(): List<RollsignDefinition> = typeSigns
     fun isDoCulling(): Boolean = doCulling
     fun isRenderLight(): Boolean = renderLight
     fun isNotDisplayCab(): Boolean = notDisplayCab
@@ -251,6 +257,12 @@ class VehicleDefinition(
 
     fun setAnnouncementNames(names: List<String>?) {
         announcementNames = names?.toList() ?: emptyList()
+    }
+
+    fun setTypeSign(names: List<String>?, texture: String?, signs: List<RollsignDefinition>?) {
+        typeSignNames = names?.toList() ?: emptyList()
+        typeSignTexture = texture ?: ""
+        typeSigns = signs?.toList() ?: emptyList()
     }
 
     fun isCarType(): Boolean = vehicleType.equals("car", ignoreCase = true)

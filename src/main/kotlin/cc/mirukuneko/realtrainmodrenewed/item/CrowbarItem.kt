@@ -19,13 +19,13 @@ class CrowbarItem : Item {
     companion object {
         @JvmStatic
         fun onBreakBlock(event: BreakBlockEvent) {
-            val player = event.player ?: return
+            val player = event.player
             if (isHoldingCrowbar(player)) event.isCanceled = true
         }
 
         @JvmStatic
         fun onAttackEntity(event: AttackEntityEvent) {
-            val player = event.entity ?: return
+            val player = event.entity
             if (!isHoldingCrowbar(player)) return
             val target = event.target
             if (target is TrainEntity || target is TrainBogieEntity

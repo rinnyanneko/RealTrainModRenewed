@@ -15,7 +15,7 @@ import net.minecraft.core.BlockPos
 import net.minecraft.network.chat.Component
 import java.util.Locale
 
-open class SpeakerScreen(pos: BlockPos) : Screen(Component.literal("スピーカー設定")) {
+open class SpeakerScreen(pos: BlockPos) : Screen(Component.translatable("screen.realtrainmodrenewed.speaker.title")) {
     private val pos: BlockPos = pos.immutable()
     private lateinit var rangeBox: EditBox
     private lateinit var slotBox: EditBox
@@ -33,34 +33,34 @@ open class SpeakerScreen(pos: BlockPos) : Screen(Component.literal("スピーカ
         // 画面上端から絶対配置にして、GUIスケールが大きくても見切れないようにする。
         val y = 22
 
-        rangeBox = EditBox(font, x, y, 120, 18, Component.literal("可聴範囲(ブロック)"))
+        rangeBox = EditBox(font, x, y, 120, 18, Component.translatable("screen.realtrainmodrenewed.speaker.range"))
         rangeBox.setMaxLength(4)
         rangeBox.value = speakerRange.toString()
         addRenderableWidget(rangeBox)
         addRenderableWidget(
-            Button.builder(Component.literal("範囲を設定")) { submitRange() }
+            Button.builder(Component.translatable("button.realtrainmodrenewed.set_range")) { submitRange() }
                 .bounds(x + 124, y, BOX_W - 124, 18)
                 .build(),
         )
 
         val y2 = y + 28
-        slotBox = EditBox(font, x, y2, 50, 18, Component.literal("信号強度(1-15)"))
+        slotBox = EditBox(font, x, y2, 50, 18, Component.translatable("screen.realtrainmodrenewed.speaker.signal_level"))
         slotBox.setMaxLength(2)
         slotBox.value = "15"
         addRenderableWidget(slotBox)
 
-        soundBox = EditBox(font, x + 56, y2, BOX_W - 56, 18, Component.literal("サウンドID"))
+        soundBox = EditBox(font, x + 56, y2, BOX_W - 56, 18, Component.translatable("screen.realtrainmodrenewed.speaker.sound_id"))
         soundBox.setMaxLength(128)
         addRenderableWidget(soundBox)
 
         addRenderableWidget(
-            Button.builder(Component.literal("この信号レベルに割当")) { submitSound() }
+            Button.builder(Component.translatable("button.realtrainmodrenewed.assign_signal_level")) { submitSound() }
                 .bounds(x, y2 + 20, BOX_W, 18)
                 .build(),
         )
 
         val y3 = y2 + 44
-        val newSearchBox = EditBox(font, x, y3, BOX_W, 18, Component.literal("音を検索"))
+        val newSearchBox = EditBox(font, x, y3, BOX_W, 18, Component.translatable("screen.realtrainmodrenewed.speaker.search"))
         searchBox = newSearchBox
         newSearchBox.setMaxLength(64)
         newSearchBox.setResponder { rebuildCandidates() }
@@ -93,9 +93,6 @@ open class SpeakerScreen(pos: BlockPos) : Screen(Component.literal("スピーカ
         candidateButtons.clear()
 
         val minecraft = Minecraft.getInstance()
-        if (minecraft.soundManager == null) {
-            return
-        }
         val query = searchBox?.value?.trim()?.lowercase(Locale.ROOT) ?: ""
 
         var shown = 0
@@ -124,7 +121,7 @@ open class SpeakerScreen(pos: BlockPos) : Screen(Component.literal("スピーカ
             val range = rangeBox.value.trim().toInt()
             ClientNetworkHelper.sendToServer(ConfigureSpeakerPayload(pos, 0, "", range.coerceAtLeast(1)))
             speakerRange = range.coerceAtLeast(1)
-            toast("範囲を $speakerRange に設定しました")
+            toast(Component.translatable("message.realtrainmodrenewed.speaker.range_set", speakerRange))
         } catch (ignored: NumberFormatException) {
             notifyNumber()
         }
@@ -135,15 +132,15 @@ open class SpeakerScreen(pos: BlockPos) : Screen(Component.literal("スピーカ
             val slot = slotBox.value.trim().toInt()
             val sound = soundBox.value.trim()
             if (slot < 1 || slot > 15) {
-                toast("信号強度は 1〜15 で入力してください")
+                toast(Component.translatable("message.realtrainmodrenewed.speaker.invalid_signal_level"))
                 return
             }
             ClientNetworkHelper.sendToServer(ConfigureSpeakerPayload(pos, slot, sound, 0))
             toast(
                 if (sound.isEmpty()) {
-                    "信号強度 $slot の割り当てを解除しました"
+                    Component.translatable("message.realtrainmodrenewed.speaker.assignment_removed", slot)
                 } else {
-                    "信号強度 $slot → $sound を割り当てました"
+                    Component.translatable("message.realtrainmodrenewed.speaker.assigned", slot, sound)
                 },
             )
         } catch (ignored: NumberFormatException) {
@@ -152,11 +149,11 @@ open class SpeakerScreen(pos: BlockPos) : Screen(Component.literal("スピーカ
     }
 
     private fun notifyNumber() {
-        toast("数字で入力してください")
+        toast(Component.translatable("message.realtrainmodrenewed.number_required"))
     }
 
-    private fun toast(message: String) {
-        Minecraft.getInstance().player?.sendOverlayMessage(Component.literal(message))
+    private fun toast(message: Component) {
+        Minecraft.getInstance().player?.sendOverlayMessage(message)
     }
 
     override fun extractRenderState(graphics: GuiGraphicsExtractor, mouseX: Int, mouseY: Int, partialTick: Float) {
@@ -164,7 +161,7 @@ open class SpeakerScreen(pos: BlockPos) : Screen(Component.literal("スピーカ
         graphics.centeredText(font, title, width / 2, 8, 0xFFFFFF)
 
         var py = listTop + MAX_CANDIDATES * ROW_H + 4
-        graphics.text(font, Component.literal("現在の割当 (信号強度=音)"), leftX, py, 0xAAAAAA, false)
+        graphics.text(font, Component.translatable("screen.realtrainmodrenewed.speaker.current_assignments"), leftX, py, 0xAAAAAA, false)
         py += 11
         val line = StringBuilder()
         var perLine = 0

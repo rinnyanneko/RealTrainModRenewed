@@ -55,7 +55,10 @@ class SignalRemoteBlock(properties: BlockBehaviour.Properties, val mode: Mode) :
         val be = level.getBlockEntity(pos) as? SignalRemoteBlockEntity ?: return InteractionResult.FAIL
         if (player is ServerPlayer) {
             val channel = be.linkedChannel
-            player.sendSystemMessage(net.minecraft.network.chat.Component.literal("Channel: $channel"))
+            player.sendSystemMessage(net.minecraft.network.chat.Component.translatable(
+                "message.realtrainmodrenewed.signal.channel",
+                channel,
+            ))
         }
         return InteractionResult.SUCCESS
     }

@@ -263,7 +263,8 @@ object PackButtonTextureCache {
                 }
                 val relative = normalize(root.relativize(path).toString())
                 val score = scoreButtonCandidate(relative, modelId, displayName)
-                if (score <= 0 || (best != null && score <= best!!.score)) {
+                val currentBest = best
+                if (score <= 0 || (currentBest != null && score <= currentBest.score)) {
                     continue
                 }
                 best = ButtonCandidate(score, path, null)
@@ -289,7 +290,8 @@ object PackButtonTextureCache {
                     continue
                 }
                 val score = scoreButtonCandidate(entry.name, modelId, displayName)
-                if (score <= 0 || (best != null && score <= best!!.score)) {
+                val currentBest = best
+                if (score <= 0 || (currentBest != null && score <= currentBest.score)) {
                     continue
                 }
                 best = ButtonCandidate(score, null, entry)

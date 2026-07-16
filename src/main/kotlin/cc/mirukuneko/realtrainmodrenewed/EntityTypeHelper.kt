@@ -4,6 +4,7 @@ package cc.mirukuneko.realtrainmodrenewed
 
 import cc.mirukuneko.realtrainmodrenewed.entity.TrainBogieEntity
 import cc.mirukuneko.realtrainmodrenewed.entity.TrainEntity
+import cc.mirukuneko.realtrainmodrenewed.entity.TrainFloorEntity
 import cc.mirukuneko.realtrainmodrenewed.entity.TrainSeatEntity
 import net.minecraft.core.registries.Registries
 import net.minecraft.resources.Identifier
@@ -38,6 +39,16 @@ object EntityTypeHelper {
             .clientTrackingRange(10)
             .updateInterval(1)
             .build(entityKey("train_seat"))
+
+    @JvmStatic
+    fun createFloorType(): EntityType<TrainFloorEntity> =
+        EntityType.Builder.of(::TrainFloorEntity, MobCategory.MISC)
+            .sized(TrainFloorEntity.DEFAULT_FLOOR_WIDTH, TrainFloorEntity.DEFAULT_FLOOR_HEIGHT)
+            .fireImmune()
+            .noSave()
+            .clientTrackingRange(6)
+            .updateInterval(10)
+            .build(entityKey("train_floor"))
 
     private fun entityKey(path: String): ResourceKey<EntityType<*>> =
         ResourceKey.create(Registries.ENTITY_TYPE, Identifier.fromNamespaceAndPath(RealTrainModRenewed.MODID, path))

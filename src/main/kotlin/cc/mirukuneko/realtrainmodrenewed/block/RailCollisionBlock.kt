@@ -33,7 +33,7 @@ class RailCollisionBlock : BaseEntityBlock {
             var s = 0.0f
             val be = level.getBlockEntity(pos)
             if (be is RailCollisionBlockEntity) s = be.surfaceY
-            val top = max(1.0, min(16.0, (s * 16.0).toDouble()))
+            val top = max(1.0, min(16.0, s * 16.0))
             return box(0.0, 0.0, 0.0, 16.0, top, 16.0)
         }
     }
@@ -48,7 +48,7 @@ class RailCollisionBlock : BaseEntityBlock {
     override fun getCollisionShape(state: BlockState, level: BlockGetter, pos: BlockPos, ctx: CollisionContext): VoxelShape = railShape(level, pos)
     override fun getInteractionShape(state: BlockState, level: BlockGetter, pos: BlockPos): VoxelShape = railShape(level, pos)
 
-    override fun getCloneItemStack(level: LevelReader, pos: BlockPos, state: BlockState, includeData: Boolean): ItemStack {
+    override fun getCloneItemStack(level: LevelReader, pos: BlockPos, state: BlockState, includeData: Boolean, player: Player): ItemStack {
         val be = level.getBlockEntity(pos)
         if (be is RailCollisionBlockEntity) {
             val corePos = be.corePos

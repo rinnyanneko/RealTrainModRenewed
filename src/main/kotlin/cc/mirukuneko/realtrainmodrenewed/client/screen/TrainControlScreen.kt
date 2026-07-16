@@ -26,7 +26,8 @@ import org.lwjgl.glfw.GLFW
 import kotlin.math.max
 import kotlin.math.min
 
-open class TrainControlScreen(private val train: TrainEntity) : Screen(Component.literal("Train Control Panel")) {
+open class TrainControlScreen(private val train: TrainEntity) :
+    Screen(Component.translatable("screen.realtrainmodrenewed.train_control.title")) {
     private var selectedTab = ControlTab.SETTING
 
     override fun init() {
@@ -41,23 +42,28 @@ open class TrainControlScreen(private val train: TrainEntity) : Screen(Component
             addButton(left + 4, top + 4, 82, interiorLightLabel(), "toggle_interior_light", 0)
             addButton(left + 90, top + 4, 82, lightLabel(), "set_light_mode", nextLightMode())
             addButton(left + 4, top + 28, 82, pantographLabel(), "toggle_pantograph", 0)
-            addButton(left + 90, top + 28, 27, "前", "set_reverser", 1).active = train.reverser != 1
-            addButton(left + 117, top + 28, 28, "中", "set_reverser", 0).active = train.reverser != 0
-            addButton(left + 145, top + 28, 27, "後", "set_reverser", -1).active = train.reverser != -1
+            addButton(left + 90, top + 28, 27, translated("screen.realtrainmodrenewed.train_control.reverser.forward"), "set_reverser", 1).active = train.reverser != 1
+            addButton(left + 117, top + 28, 28, translated("screen.realtrainmodrenewed.train_control.reverser.neutral"), "set_reverser", 0).active = train.reverser != 0
+            addButton(left + 145, top + 28, 27, translated("screen.realtrainmodrenewed.train_control.reverser.reverse"), "set_reverser", -1).active = train.reverser != -1
             addArrowButton(left + 4, top + 52, "<", "noop")
-            addButton(left + 28, top + 52, 120, "チャンクロード", "noop", 0)
+            addButton(left + 28, top + 52, 120, translated("screen.realtrainmodrenewed.train_control.chunk_loader"), "noop", 0)
             addArrowButton(left + 152, top + 52, ">", "noop")
+            val rowHeight = 18
             val directionSupported = supportsDirectionControl()
-            addArrowButton(left + 4, top + 76, "<", "prev_destination").active = directionSupported
-            addButton(left + 28, top + 76, 120, destinationLabel(), "next_destination", 0).active = directionSupported
-            addArrowButton(left + 152, top + 76, ">", "next_destination").active = directionSupported
-            addArrowButton(left + 4, top + 100, "<", "prev_sound")
+            addArrowButton(left + 4, top + 73, rowHeight, "<", "prev_destination").active = directionSupported
+            addButton(left + 28, top + 73, 120, rowHeight, destinationLabel(), "next_destination", 0).active = directionSupported
+            addArrowButton(left + 152, top + 73, rowHeight, ">", "next_destination").active = directionSupported
+            val typeSupported = supportsTypeControl()
+            addArrowButton(left + 4, top + 92, rowHeight, "<", "prev_type").active = typeSupported
+            addButton(left + 28, top + 92, 120, rowHeight, typeSignLabel(), "next_type", 0).active = typeSupported
+            addArrowButton(left + 152, top + 92, rowHeight, ">", "next_type").active = typeSupported
+            addArrowButton(left + 4, top + 111, rowHeight, "<", "prev_sound")
             val announcementName = VehicleRegistry.getById(train.vehicleId)?.announcementNames
                 ?.getOrNull(train.soundIndex)
                 ?.takeIf { it.isNotBlank() }
-                ?: "アナウンス ${train.soundIndex + 1}"
-            addButton(left + 28, top + 100, 120, announcementName, "next_sound", 0)
-            addArrowButton(left + 152, top + 100, ">", "next_sound")
+                ?: translated("screen.realtrainmodrenewed.train_control.announcement", train.soundIndex + 1)
+            addButton(left + 28, top + 111, 120, rowHeight, announcementName, "next_sound", 0)
+            addArrowButton(left + 152, top + 111, rowHeight, ">", "next_sound")
         } else if (selectedTab == ControlTab.FUNCTION) {
             val definition = VehicleRegistry.getById(train.vehicleId)
             val options = resolveCustomButtonOptions(definition)
@@ -80,8 +86,20 @@ open class TrainControlScreen(private val train: TrainEntity) : Screen(Component
     }
 
     private fun addButton(x: Int, y: Int, width: Int, label: String, action: String, value: Int): Button {
+        return addButton(x, y, width, 20, label, action, value)
+    }
+
+    private fun addButton(
+        x: Int,
+        y: Int,
+        width: Int,
+        height: Int,
+        label: String,
+        action: String,
+        value: Int,
+    ): Button {
         val button = Button.builder(Component.literal(label)) { send(action, value) }
-            .bounds(x, y, width, 20)
+            .bounds(x, y, width, height)
             .build()
         if (action == "noop") {
             button.active = false
@@ -90,8 +108,12 @@ open class TrainControlScreen(private val train: TrainEntity) : Screen(Component
     }
 
     private fun addArrowButton(x: Int, y: Int, label: String, action: String): Button {
+        return addArrowButton(x, y, 20, label, action)
+    }
+
+    private fun addArrowButton(x: Int, y: Int, height: Int, label: String, action: String): Button {
         val button = Button.builder(Component.literal(label)) { send(action, 0) }
-            .bounds(x, y, 20, 20)
+            .bounds(x, y, 20, height)
             .build()
         if (action == "noop") {
             button.active = false
@@ -137,7 +159,7 @@ open class TrainControlScreen(private val train: TrainEntity) : Screen(Component
                 }
             }
             for (i in 0 until count) {
-                labels.add("カスタム${i + 1}")
+                labels.add(translated("screen.realtrainmodrenewed.train_control.custom", i + 1))
             }
         }
         return labels
@@ -163,18 +185,34 @@ open class TrainControlScreen(private val train: TrainEntity) : Screen(Component
                 return optionList[current]
             }
         }
-        return fallbackLabel + if (value != 0) " ON" else " OFF"
+        return translated(
+            "screen.realtrainmodrenewed.train_control.custom_state",
+            fallbackLabel,
+            translated(
+                if (value != 0) {
+                    "screen.realtrainmodrenewed.train_control.on"
+                } else {
+                    "screen.realtrainmodrenewed.train_control.off"
+                },
+            ),
+        )
     }
 
     private fun lightLabel(): String =
         when (train.lightMode) {
-            1 -> "前照灯"
-            2 -> "前照灯・尾灯"
-            else -> "消灯"
+            1 -> translated("screen.realtrainmodrenewed.train_control.light.head")
+            2 -> translated("screen.realtrainmodrenewed.train_control.light.head_tail")
+            else -> translated("screen.realtrainmodrenewed.train_control.light.off")
         }
 
     private fun interiorLightLabel(): String =
-        if (train.isInteriorLightOn) "室内灯 ON" else "室内灯 OFF"
+        translated(
+            if (train.isInteriorLightOn) {
+                "screen.realtrainmodrenewed.train_control.interior_light.on"
+            } else {
+                "screen.realtrainmodrenewed.train_control.interior_light.off"
+            },
+        )
 
     private fun nextLightMode(): Int =
         when (train.lightMode) {
@@ -184,14 +222,25 @@ open class TrainControlScreen(private val train: TrainEntity) : Screen(Component
         }
 
     private fun pantographLabel(): String =
-        if (train.isPantographUp) "パンタ 上" else "パンタ 下"
+        translated(
+            if (train.isPantographUp) {
+                "screen.realtrainmodrenewed.train_control.pantograph.up"
+            } else {
+                "screen.realtrainmodrenewed.train_control.pantograph.down"
+            },
+        )
 
     private fun destinationLabel(): String {
-        if (!supportsDirectionControl()) return "方向幕 非対応"
+        if (!supportsDirectionControl()) return translated("screen.realtrainmodrenewed.train_control.destination.unsupported")
         val rollsignNames = train.resourceState.resourceSet.config.rollsignNames ?: emptyArray()
         val count = max(1, rollsignNames.size)
-        val name = if (rollsignNames.isEmpty()) "なし" else rollsignNames[Math.floorMod(train.destinationIndex, count)]
-        return "方向幕 $name"
+        val name = if (rollsignNames.isEmpty()) {
+            translated("screen.realtrainmodrenewed.train_control.none")
+        } else {
+            rollsignNames[Math.floorMod(train.destinationIndex, count)]
+                ?: translated("screen.realtrainmodrenewed.train_control.none")
+        }
+        return translated("screen.realtrainmodrenewed.train_control.destination", name)
     }
 
     private fun supportsDirectionControl(): Boolean {
@@ -200,6 +249,20 @@ open class TrainControlScreen(private val train: TrainEntity) : Screen(Component
         return definition.rollsignNames.isNotEmpty() &&
             definition.rollsignTexture.isNotBlank() &&
             definition.rollsigns.isNotEmpty()
+    }
+
+    private fun typeSignLabel(): String {
+        val names = VehicleRegistry.getById(train.vehicleId)?.typeSignNames ?: emptyList()
+        if (names.isEmpty()) return translated("screen.realtrainmodrenewed.train_control.type.unsupported")
+        return translated(
+            "screen.realtrainmodrenewed.train_control.type",
+            names[Math.floorMod(train.typeSignIndex, names.size)],
+        )
+    }
+
+    private fun supportsTypeControl(): Boolean {
+        val definition = VehicleRegistry.getById(train.vehicleId) ?: return false
+        return definition.typeSignNames.isNotEmpty()
     }
 
     private fun send(action: String, value: Int) {
@@ -233,6 +296,22 @@ open class TrainControlScreen(private val train: TrainEntity) : Screen(Component
             "prev_destination" -> {
                 val count = max(1, (train.resourceState.resourceSet.config.rollsignNames ?: emptyArray()).size)
                 train.destinationIndex = Math.floorMod(train.destinationIndex - 1, count)
+            }
+            "set_destination" -> {
+                val count = max(1, (train.resourceState.resourceSet.config.rollsignNames ?: emptyArray()).size)
+                train.destinationIndex = Math.floorMod(value, count)
+            }
+            "next_type" -> {
+                val count = max(1, VehicleRegistry.getById(train.vehicleId)?.typeSignNames?.size ?: 0)
+                train.typeSignIndex = (train.typeSignIndex + 1) % count
+            }
+            "prev_type" -> {
+                val count = max(1, VehicleRegistry.getById(train.vehicleId)?.typeSignNames?.size ?: 0)
+                train.typeSignIndex = Math.floorMod(train.typeSignIndex - 1, count)
+            }
+            "set_type" -> {
+                val count = max(1, VehicleRegistry.getById(train.vehicleId)?.typeSignNames?.size ?: 0)
+                train.typeSignIndex = Math.floorMod(value, count)
             }
             "next_sound" -> train.soundIndex = resolveNextSoundIndex(1)
             "prev_sound" -> train.soundIndex = resolveNextSoundIndex(-1)
@@ -336,7 +415,14 @@ open class TrainControlScreen(private val train: TrainEntity) : Screen(Component
         }
         val trains = train.formationTrainsForDisplay
         val count = max(1, trains.size)
-        graphics.text(font, Component.literal("${count}両編成"), left + 8, top + 10, 0x404040, false)
+        graphics.text(
+            font,
+            Component.translatable("screen.realtrainmodrenewed.train_control.formation_count", count),
+            left + 8,
+            top + 10,
+            0x404040,
+            false,
+        )
         for (i in 0 until min(6, count)) {
             val entry = if (i < trains.size) trains[i] else train
             val definition = VehicleRegistry.getById(entry?.vehicleId)
@@ -348,11 +434,8 @@ open class TrainControlScreen(private val train: TrainEntity) : Screen(Component
     }
 
     private fun renderPlayerInventory(graphics: GuiGraphicsExtractor, left: Int, top: Int) {
-        val minecraft = minecraft
-        if (minecraft == null || minecraft.player == null) {
-            return
-        }
-        val inventory = minecraft.player!!.inventory
+        val player = minecraft.player ?: return
+        val inventory = player.inventory
         if (selectedTab == ControlTab.INVENTORY) {
             for (row in 0 until 3) {
                 for (col in 0 until 9) {
@@ -424,10 +507,10 @@ open class TrainControlScreen(private val train: TrainEntity) : Screen(Component
         val icon: ItemStack,
         val isTop: Boolean,
     ) {
-        SETTING("Setting", TAB_SETTING_TEXTURE, ItemStack(RealTrainModRenewedItems.WRENCH_ITEM.get()), true),
-        FUNCTION("Function", TAB_SETTING_TEXTURE, ItemStack(RealTrainModRenewedItems.CROWBAR_ITEM.get()), true),
-        FORMATION("Formation", TAB_FORMATION_TEXTURE, ItemStack(RealTrainModRenewedItems.TRAIN_ITEM.get()), true),
-        INVENTORY("Player Inventory", TAB_INVENTORY_TEXTURE, ItemStack(Blocks.CHEST), true),
+        SETTING("screen.realtrainmodrenewed.train_control.tab.setting", TAB_SETTING_TEXTURE, ItemStack(RealTrainModRenewedItems.WRENCH_ITEM.get()), true),
+        FUNCTION("screen.realtrainmodrenewed.train_control.tab.function", TAB_SETTING_TEXTURE, ItemStack(RealTrainModRenewedItems.CROWBAR_ITEM.get()), true),
+        FORMATION("screen.realtrainmodrenewed.train_control.tab.formation", TAB_FORMATION_TEXTURE, ItemStack(RealTrainModRenewedItems.TRAIN_ITEM.get()), true),
+        INVENTORY("screen.realtrainmodrenewed.train_control.tab.inventory", TAB_INVENTORY_TEXTURE, ItemStack(Blocks.CHEST), true),
     }
 
     private inner class DoorButton(x: Int, y: Int, private val leftDoor: Boolean) : Button(
@@ -435,7 +518,13 @@ open class TrainControlScreen(private val train: TrainEntity) : Screen(Component
         y,
         64,
         80,
-        Component.empty(),
+        Component.translatable(
+            if (leftDoor) {
+                "screen.realtrainmodrenewed.train_control.door.left"
+            } else {
+                "screen.realtrainmodrenewed.train_control.door.right"
+            },
+        ),
         { send(if (leftDoor) "toggle_door_left" else "toggle_door_right", 0) },
         DEFAULT_NARRATION,
     ) {
@@ -496,6 +585,8 @@ open class TrainControlScreen(private val train: TrainEntity) : Screen(Component
             }
             return ""
         }
+
+        private fun translated(key: String, vararg args: Any): String = Component.translatable(key, *args).string
 
         private fun shouldPlayLeverClick(action: String?): Boolean =
             action != null && (action.startsWith("mascon_") || action == "set_reverser")

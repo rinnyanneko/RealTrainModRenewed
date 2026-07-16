@@ -12,7 +12,7 @@ import net.minecraft.core.BlockPos
 import net.minecraft.network.chat.Component
 import net.minecraft.util.Mth
 
-open class SignalChangerScreen(pos: BlockPos) : Screen(Component.literal("変更機")) {
+open class SignalChangerScreen(pos: BlockPos) : Screen(Component.translatable("block.realtrainmodrenewed.signal_changer")) {
 
     private val pos: BlockPos = pos.immutable()
     private var titleY: Int = 0
@@ -39,7 +39,7 @@ open class SignalChangerScreen(pos: BlockPos) : Screen(Component.literal("変更
             val y = startY + index * (heightButton + gap)
             addRenderableWidget(
                 Button.builder(
-                    Component.literal(aspect.label),
+                    Component.translatable(aspect.translationKey),
                 ) {
                     ClientNetworkHelper.sendToServer(SetSignalAspectPayload(pos, aspect.id))
                     onClose()

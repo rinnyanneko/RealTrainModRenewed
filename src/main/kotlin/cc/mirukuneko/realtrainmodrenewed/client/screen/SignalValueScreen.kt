@@ -14,7 +14,7 @@ import net.minecraft.client.gui.screens.Screen
 import net.minecraft.core.BlockPos
 import net.minecraft.network.chat.Component
 
-open class SignalValueScreen(pos: BlockPos) : Screen(Component.literal("受信機(signal値)")) {
+open class SignalValueScreen(pos: BlockPos) : Screen(Component.translatable("block.realtrainmodrenewed.signal_value_receiver")) {
     private val pos: BlockPos = pos.immutable()
     private lateinit var channelBox: EditBox
     private lateinit var valueBox: EditBox
@@ -27,19 +27,19 @@ open class SignalValueScreen(pos: BlockPos) : Screen(Component.literal("受信�
         val baseY = height / 2 - 30
 
         if (linkedChannel > 0) {
-            valueBox = EditBox(font, x, baseY, boxWidth, 20, Component.literal("signal値"))
+            valueBox = EditBox(font, x, baseY, boxWidth, 20, Component.translatable("screen.realtrainmodrenewed.signal.value"))
             valueBox.setMaxLength(10)
             addRenderableWidget(valueBox)
             setInitialFocus(valueBox)
         } else {
-            channelBox = EditBox(font, x, baseY, boxWidth, 20, Component.literal("信号番号"))
+            channelBox = EditBox(font, x, baseY, boxWidth, 20, Component.translatable("screen.realtrainmodrenewed.signal.channel"))
             channelBox.setMaxLength(10)
             addRenderableWidget(channelBox)
             setInitialFocus(channelBox)
         }
 
         addRenderableWidget(
-            Button.builder(Component.literal("決定")) { submit() }
+            Button.builder(Component.translatable("gui.done")) { submit() }
                 .bounds(width / 2 - 75, baseY + 40, 70, 20)
                 .build()
         )
@@ -63,8 +63,12 @@ open class SignalValueScreen(pos: BlockPos) : Screen(Component.literal("受信�
         } catch (ignored: NumberFormatException) {
             if (Minecraft.getInstance().player != null) {
                 Minecraft.getInstance().player!!.sendOverlayMessage(
-                    Component.literal(
-                        if (linkedChannel > 0) "signal値を入力してください" else "信号番号を入力してください"
+                    Component.translatable(
+                        if (linkedChannel > 0) {
+                            "message.realtrainmodrenewed.signal.enter_value"
+                        } else {
+                            "message.realtrainmodrenewed.signal.enter_channel"
+                        },
                     )
                 )
             }
@@ -94,14 +98,14 @@ open class SignalValueScreen(pos: BlockPos) : Screen(Component.literal("受信�
         if (linkedChannel > 0) {
             graphics.centeredText(
                 font,
-                Component.literal("登録済み信号番号: $linkedChannel"),
+                Component.translatable("screen.realtrainmodrenewed.signal_value.registered_channel", linkedChannel),
                 width / 2,
                 height / 2 - 58,
                 0xAAAAAA
             )
             graphics.centeredText(
                 font,
-                Component.literal("今回は signal値 のみ入力"),
+                Component.translatable("screen.realtrainmodrenewed.signal_value.enter_value_now"),
                 width / 2,
                 height / 2 - 46,
                 0xAAAAAA
@@ -109,14 +113,14 @@ open class SignalValueScreen(pos: BlockPos) : Screen(Component.literal("受信�
         } else {
             graphics.centeredText(
                 font,
-                Component.literal("先に信号番号を登録"),
+                Component.translatable("screen.realtrainmodrenewed.signal_value.register_channel_first"),
                 width / 2,
                 height / 2 - 58,
                 0xAAAAAA
             )
             graphics.centeredText(
                 font,
-                Component.literal("次回開いたときに signal値 を入力"),
+                Component.translatable("screen.realtrainmodrenewed.signal_value.enter_value_next_time"),
                 width / 2,
                 height / 2 - 46,
                 0xAAAAAA

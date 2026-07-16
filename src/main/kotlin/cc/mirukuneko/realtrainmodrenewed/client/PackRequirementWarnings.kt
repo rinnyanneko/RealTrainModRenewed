@@ -5,6 +5,7 @@ package cc.mirukuneko.realtrainmodrenewed.client
 import cc.mirukuneko.realtrainmodrenewed.BundledPackStore
 import cc.mirukuneko.realtrainmodrenewed.RealTrainModRenewed
 import cc.mirukuneko.realtrainmodrenewed.util.PackZipReader
+import net.minecraft.network.chat.Component
 import net.neoforged.fml.loading.FMLPaths
 import java.io.IOException
 import java.nio.charset.Charset
@@ -16,7 +17,7 @@ import java.util.Locale
 import java.util.zip.ZipFile
 
 object PackRequirementWarnings {
-    private val warnings: MutableList<String> = ArrayList()
+    private val warnings: MutableList<Component> = ArrayList()
     private val archiveInfoCache: MutableMap<Path, CachedArchiveInfo> = HashMap()
     private val readmeCharsets: List<Charset> = listOf(
         StandardCharsets.UTF_8,
@@ -39,7 +40,9 @@ object PackRequirementWarnings {
             for (archiveInfo in archiveInfos) {
                 inspectArchive(archiveInfo, normalizedAvailableNames, missing)
             }
-            warnings.addAll(missing)
+            warnings.addAll(missing.map { packName ->
+                Component.translatable("warning.realtrainmodrenewed.missing_prerequisite_pack", packName)
+            })
         } catch (e: Exception) {
             RealTrainModRenewed.LOGGER.warn("Failed to inspect prerequisite packs", e)
         }
@@ -47,7 +50,7 @@ object PackRequirementWarnings {
 
     @JvmStatic
     @Synchronized
-    fun getWarnings(): List<String> = warnings.toList()
+    fun getWarnings(): List<Component> = warnings.toList()
 
     @Throws(IOException::class)
     private fun collectPackArchives(): List<Path> {
@@ -119,7 +122,7 @@ object PackRequirementWarnings {
             }
             val present = normalizedAvailableNames.any { name -> matchesPackName(name, prerequisitePack) }
             if (!present) {
-                missing.add("前提パックの $prerequisitePack が入ってません！")
+                missing.add(prerequisitePack)
             }
         }
     }

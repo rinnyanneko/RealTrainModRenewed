@@ -9,6 +9,16 @@ fun main(args: Array<String>) {
         check(multiRelease.equals("true", ignoreCase = true)) {
             "Built jar must preserve Multi-Release: true for Graal/Truffle"
         }
+        val providers = jar.getInputStream(
+            jar.getJarEntry("META-INF/services/com.oracle.truffle.api.provider.TruffleLanguageProvider")
+                ?: error("Truffle language provider service is missing"),
+        ).bufferedReader().use { it.readText() }
+        check("com.oracle.truffle.js.lang.JavaScriptLanguageProvider" in providers) {
+            "JavaScript language provider is missing"
+        }
+        check("com.oracle.truffle.regex.RegexLanguageProvider" in providers) {
+            "Regex language provider is missing"
+        }
     }
 
     val engine = ScriptEngineManager(Thread.currentThread().contextClassLoader)
@@ -17,6 +27,10 @@ fun main(args: Array<String>) {
     val result = engine.eval("1 + 2")
     check(result is Number && result.toInt() == 3) {
         "GraalJS script engine returned unexpected eval result: $result"
+    }
+    val regexResult = engine.eval("/rail-(\\d+)/.exec('rail-42')[1]")
+    check(regexResult == "42") {
+        "Bundled GraalJS regex language returned unexpected result: $regexResult"
     }
     println("Verified GraalJS script engine: ${engine.javaClass.name}")
 }

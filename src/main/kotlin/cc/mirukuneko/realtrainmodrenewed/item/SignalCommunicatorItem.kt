@@ -29,7 +29,10 @@ class SignalCommunicatorItem : Item {
         val newChannel = data.assignNewChannel(level, pos, be.signalChannel, SignalAspect.byId(be.signalAspect))
         be.setSignalChannel(newChannel, false)
         be.setSignalAspect(SignalAspect.STOP, true)
-        context.player!!.sendSystemMessage(Component.literal("信号番号: $newChannel"))
+        context.player!!.sendSystemMessage(Component.translatable(
+            "message.realtrainmodrenewed.signal.channel",
+            newChannel,
+        ))
         return InteractionResult.SUCCESS
     }
 }

@@ -63,11 +63,6 @@ The repository contains a large amount of legacy behavior that is compatibility-
 * `src/main/resources/META-INF/neoforge.mods.toml`
 * `src/main/resources/assets/`
 
-### ATSAssistMod Companion Project
-
-* `atsa/build.gradle`
-* `atsa/src/main/java/jp/kaiz/atsassistmod/ATSAssistMod.java`
-
 ### Tooling
 
 * `tools/`
@@ -174,7 +169,9 @@ Use as a reference for:
 * Web integrations
 * Legacy compatibility behavior
 
-When modifying the `atsa` project, inspect original ATSAssistMod behavior before redesigning systems.
+ATSA is maintained in a separate repository. When changing RTMR APIs used by
+ATSA, inspect original ATSAssistMod behavior and the downstream integration
+before redesigning systems.
 
 ### Reference Priority
 
@@ -426,10 +423,9 @@ Do not introduce lifecycle regressions.
 
 ---
 
-## ATSA Project Compatibility
+## ATSA Compatibility
 
-The `atsa` project depends on the root project.
-
+ATSA is a separate downstream project that depends on RTMR's public classes.
 Changes must not unnecessarily break:
 
 * Existing compile-time APIs
@@ -510,8 +506,6 @@ Whenever possible:
 2. Review warnings.
 3. Review errors.
 4. Validate affected modules.
-
-If only `atsa` is modified, still consider validating the root project.
 
 ### Network Restrictions
 

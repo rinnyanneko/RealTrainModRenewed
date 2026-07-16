@@ -49,12 +49,12 @@ class LargeRailCoreBlock : BaseEntityBlock {
 
         @JvmStatic
         fun removeRailNetwork(level: Level, corePos: BlockPos?, core: LargeRailCoreBlockEntity?) {
-            if (level == null || corePos == null) return
+            if (corePos == null) return
             val prev = RailMap.suppressRailRemoval.get()
             RailMap.suppressRailRemoval.set(true)
             try {
                 val maps = core?.allRailMaps ?: emptyArray()
-                for (map in maps) map?.removeRailBlocks(level)
+                for (map in maps) map.removeRailBlocks(level, corePos)
                 removeRemainingCollisionBlocks(level, corePos, maps)
                 if (level.getBlockState(corePos).block is LargeRailCoreBlock) level.removeBlock(corePos, false)
             } finally { RailMap.suppressRailRemoval.set(prev) }
@@ -65,7 +65,6 @@ class LargeRailCoreBlock : BaseEntityBlock {
             var minY = corePos.y - 2; var maxY = corePos.y + 2
             var minZ = corePos.z - 2; var maxZ = corePos.z + 2
             for (map in maps) {
-                if (map == null) continue
                 val split = RailMap.curveSplitForLength(map.getHorizontalPathLength())
                 val samples = max(16, split + 1)
                 for (i in 0 until samples) {
@@ -144,13 +143,17 @@ class LargeRailCoreBlock : BaseEntityBlock {
         if (stack.item is WrenchItem && !level.isClientSide) {
             val core = level.getBlockEntity(pos) as? LargeRailCoreBlockEntity
             if (core != null && core.allRailMaps.size >= 2 && core.cycleSwitch())
-                player.sendOverlayMessage(Component.literal("分岐切替: ${core.activeSegmentIndex + 1}/${core.allRailMaps.size} 番線"))
+                player.sendOverlayMessage(Component.translatable(
+                    "message.realtrainmodrenewed.rail.branch_changed",
+                    core.activeSegmentIndex + 1,
+                    core.allRailMaps.size,
+                ))
             return if (level.isClientSide) InteractionResult.SUCCESS else InteractionResult.SUCCESS_SERVER
         }
         return InteractionResult.PASS
     }
 
-    override fun getCloneItemStack(level: LevelReader, pos: BlockPos, state: BlockState, includeData: Boolean): ItemStack {
+    override fun getCloneItemStack(level: LevelReader, pos: BlockPos, state: BlockState, includeData: Boolean, player: Player): ItemStack {
         val be = level.getBlockEntity(pos)
         return if (be is LargeRailCoreBlockEntity) createRailCloneStack(pos, be) else ItemStack.EMPTY
     }
@@ -161,5 +164,9 @@ class LargeRailCoreBlock : BaseEntityBlock {
     }
 
     override fun <T : BlockEntity> getTicker(level: Level, state: BlockState, type: BlockEntityType<T>): BlockEntityTicker<T>? =
-        null
+        createTickerHelper(
+            type,
+            RealTrainModRenewedBlockEntities.LARGE_RAIL_CORE.get(),
+            LargeRailCoreBlockEntity::tick,
+        )
 }

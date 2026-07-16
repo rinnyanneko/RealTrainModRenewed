@@ -13,7 +13,7 @@ import net.minecraft.client.gui.screens.Screen
 import net.minecraft.core.BlockPos
 import net.minecraft.network.chat.Component
 
-open class TrainDetectorScreen(pos: BlockPos) : Screen(Component.literal("電車検知ブロック")) {
+open class TrainDetectorScreen(pos: BlockPos) : Screen(Component.translatable("block.realtrainmodrenewed.train_detector")) {
     private val pos: BlockPos = pos.immutable()
     private lateinit var channelBox: EditBox
     private lateinit var rangeBox: EditBox
@@ -26,19 +26,19 @@ open class TrainDetectorScreen(pos: BlockPos) : Screen(Component.literal("電車
         val boxWidth = 150
         val x = (width - boxWidth) / 2
         val y = height / 2 - 36
-        channelBox = EditBox(font, x, y, boxWidth, 20, Component.literal("信号番号"))
+        channelBox = EditBox(font, x, y, boxWidth, 20, Component.translatable("screen.realtrainmodrenewed.signal.channel"))
         channelBox.setMaxLength(10)
         channelBox.setValue(if (linkedChannel > 0) linkedChannel.toString() else "")
         addRenderableWidget(channelBox)
 
-        rangeBox = EditBox(font, x, y + 30, boxWidth, 20, Component.literal("検知範囲"))
+        rangeBox = EditBox(font, x, y + 30, boxWidth, 20, Component.translatable("screen.realtrainmodrenewed.train_detector.range"))
         rangeBox.setMaxLength(3)
         rangeBox.setValue(detectionRange.toString())
         addRenderableWidget(rangeBox)
         setInitialFocus(channelBox)
 
         addRenderableWidget(
-            Button.builder(Component.literal("保存")) { submit() }
+            Button.builder(Component.translatable("button.realtrainmodrenewed.save")) { submit() }
                 .bounds(width / 2 - 80, y + 66, 75, 20)
                 .build()
         )
@@ -72,7 +72,7 @@ open class TrainDetectorScreen(pos: BlockPos) : Screen(Component.literal("電車
         } catch (ignored: NumberFormatException) {
             if (Minecraft.getInstance().player != null) {
                 Minecraft.getInstance().player!!.sendOverlayMessage(
-                    Component.literal("数字で入力してください")
+                    Component.translatable("message.realtrainmodrenewed.number_required")
                 )
             }
         }
@@ -89,21 +89,24 @@ open class TrainDetectorScreen(pos: BlockPos) : Screen(Component.literal("電車
         graphics.centeredText(font, title, width / 2, centerY - 62, 0xFFFFFF)
         graphics.centeredText(
             font,
-            Component.literal("占有中: " + if (occupied) "はい" else "いいえ"),
+            Component.translatable(
+                "screen.realtrainmodrenewed.train_detector.occupied",
+                Component.translatable(if (occupied) "gui.yes" else "gui.no"),
+            ),
             width / 2,
             centerY - 50,
             if (occupied) 0xFF6666 else 0x66FF66
         )
         graphics.centeredText(
             font,
-            Component.literal("信号番号を入れると occupied=停止 / clear=進行"),
+            Component.translatable("screen.realtrainmodrenewed.train_detector.signal_hint"),
             width / 2,
             centerY - 18,
             0xAAAAAA
         )
         graphics.centeredText(
             font,
-            Component.literal("空欄なら赤石検知だけ使えます"),
+            Component.translatable("screen.realtrainmodrenewed.train_detector.redstone_hint"),
             width / 2,
             centerY - 6,
             0xAAAAAA

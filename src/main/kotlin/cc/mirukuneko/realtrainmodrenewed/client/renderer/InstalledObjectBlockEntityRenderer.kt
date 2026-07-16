@@ -788,7 +788,7 @@ open class InstalledObjectBlockEntityRenderer(
                 return Double.NaN
             }
             val quads = model.getGroupQuadCorners(groups)
-            if (quads == null || quads.isEmpty()) {
+            if (quads.isEmpty()) {
                 return Double.NaN
             }
             var maxY = -Double.MAX_VALUE
@@ -805,7 +805,7 @@ open class InstalledObjectBlockEntityRenderer(
 
         private fun groupBounds(model: MqoModelLoader.MqoModel, groupName: String): FloatArray? {
             val quads = model.getGroupQuadCorners(mutableSetOf(groupName))
-            if (quads == null || quads.isEmpty()) {
+            if (quads.isEmpty()) {
                 return null
             }
             var minX = Float.MAX_VALUE
@@ -980,7 +980,7 @@ open class InstalledObjectBlockEntityRenderer(
                 if (groups == null || groups.isEmpty()) {
                     groups = fallbackSignalGroups(blockEntity.getLegacySignalState())
                 }
-                return groups ?: emptyList()
+                return groups
             }
             if (blockEntity.category == InstalledObjectCategory.CROSSING && blockEntity.isPowered) {
                 val state = Math.floorMod(blockEntity.getLightCount(), 2)

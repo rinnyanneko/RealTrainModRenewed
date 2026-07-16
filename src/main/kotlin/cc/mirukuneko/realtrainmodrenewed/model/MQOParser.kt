@@ -169,8 +169,8 @@ object MQOParser {
         var lineCount = 0
         var braceDepth = if (line.startsWith("{")) 1 else 0
 
-        while (reader.readLine().also { line = it } != null) {
-            val trimmed = line!!.trim()
+        while (true) {
+            val trimmed = reader.readLine()?.trim() ?: break
             lineCount++
             if (lineCount < 10) RealTrainModRenewed.LOGGER.info("Object line {}: {}", lineCount, trimmed)
 

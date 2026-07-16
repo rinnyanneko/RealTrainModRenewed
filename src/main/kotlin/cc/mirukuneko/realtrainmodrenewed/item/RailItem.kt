@@ -56,6 +56,7 @@ class RailItem : Item {
         return InteractionResult.SUCCESS
     }
 
+    @Deprecated("Overrides Minecraft's deprecated tooltip extension hook")
     override fun appendHoverText(stack: ItemStack, context: TooltipContext, display: net.minecraft.world.item.component.TooltipDisplay, lines: java.util.function.Consumer<Component>, flag: TooltipFlag) {
         val selectedId = stack.get(RealTrainModRenewedComponents.SELECTED_MODEL_ID.get())
         if (!selectedId.isNullOrBlank()) {

@@ -73,7 +73,7 @@ data class ConfigureMarkerPayload(
                     payload.cantEdge,
                     payload.cantRandom,
                 )
-                player.sendOverlayMessage(Component.literal("マーカー設定を更新しました"))
+                player.sendOverlayMessage(Component.translatable("message.realtrainmodrenewed.marker.updated"))
             }
         }
     }

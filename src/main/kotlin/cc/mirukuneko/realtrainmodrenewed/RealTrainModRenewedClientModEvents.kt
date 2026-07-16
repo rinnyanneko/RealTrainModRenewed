@@ -8,6 +8,7 @@ import cc.mirukuneko.realtrainmodrenewed.client.renderer.InstalledObjectBlockEnt
 import cc.mirukuneko.realtrainmodrenewed.client.renderer.RailCoreBlockEntityRenderer
 import cc.mirukuneko.realtrainmodrenewed.client.renderer.TrainBogieEntityRenderer
 import cc.mirukuneko.realtrainmodrenewed.client.renderer.TrainEntityRenderer
+import cc.mirukuneko.realtrainmodrenewed.client.renderer.TrainFloorEntityRenderer
 import cc.mirukuneko.realtrainmodrenewed.client.renderer.TrainSeatEntityRenderer
 import cc.mirukuneko.realtrainmodrenewed.client.sound.ExternalSoundPackBridge
 import net.minecraft.client.color.block.BlockTintSources
@@ -52,6 +53,12 @@ object RealTrainModRenewedClientModEvents {
             event.registerEntityRenderer(
                 RealTrainModRenewedEntities.TRAIN_SEAT.get(),
                 ::TrainSeatEntityRenderer,
+            )
+        }
+        if (RealTrainModRenewedEntities.TRAIN_FLOOR.isBound) {
+            event.registerEntityRenderer(
+                RealTrainModRenewedEntities.TRAIN_FLOOR.get(),
+                ::TrainFloorEntityRenderer,
             )
         }
         event.registerEntityRenderer(

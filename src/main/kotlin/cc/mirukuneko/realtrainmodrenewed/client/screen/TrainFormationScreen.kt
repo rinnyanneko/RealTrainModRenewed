@@ -66,7 +66,10 @@ open class TrainFormationScreen(private val stack: ItemStack) :
 
     private fun onSave() {
         if (formation.name.isEmpty()) {
-            formation.name = "編成${System.currentTimeMillis()}"
+            formation.name = Component.translatable(
+                "screen.realtrainmodrenewed.train_formation.default_name",
+                System.currentTimeMillis(),
+            ).string
         }
         TrainFormationData.setFormation(stack, formation)
         onClose()
@@ -140,7 +143,11 @@ open class TrainFormationScreen(private val stack: ItemStack) :
         override fun getRowWidth(): Int = width - 20
 
         inner class FormationEntry(val index: Int, displayName: String) : Entry<FormationEntry>() {
-            private val label: Component = Component.literal("${index + 1}F: $displayName")
+            private val label: Component = Component.translatable(
+                "screen.realtrainmodrenewed.train_formation.entry",
+                index + 1,
+                displayName,
+            )
 
             override fun extractContent(
                 graphics: GuiGraphicsExtractor,

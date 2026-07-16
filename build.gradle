@@ -110,10 +110,6 @@ dependencies {
     implementation "org.jetbrains.kotlin:kotlin-stdlib"
     kotlinRuntime "org.jetbrains.kotlin:kotlin-stdlib"
     testImplementation "org.jetbrains.kotlin:kotlin-test-junit5"
-    // Bundled add-on ATSAssistMod+ uses Jackson for IFTTT rule serialization.
-    implementation "com.fasterxml.jackson.core:jackson-databind:2.15.2"
-    jsRuntime "com.fasterxml.jackson.core:jackson-databind:2.15.2"
-
     // Example optional mod dependency with JEI
     // The JEI API is declared for compile time use, while the full JEI artifact is used at runtime
     // compileOnly "mezz.jei:jei-${mc_version}-common-api:${jei_version}"
@@ -262,7 +258,7 @@ publishing {
     }
     repositories {
         maven {
-            url "file://${project.projectDir}/repo"
+            url = "file://${project.projectDir}/repo"
         }
     }
 }

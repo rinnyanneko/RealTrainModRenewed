@@ -240,6 +240,12 @@ object VehiclePackLoader {
             val customButtonOptions = parseCustomButtonOptions(obj, trainModel)
             val rollsignTexture = firstNonBlank(getString(trainModel, "rollsignTexture"), getString(obj, "rollsignTexture"))
             val rollsigns = parseRollsigns(obj, trainModel)
+            val typeSignNames = parseStringList(obj, trainModel, "typeSignNames")
+            val typeSignTexture = firstNonBlank(
+                getString(trainModel, "typeSignTexture"),
+                getString(obj, "typeSignTexture"),
+            )
+            val typeSigns = parseSignPanels(obj, trainModel, "typeSigns")
             val headLights = parseLights(obj, trainModel, "headLights")
             val tailLights = parseLights(obj, trainModel, "tailLights")
             val interiorLights = parseLights(obj, trainModel, "interiorLights")
@@ -273,6 +279,7 @@ object VehiclePackLoader {
                 firstNonBlank(getString(trainModel, "sound_DoorClose"), getString(obj, "sound_DoorClose")))
             def.setServerScriptPath(firstNonBlank(getString(trainModel, "serverScriptPath"), getString(obj, "serverScriptPath")))
             def.setAnnouncementNames(parseAnnouncementNames(obj, trainModel))
+            def.setTypeSign(typeSignNames, typeSignTexture, typeSigns)
 
             LOADED.add(def)
         } catch (e: Exception) { RealTrainModRenewed.LOGGER.warn("Failed to parse vehicle json {}: {}", path, e.message) }
@@ -403,7 +410,15 @@ object VehiclePackLoader {
     }
 
     private fun parseRollsigns(root: JsonObject, trainModel: JsonObject): List<VehicleDefinition.RollsignDefinition> {
-        val arr = (trainModel.get("rollsigns") ?: root.get("rollsigns"))?.takeIf { it.isJsonArray }?.asJsonArray ?: return emptyList()
+        return parseSignPanels(root, trainModel, "rollsigns")
+    }
+
+    private fun parseSignPanels(
+        root: JsonObject,
+        trainModel: JsonObject,
+        key: String,
+    ): List<VehicleDefinition.RollsignDefinition> {
+        val arr = (trainModel.get(key) ?: root.get(key))?.takeIf { it.isJsonArray }?.asJsonArray ?: return emptyList()
         return arr.mapNotNull { e ->
             if (!e.isJsonObject) return@mapNotNull null
             val r = e.asJsonObject

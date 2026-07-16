@@ -47,7 +47,7 @@ data class ConfigureTrainDetectorPayload(
                 blockEntity.linkedChannel = payload.channel
                 blockEntity.detectionRange = payload.range
                 player.level().sendBlockUpdated(payload.pos, blockEntity.blockState, blockEntity.blockState, 3)
-                player.sendOverlayMessage(Component.literal("電車検知ブロックを更新しました"))
+                player.sendOverlayMessage(Component.translatable("message.realtrainmodrenewed.train_detector.updated"))
             }
         }
     }

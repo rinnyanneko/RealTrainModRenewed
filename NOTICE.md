@@ -63,23 +63,6 @@ https://github.com/ringo-1234/AppleExtended
 When functionality is inspired by AppleExtended behavior, preserve applicable
 notices and document material code or asset reuse separately.
 
-## ATSAssistMod
-
-The ATSA (ATS Assist) companion module in this repository was inherited through
-RealTrainModUnofficial under LGPL-3.0-or-later terms. It is not directly derived
-from the current GPL-3.0 upstream of ATSAssistMod.
-
-ATSAssistMod is an important behavioral reference for ATS, ATC, railway
-signaling, automation, IFTTT-style integration, web integration, and related
-legacy compatibility behavior.
-
-Reference repository:
-
-https://github.com/Kai-Z-JP/ATSAssistMod
-
-When functionality is implemented with reference to ATSAssistMod behavior,
-preserve applicable notices and document material code or asset reuse separately.
-
 ## Add-on Packs and Third-Party Assets
 
 RealTrainModRenewed can load legacy RTM/RTMU add-on packs. Those packs are

@@ -7,6 +7,7 @@ import cc.mirukuneko.realtrainmodrenewed.RealTrainModRenewed
 import cc.mirukuneko.realtrainmodrenewed.compat.NbtCompat
 import cc.mirukuneko.realtrainmodrenewed.blockentity.InstalledObjectBlockEntity
 import net.minecraft.core.BlockPos
+import net.minecraft.core.SectionPos
 import net.minecraft.core.registries.Registries
 import net.minecraft.nbt.CompoundTag
 import net.minecraft.nbt.ListTag
@@ -133,7 +134,7 @@ class SignalNetworkSavedData private constructor() : SavedData() {
         val dimensionLocation = Identifier.tryParse(entry.dimensionId) ?: return
         val levelKey = ResourceKey.create(Registries.DIMENSION, dimensionLocation)
         val targetLevel = server.getLevel(levelKey) ?: return
-        if (!targetLevel.hasChunkAt(entry.pos)) return
+        if (!targetLevel.hasChunk(SectionPos.blockToSectionCoord(entry.pos.x), SectionPos.blockToSectionCoord(entry.pos.z))) return
         val be = targetLevel.getBlockEntity(entry.pos)
         if (be is InstalledObjectBlockEntity) {
             be.setSignalAspect(entry.aspect, true)

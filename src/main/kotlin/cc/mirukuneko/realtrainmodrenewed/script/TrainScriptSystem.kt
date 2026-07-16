@@ -312,7 +312,7 @@ class TrainScriptSystem private constructor() {
                 }
                 var max = 0.0f
                 for (speed in definition.getNotchMaxSpeeds()) {
-                    if (speed != null && java.lang.Float.isFinite(speed)) {
+                    if (java.lang.Float.isFinite(speed)) {
                         max = max(max, speed)
                     }
                 }
@@ -774,7 +774,7 @@ class TrainScriptSystem private constructor() {
             get() {
                 if (this.vehicle == null) return 0
                 var total = 0
-                for (t in vehicle!!.formationTrainsForDisplay) {
+                for (t in vehicle.formationTrainsForDisplay) {
                     t ?: continue
                     total += t.getPassengers().size
                     // also count passengers on seat entities attached to this train
@@ -782,9 +782,7 @@ class TrainScriptSystem private constructor() {
                         TrainSeatEntity::class.java,
                         t.getBoundingBox().inflate(20.0)
                     )) {
-                        if (e is TrainSeatEntity
-                            && e.getTrain() === t && !e.getPassengers().isEmpty()
-                        ) {
+                        if (e.getTrain() === t && !e.getPassengers().isEmpty()) {
                             total += e.getPassengers().size
                         }
                     }
@@ -1495,9 +1493,7 @@ class TrainScriptSystem private constructor() {
         private fun computeReplaySignature(pass: Int, entity: Any?): ReplayKey? {
             if (!replayCacheAllowed) return null
             if (entity !is TrainEntity) return null
-            if (abs(entity.speed) > 0.001f) {
-                return null
-            }
+            if (abs(entity.speed) > 0.001f) return null
             val doorL = Math.round(entity.doorMoveL * 32.0f)
             val doorR = Math.round(entity.doorMoveR * 32.0f)
             val lightMode = entity.lightMode
@@ -3082,7 +3078,7 @@ class TrainScriptSystem private constructor() {
                 return false
             }
             val rollsignTexture = definition.getRollsignTexture()
-            if (rollsignTexture == null || rollsignTexture.isBlank()) {
+            if (rollsignTexture.isBlank()) {
                 return false
             }
             val count = max(1, if (definition.getRollsignNames().isEmpty()) 1 else definition.getRollsignNames().size)
@@ -3211,7 +3207,7 @@ class TrainScriptSystem private constructor() {
             val def = VehicleRegistry.getById(entity.vehicleId)
             return def != null && def.getBogies().stream()
                 .anyMatch { b: VehicleDefinition.BogieDefinition? ->
-                    b!!.modelFile() != null && !b.modelFile().isBlank()
+                    !b!!.modelFile().isBlank()
                 }
         }
 
@@ -3353,7 +3349,7 @@ class TrainScriptSystem private constructor() {
         private fun getWorldDayTime(entity: Any?): Long {
             try {
                 if (entity is Entity) {
-                    return if (entity.level() == null) 0 else entity.level().getLevelData().getGameTime()
+                    return entity.level().getLevelData().getGameTime()
                 }
                 if (entity is BlockEntity) {
                     return if (entity.getLevel() == null) 0 else entity.getLevel()!!.getLevelData().getGameTime()
@@ -4374,10 +4370,12 @@ class TrainScriptSystem private constructor() {
                         .collect(Collectors.toList())
                 }
                 if (groups.javaClass.isArray()) {
-                    val arr = groups as Array<Any?>
-                    return Arrays.stream<Any?>(arr)
-                        .flatMap<String?> { value: Any? -> expandSerializedGroupNames(value.toString()).stream() }
-                        .collect(Collectors.toList())
+                    val result = mutableListOf<String?>()
+                    for (i in 0..<java.lang.reflect.Array.getLength(groups)) {
+                        val value = java.lang.reflect.Array.get(groups, i)
+                        result.addAll(expandSerializedGroupNames(value.toString()))
+                    }
+                    return result
                 }
                 if (groups is MutableMap<*, *>) {
                     val lengthValue = groups.get("length")
@@ -4993,19 +4991,19 @@ class TrainScriptSystem private constructor() {
         }
 
         fun info(vararg args: Any?) {
-            if (args != null && args.size > 0) {
+            if (args.isNotEmpty()) {
                 RealTrainModRenewed.LOGGER.info("[NGTLog] {}", args[0])
             }
         }
 
         fun warn(vararg args: Any?) {
-            if (args != null && args.size > 0) {
+            if (args.isNotEmpty()) {
                 RealTrainModRenewed.LOGGER.warn("[NGTLog] {}", args[0])
             }
         }
 
         fun error(vararg args: Any?) {
-            if (args != null && args.size > 0) {
+            if (args.isNotEmpty()) {
                 RealTrainModRenewed.LOGGER.error("[NGTLog] {}", args[0])
             }
         }
@@ -5025,7 +5023,7 @@ class TrainScriptSystem private constructor() {
             get() {
                 try {
                     val mc = Minecraft.getInstance()
-                    return if (mc == null) null else mc.player
+                    return mc.player
                 } catch (t: Throwable) {
                     return null
                 }
@@ -5498,13 +5496,11 @@ class TrainScriptSystem private constructor() {
                             .option("js.syntax-extensions", "true")
                             .option("js.ecmascript-version", ecmaVersion)
                         val scriptEngine: ScriptEngine = GraalJSScriptEngine.create(polyglotEngine, contextBuilder)
-                        if (scriptEngine != null) {
-                            RealTrainModRenewed.LOGGER.info(
-                                "Using Graal.js with RTM compatibility on ECMAScript {}.",
-                                ecmaVersion
-                            )
-                            return scriptEngine
-                        }
+                        RealTrainModRenewed.LOGGER.info(
+                            "Using Graal.js with RTM compatibility on ECMAScript {}.",
+                            ecmaVersion
+                        )
+                        return scriptEngine
                     } catch (e: Throwable) {
                         RealTrainModRenewed.LOGGER.debug(
                             "Graal.js polyglot unavailable (ECMAScript {}): {}",
@@ -5738,7 +5734,7 @@ class TrainScriptSystem private constructor() {
          * RTMU ネイティブ敷設(__SRB__ ブリッジ)へ差し替える上書き定義を末尾に追加する。
          * GUI・制御フロー(onUpdate/dataMap)・render はそのまま活かし、低レベル RTM/MCP API の不一致を回避する。
          */
-        private fun appendSuperRailBuilderOverrides(script: String?): String? {
+        internal fun appendSuperRailBuilderOverrides(script: String?): String? {
             if (script == null || !script.contains("SuperRailBuilderVersion")) {
                 return script
             }
@@ -5752,10 +5748,8 @@ class TrainScriptSystem private constructor() {
             sb.append("  hasPlayerMarker = function(player){ return false; };\n")
             sb.append("  getPlayerRail = function(player) { try { var p = (player && player.__srbReal)?player.__srbReal:player; var id = __SRB__.heldRailModelId(p); return (id && (''+id).length>0)?(''+id):null; } catch(e){ return null; } };\n")
             // doFollowing: ホストプレイヤーの上へ車体をテレポート(MCP field を避け getX/Y/Z を使う)。
-            // doFollowing はサーバ側のみで車をプレイヤー上へ移動させ、クライアントはサーバ同期＋補間で
-            // 滑らかに追従する。マーカーは MCWrapper.getPosX(=レンダー補間位置)基準で描くので一致して荒ぶらない。
-            // クライアントで毎フレーム動かすと描画とズレるため、ここでは動かさない。
-            sb.append("  doFollowing = function(entity, hostPlayer){ try{ if(!entity||!hostPlayer) return; var w=entity.field_70170_p; if(w && w.isClientSide() && w.isClientSide()) return; var p=hostPlayer.__srbReal?hostPlayer.__srbReal:hostPlayer; if(!p||!p.getX) return; entity.func_70107_b(p.getX(), p.getY()+2, p.getZ()); try{entity.field_70159_w=0; entity.field_70181_x=0; entity.field_70179_y=0;}catch(e2){} }catch(e){} };\n")
+            // サーバ側の追従を専用経路に集約し、通常の自動車物理と重複して移動しないようにする。
+            sb.append("  doFollowing = function(entity, hostPlayer){ try{ if(!entity||!hostPlayer) return; var w=entity.field_70170_p; if(w && w.isClientSide() && w.isClientSide()) return; var p=hostPlayer.__srbReal?hostPlayer.__srbReal:hostPlayer; if(!p||!p.getX) return; entity.followSrbHost(p.getX(), p.getY()+2, p.getZ()); }catch(e){} };\n")
             // getTileEntity: 1.12.2 の net.minecraft.util.math.BlockPos を new せず、座標直接版 func_175625_s を使う。
             // 当たり判定/道床ブロックはコアに解決して返す(__SRB__.railCoreAt)。レール沿いどこでも接続検出が効き、
             // 接続マーカーが接線ロックされる(本家挙動)。フォールバックで素の func_175625_s。
@@ -5772,6 +5766,7 @@ class TrainScriptSystem private constructor() {
                 sb.append("  buildBranchRail = function(world, rps, railItem) { try { var l=new java.util.ArrayList(); for(var i=0;i<rps.length;i++) l.add(rps[i]); __SRB__.buildBranchRail(world, l, railItem); } catch(e){} };\n")
                 sb.append("  deleteRail = function(world, x, y, z) { try { return __SRB__.deleteRail(world, x|0, y|0, z|0); } catch(e){ return false; } };\n")
                 sb.append("  deleteRailRP = function(world, rp) { return deleteRail(world, rp.blockX, rp.blockY, rp.blockZ); };\n")
+                sb.append("  setBlock = function(world, x, y, z, block, meta, flag) { try { return __SRB__.placeSupportBlock(world, x|0, y|0, z|0); } catch(e){ return false; } };\n")
             }
             sb.append("} catch(e){} })();\n")
             return script + sb.toString()
@@ -5910,7 +5905,7 @@ class TrainScriptSystem private constructor() {
                             "var ModelLoader = { loadModel: function(resource, accuracy, options) { return { renderAll: function() {}, renderOnly: function() {}, renderPart: function() {}, objects: [] }; } };\n" +
                             "var ModelPackManager = { INSTANCE: { getResource: function(domain, path) { return { domain: domain, path: path, func_110624_b: function() { return domain; }, func_110623_a: function() { return path; } }; } } };\n" +
                             "var TrainState = { getStateType: function(value) { return value; }, suggestState: function(value, fallback) { return value == null ? fallback : value; } };\n" +
-                            "TrainState.TrainStateType = { Reverser: 0, Notch: 1, Rail: 2, Door: 4, Light: 5, Pantograph: 6, ChunkLoader: 7, Destination: 8, Sound: 9, Interior: 11 };\n" +
+                            "TrainState.TrainStateType = { Reverser: 0, Direction: 0, State_TrainDir: 0, Notch: 1, State_Notch: 1, Rail: 2, Signal: 2, State_Signal: 2, Door: 4, State_Door: 4, Light: 5, State_Light: 5, Pantograph: 6, State_Pantograph: 6, ChunkLoader: 7, State_ChunkLoader: 7, Destination: 8, State_Destination: 8, Sound: 9, Announcement: 9, State_Announcement: 9, Role: 10, State_Direction: 10, Interior: 11, InteriorLight: 11, State_InteriorLight: 11, Type: 12, State_Type: 12 };\n" +
                             "var RenderPass = {\n" +
                             "  NORMAL: { id: 0 },\n" +
                             "  TRANSPARENT: { id: 1 },\n" +

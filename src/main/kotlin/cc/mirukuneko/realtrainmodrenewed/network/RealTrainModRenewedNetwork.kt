@@ -5,10 +5,12 @@ package cc.mirukuneko.realtrainmodrenewed.network
 import net.neoforged.neoforge.network.event.RegisterPayloadHandlersEvent
 
 object RealTrainModRenewedNetwork {
+    private const val PROTOCOL_VERSION = "2"
+
     /** Registers custom payload handlers used by the mod. */
     @JvmStatic
     fun registerPayloadHandlers(event: RegisterPayloadHandlersEvent) {
-        val registrar = event.registrar("1")
+        val registrar = event.registrar(PROTOCOL_VERSION)
         registrar.playToServer(SelectModelPayload.TYPE, SelectModelPayload.STREAM_CODEC, SelectModelPayload::handleOnServer)
         registrar.playToServer(TrainControlPayload.TYPE, TrainControlPayload.STREAM_CODEC, TrainControlPayload::handleOnServer)
         registrar.playToClient(TrainSoundPayload.TYPE, TrainSoundPayload.STREAM_CODEC, TrainSoundPayload::handleOnClient)

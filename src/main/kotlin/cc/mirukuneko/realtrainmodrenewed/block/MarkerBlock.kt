@@ -85,7 +85,7 @@ class MarkerBlock(val isSwitch: Boolean, properties: BlockBehaviour.Properties) 
             var previewStack = stack
             var startTag = stack.get(RealTrainModRenewedComponents.RAIL_PREVIEW_START.get())
             if (startTag == null) {
-                val altStack = WrenchItem.findPlayerPreviewStack(player ?: return false)
+                val altStack = WrenchItem.findPlayerPreviewStack(player)
                 val altTag = if (altStack.isEmpty) null else altStack.get(RealTrainModRenewedComponents.RAIL_PREVIEW_START.get())
                 if (altTag != null && NbtCompat.getBoolean(altTag, "WrenchMode")) { previewStack = altStack; startTag = altTag }
             }
@@ -93,25 +93,25 @@ class MarkerBlock(val isSwitch: Boolean, properties: BlockBehaviour.Properties) 
                 val mBlock = level.getBlockState(pos).block as? MarkerBlock ?: return false
                 if (mBlock.searchAllMarkers(level, pos).size >= 2) {
                     val created = mBlock.onMarkerActivated(level, pos, player, true, selectedModelId)
-                    if (created) player.sendOverlayMessage(Component.literal("レールを接続しました"))
+                    if (created) player.sendOverlayMessage(Component.translatable("message.realtrainmodrenewed.rail.connected"))
                     return created
                 }
-                player.sendOverlayMessage(Component.literal("接続できるマーカーが不足しています"))
+                player.sendOverlayMessage(Component.translatable("message.realtrainmodrenewed.rail.not_enough_markers"))
                 return false
             }
 
             val startPos = BlockPos(NbtCompat.getInt(startTag, "X"), NbtCompat.getInt(startTag, "Y"), NbtCompat.getInt(startTag, "Z"))
             val branchMode = NbtCompat.getBoolean(startTag, "BranchMode")
             val wrenchMode = NbtCompat.getBoolean(startTag, "WrenchMode") && (startTag.contains("EndRP") || startTag.contains("RailSegments"))
-            if (startPos == pos && !wrenchMode) { previewStack.remove(RealTrainModRenewedComponents.RAIL_PREVIEW_START.get()); player.sendOverlayMessage(Component.literal("レールプレビューを解除しました")); return false }
+            if (startPos == pos && !wrenchMode) { previewStack.remove(RealTrainModRenewedComponents.RAIL_PREVIEW_START.get()); player.sendOverlayMessage(Component.translatable("message.realtrainmodrenewed.rail.preview_cleared")); return false }
 
             val endBe = level.getBlockEntity(pos)
             val startBe = level.getBlockEntity(startPos)
-            if (!wrenchMode && endBe !is MarkerBlockEntity) { player.sendOverlayMessage(Component.literal("接続元または接続先のマーカーが見つかりません")); return false }
-            if (wrenchMode && startBe !is MarkerBlockEntity && startBe !is LargeRailCoreBlockEntity && !startTag.contains("StartRP")) { player.sendOverlayMessage(Component.literal("コピー元のレール情報が見つかりません")); return false }
+            if (!wrenchMode && endBe !is MarkerBlockEntity) { player.sendOverlayMessage(Component.translatable("message.realtrainmodrenewed.rail.marker_missing")); return false }
+            if (wrenchMode && startBe !is MarkerBlockEntity && startBe !is LargeRailCoreBlockEntity && !startTag.contains("StartRP")) { player.sendOverlayMessage(Component.translatable("message.realtrainmodrenewed.rail.copy_source_missing")); return false }
 
             val start = resolvePreviewStart(startBe, startTag) ?: return false
-            val prop = createRailProperties(player ?: return false, selectedModelId)
+            val prop = createRailProperties(player, selectedModelId)
             val created = if (wrenchMode) {
                 createRailsFromWrenchPreview(level, startPos, start, startTag, prop, player.abilities.instabuild, selectedModelId)
             } else {
@@ -122,8 +122,8 @@ class MarkerBlock(val isSwitch: Boolean, properties: BlockBehaviour.Properties) 
                 if (branchMode) createOrAppendBranchRail(level, startPos, copyRailPosition(start), copyRailPosition(adjustedEnd), prop, player.abilities.instabuild, selectedModelId)
                 else createRail(level, startPos, listOf(copyRailPosition(start), copyRailPosition(adjustedEnd)), prop, true, player.abilities.instabuild, selectedModelId)
             }
-            if (created) player.sendOverlayMessage(Component.literal("レールを接続しました"))
-            else player.sendOverlayMessage(Component.literal("ここにはレールを敷けません"))
+            if (created) player.sendOverlayMessage(Component.translatable("message.realtrainmodrenewed.rail.connected"))
+            else player.sendOverlayMessage(Component.translatable("message.realtrainmodrenewed.rail.cannot_place"))
             return created
         }
 
@@ -131,12 +131,18 @@ class MarkerBlock(val isSwitch: Boolean, properties: BlockBehaviour.Properties) 
             placeRailFromItem(level, placePos, player, stack, selectedId)
 
         @JvmStatic
-        fun buildRailForScript(level: Level, railPositions: List<RailPosition>, selectedModelId: String?): Boolean {
+        fun buildRailForScript(
+            level: Level,
+            railPositions: List<RailPosition>,
+            selectedModelId: String?,
+            isCreative: Boolean = false,
+            canEdit: ((BlockPos) -> Boolean)? = null,
+        ): Boolean {
             if (railPositions.size < 2) return false
             val prop = RailProperties.createDefault()
             selectedModelId?.let { RailRegistry.getById(it) }?.let { prop.ballastWidth = it.ballastWidth }
             val core = BlockPos(railPositions[0].blockX, railPositions[0].blockY, railPositions[0].blockZ)
-            return createRail(level, core, railPositions, prop, true, true, selectedModelId)
+            return createRail(level, core, railPositions, prop, true, isCreative, selectedModelId, canEdit)
         }
 
         private fun resolvePreviewStart(startBe: BlockEntity?, tag: CompoundTag): RailPosition? = when {
@@ -189,7 +195,17 @@ class MarkerBlock(val isSwitch: Boolean, properties: BlockBehaviour.Properties) 
             return prop
         }
 
-        @JvmStatic fun createRail(level: Level, corePos: BlockPos, rps: List<RailPosition>, prop: RailProperties, setRail: Boolean, isCreative: Boolean, selectedModelId: String?): Boolean {
+        @JvmStatic
+        fun createRail(
+            level: Level,
+            corePos: BlockPos,
+            rps: List<RailPosition>,
+            prop: RailProperties,
+            setRail: Boolean,
+            isCreative: Boolean,
+            selectedModelId: String?,
+            canEdit: ((BlockPos) -> Boolean)? = null,
+        ): Boolean {
             if (rps.size < 2) return false
             val maker = RailMaker(rps.toTypedArray())
             val switch = maker.getSwitch()
@@ -202,7 +218,14 @@ class MarkerBlock(val isSwitch: Boolean, properties: BlockBehaviour.Properties) 
                 }
                 result
             }
-            for (map in maps) if (!map.canPlaceRail(level, isCreative, prop)) return false
+            if (canEdit != null && !canEdit(corePos)) return false
+            for (map in maps) {
+                if (!map.canPlaceRail(level, isCreative, prop)) return false
+                if (canEdit != null && map.getRailBlockList(prop, true).any { rail ->
+                        !canEdit(BlockPos(rail[0], rail[1], rail[2]))
+                    }
+                ) return false
+            }
             if (!setRail) return true
             val prev = RailMap.suppressRailRemoval.get(); RailMap.suppressRailRemoval.set(true)
             try {
@@ -271,7 +294,7 @@ class MarkerBlock(val isSwitch: Boolean, properties: BlockBehaviour.Properties) 
     }
 
     private fun shouldPlaceDiagonal(forced: Boolean, player: Player): Boolean {
-        if (forced || player == null) return forced
+        if (forced) return true
         val yaw = Mth.positiveModulo(player.yRot + 180f, 360f)
         val rem = Mth.positiveModulo(yaw, 90f)
         return rem >= 22.5f && rem < 67.5f
@@ -282,10 +305,10 @@ class MarkerBlock(val isSwitch: Boolean, properties: BlockBehaviour.Properties) 
         if (stack.item is RailItem && !level.isClientSide) {
             val selectedId = stack.get(RealTrainModRenewedComponents.SELECTED_MODEL_ID.get())
             val count = searchAllMarkers(level, pos).size
-            if (count < 2) { player.sendOverlayMessage(Component.literal("接続できるマーカーが不足しています(2個以上必要)")); return InteractionResult.SUCCESS_SERVER }
+            if (count < 2) { player.sendOverlayMessage(Component.translatable("message.realtrainmodrenewed.rail.not_enough_markers_count", 2)); return InteractionResult.SUCCESS_SERVER }
             val created = onMarkerActivated(level, pos, player, true, selectedId)
-            if (created) { if (!player.abilities.instabuild) stack.shrink(1); player.sendOverlayMessage(Component.literal("レールを接続しました")) }
-            else player.sendOverlayMessage(Component.literal("ここにはレールを敷けません(障害物や形状を確認)"))
+            if (created) { if (!player.abilities.instabuild) stack.shrink(1); player.sendOverlayMessage(Component.translatable("message.realtrainmodrenewed.rail.connected")) }
+            else player.sendOverlayMessage(Component.translatable("message.realtrainmodrenewed.rail.cannot_place_check"))
         }
         return InteractionResult.TRY_WITH_EMPTY_HAND
     }
@@ -303,7 +326,7 @@ class MarkerBlock(val isSwitch: Boolean, properties: BlockBehaviour.Properties) 
         }
         if (maps.isEmpty()) return false
         val prop = createRailProperties(player ?: return false, selectedModelId)
-        return createRail(level, pos, rps, prop, true, player?.abilities?.instabuild ?: false, selectedModelId)
+        return createRail(level, pos, rps, prop, true, player.abilities.instabuild, selectedModelId)
     }
 
     fun searchAllMarkers(level: Level, pos: BlockPos): List<RailPosition> {
@@ -315,7 +338,7 @@ class MarkerBlock(val isSwitch: Boolean, properties: BlockBehaviour.Properties) 
             val be = level.getBlockEntity(cur)
             if (be is MarkerBlockEntity) {
                 val rp = be.markerRP
-                if (rp != null && rp.posX.toDouble().let { it * it } + rp.posZ.toDouble().let { it * it } > 0.001) found.add(rp)
+                if (rp != null && rp.posX.let { it * it } + rp.posZ.let { it * it } > 0.001) found.add(rp)
             }
             for (dx in -SEARCH_DISTANCE..SEARCH_DISTANCE) for (dy in -SEARCH_HEIGHT..SEARCH_HEIGHT) for (dz in -SEARCH_DISTANCE..SEARCH_DISTANCE) {
                 if (abs(dx) > SEARCH_DISTANCE || abs(dz) > SEARCH_DISTANCE) continue

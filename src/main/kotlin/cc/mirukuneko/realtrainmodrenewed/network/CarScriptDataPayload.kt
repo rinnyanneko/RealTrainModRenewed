@@ -9,6 +9,8 @@ import net.minecraft.network.codec.ByteBufCodecs
 import net.minecraft.network.codec.StreamCodec
 import net.minecraft.network.protocol.common.custom.CustomPacketPayload
 import net.minecraft.resources.Identifier
+import net.minecraft.server.level.ServerPlayer
+import net.neoforged.neoforge.network.PacketDistributor
 import net.neoforged.neoforge.network.handling.IPayloadContext
 
 /** Client-to-server scriptData/DataMap sync for script-driven CarEntity state. */
@@ -17,6 +19,7 @@ data class CarScriptDataPayload(
     val entityId: Int,
     val key: String,
     val value: String,
+    val flags: Int,
 ) : CustomPacketPayload {
     override fun type(): CustomPacketPayload.Type<out CustomPacketPayload> = TYPE
 
@@ -34,15 +37,26 @@ data class CarScriptDataPayload(
             { payload -> payload.key },
             ByteBufCodecs.STRING_UTF8,
             { payload -> payload.value },
+            ByteBufCodecs.INT,
+            { payload -> payload.flags },
             ::CarScriptDataPayload,
         )
 
         @JvmStatic
         fun handleOnServer(payload: CarScriptDataPayload, context: IPayloadContext) {
             context.enqueueWork {
-                val player = context.player()
+                val player = context.player() as? ServerPlayer ?: return@enqueueWork
                 val car = player.level().getEntity(payload.entityId) as? CarEntity ?: return@enqueueWork
-                car.setScriptDataValue(payload.key, payload.value)
+                car.applyClientScriptData(player, payload.key, payload.value, payload.flags)
+                if (payload.key.length <= 64) {
+                    PacketDistributor.sendToPlayer(
+                        player,
+                        CarScriptDataSyncPayload(
+                            car.id,
+                            mapOf(payload.key to car.getScriptDataValue(payload.key)),
+                        ),
+                    )
+                }
             }
         }
     }
