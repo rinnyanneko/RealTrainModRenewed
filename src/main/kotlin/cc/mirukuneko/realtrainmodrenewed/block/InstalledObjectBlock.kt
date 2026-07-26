@@ -42,6 +42,7 @@ class InstalledObjectBlock : BaseEntityBlock {
         val CODEC: MapCodec<InstalledObjectBlock> = simpleCodec { InstalledObjectBlock() }
         private val RTM_SELECTION_SHAPE = box(0.0, 0.0, 0.0, 16.0, 16.0, 16.0)
         private val EMPTY_SHAPE = Shapes.empty()
+        private const val TICKET_GATE_SOUND_RANGE = 32.0
 
         private fun stopSpeakerSoundOnRemove(level: Level, pos: BlockPos) {
             if (level !is ServerLevel) return
@@ -66,6 +67,18 @@ class InstalledObjectBlock : BaseEntityBlock {
                     val s = checkBe.wireStart; val e = checkBe.wireEnd
                     if (pos == s || pos == e) level.removeBlock(checkPos, false)
                 }
+            }
+        }
+
+        private fun playTicketGateSound(level: ServerLevel, pos: BlockPos, be: InstalledObjectBlockEntity) {
+            val sound = be.getDefinition()?.activationSound?.takeIf(String::isNotBlank) ?: return
+            val cx = pos.x + 0.5
+            val cy = pos.y + 0.5
+            val cz = pos.z + 0.5
+            val payload = SpeakerPlayPayload(cx, cy, cz, sound, 1.0f, 1.0f)
+            val rangeSq = TICKET_GATE_SOUND_RANGE * TICKET_GATE_SOUND_RANGE
+            for (player in level.players()) {
+                if (player.distanceToSqr(cx, cy, cz) <= rangeSq) PacketDistributor.sendToPlayer(player, payload)
             }
         }
     }
@@ -101,8 +114,9 @@ class InstalledObjectBlock : BaseEntityBlock {
         createTickerHelper(type, RealTrainModRenewedBlockEntities.INSTALLED_OBJECT.get(), InstalledObjectBlockEntity::tick)
 
     override fun useItemOn(stack: ItemStack, state: BlockState, level: Level, pos: BlockPos, player: Player, hand: InteractionHand, hit: BlockHitResult): InteractionResult {
-        if (stack.`is`(RealTrainModRenewedItems.IC_CARD_ITEM.get()) && level.getBlockEntity(pos) is InstalledObjectBlockEntity && (level.getBlockEntity(pos) as InstalledObjectBlockEntity).category == InstalledObjectCategory.TICKET_GATE) {
-            if (!level.isClientSide) (level.getBlockEntity(pos) as InstalledObjectBlockEntity).activateTicketGate()
+        val be = level.getBlockEntity(pos) as? InstalledObjectBlockEntity
+        if (stack.`is`(RealTrainModRenewedItems.IC_CARD_ITEM.get()) && be?.category == InstalledObjectCategory.TICKET_GATE) {
+            if (level is ServerLevel && be.activateTicketGateAndReport()) playTicketGateSound(level, pos, be)
             return if (level.isClientSide) InteractionResult.SUCCESS else InteractionResult.SUCCESS_SERVER
         }
         return InteractionResult.TRY_WITH_EMPTY_HAND

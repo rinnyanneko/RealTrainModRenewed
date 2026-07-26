@@ -38,6 +38,7 @@ class InstalledObjectDefinition(
     @JvmField val depth: Float = if (depth <= 0.0F) 0.125F else depth
     @JvmField val signTexture: String = signTexture ?: ""
     @JvmField val emissiveTexture: String = emissiveTexture ?: ""
+    @JvmField var activationSound: String = ""
     @JvmField val runningSound: String = runningSound ?: ""
     @JvmField val signalLightGroups: Map<Int, List<String>> = signalLightGroups ?: emptyMap()
     @JvmField val renderObjects: List<String> = renderObjects ?: emptyList()
@@ -60,6 +61,7 @@ class InstalledObjectDefinition(
     fun getDepth(): Float = depth
     fun getSignTexture(): String = signTexture
     fun getEmissiveTexture(): String = emissiveTexture
+    fun getActivationSound(): String = activationSound
     fun getRunningSound(): String = runningSound
     fun getSignalLightGroups(): Map<Int, List<String>> = signalLightGroups
     fun getRenderObjects(): List<String> = renderObjects

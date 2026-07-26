@@ -3323,6 +3323,11 @@ class TrainScriptSystem private constructor() {
 
         fun getMovingCount(entity: Any?): Float {
             if (entity is InstalledObjectBlockEntity) {
+                // RTM's MachinePartsRenderer uses inverted, binary turnstile state:
+                // 0 while passage is allowed and 1 while the gate is blocking passage.
+                if (entity.category == InstalledObjectCategory.TICKET_GATE) {
+                    return if (entity.isTicketGateOpen) 0.0f else 1.0f
+                }
                 return entity.barMoveCount / 90.0f
             }
             return 0.0f

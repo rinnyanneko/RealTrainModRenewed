@@ -32,6 +32,11 @@ object LegacyScriptSoundManager {
     private const val ONE_SHOT_DEBOUNCE_MS = 180L
     private const val LEVER_CLICK_DEBOUNCE_MS = 70L
     private const val SOUND_LOG_THROTTLE_MS = 1_000L
+    private val LEGACY_MINECRAFT_SOUND_ALIASES = mapOf(
+        "random.click" to "block.lever.click",
+        "random.door_close" to "block.iron_door.close",
+        "random.door_open" to "block.iron_door.open",
+    )
     private var lastLeverClickMs = 0L
 
     @JvmStatic
@@ -185,7 +190,7 @@ object LegacyScriptSoundManager {
         if (soundIdStr == null || soundIdStr.isBlank()) {
             return
         }
-        val soundId = Identifier.tryParse(soundIdStr.trim().lowercase(Locale.ROOT)) ?: return
+        val soundId = toPositionalSoundId(soundIdStr) ?: return
         val minecraft = Minecraft.getInstance()
         val instance = SimpleSoundInstance(
             soundId,
@@ -552,6 +557,9 @@ object LegacyScriptSoundManager {
         if (resolvedPath.endsWith(".ogg")) {
             resolvedPath = resolvedPath.substring(0, resolvedPath.length - ".ogg".length)
         }
+        if (resolvedNamespace == "minecraft") {
+            resolvedPath = LEGACY_MINECRAFT_SOUND_ALIASES[resolvedPath] ?: resolvedPath
+        }
         if (resolvedNamespace == "minecraft" && resolvedPath == "minecart.base") {
             resolvedNamespace = "sound_rtm"
             resolvedPath = "minecart_base"
@@ -589,6 +597,20 @@ object LegacyScriptSoundManager {
             soundName = legacySoundId.substring(separator + 1)
         }
         return toSoundId(namespace, soundName)
+    }
+
+    private fun toPositionalSoundId(legacySoundId: String): Identifier? {
+        val trimmed = legacySoundId.trim()
+        val separator = trimmed.indexOf(':')
+        if (separator >= 0) {
+            return toSoundId(trimmed.substring(0, separator), trimmed.substring(separator + 1))
+        }
+        val namespace = if (trimmed.startsWith("sounds/") || trimmed.endsWith(".ogg") || '/' in trimmed) {
+            "rtm"
+        } else {
+            "minecraft"
+        }
+        return toSoundId(namespace, trimmed)
     }
 
     private class AutoRunningSoundState {

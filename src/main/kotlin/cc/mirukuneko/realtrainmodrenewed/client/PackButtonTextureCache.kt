@@ -4,9 +4,12 @@ package cc.mirukuneko.realtrainmodrenewed.client
 
 import cc.mirukuneko.realtrainmodrenewed.BundledPackStore
 import cc.mirukuneko.realtrainmodrenewed.RealTrainModRenewed
+import cc.mirukuneko.realtrainmodrenewed.installedobject.InstalledObjectRegistry
 import cc.mirukuneko.realtrainmodrenewed.rail.RailPackLoader
+import cc.mirukuneko.realtrainmodrenewed.rail.RailRegistry
 import cc.mirukuneko.realtrainmodrenewed.util.PackZipReader
 import cc.mirukuneko.realtrainmodrenewed.util.buttonTexturePathCandidates
+import cc.mirukuneko.realtrainmodrenewed.vehicle.VehicleRegistry
 import com.mojang.blaze3d.platform.NativeImage
 import net.minecraft.client.Minecraft
 import net.minecraft.client.renderer.texture.DynamicTexture
@@ -86,7 +89,8 @@ object PackButtonTextureCache {
                 loadFallbackForModel(packName, modelId, displayName)
             } else {
                 try {
-                    load(packName, texturePath) ?: loadFallbackForModel(packName, modelId, displayName)
+                    load(packName, texturePath, isModelTextureAlias(modelId, texturePath))
+                        ?: loadFallbackForModel(packName, modelId, displayName)
                 } catch (exception: Exception) {
                     RealTrainModRenewed.LOGGER.debug("Could not resolve buttonTexture {} from {}", texturePath, packName, exception)
                     null
@@ -99,12 +103,12 @@ object PackButtonTextureCache {
         }
     }
 
-    private fun load(packName: String, texturePath: String): ButtonTextureInfo? {
+    private fun load(packName: String, texturePath: String, modelTextureAlias: Boolean): ButtonTextureInfo? {
         val packPath = RailPackLoader.resolvePackPath(packName)
         if (packPath == null) {
             return try {
                 val fallbackImage = loadBySearchingAllPacks(texturePath) ?: return null
-                registerDynamicTexture(packName, texturePath, fallbackImage)
+                registerDynamicTexture(packName, texturePath, fallbackImage, modelTextureAlias)
             } catch (exception: Exception) {
                 RealTrainModRenewed.LOGGER.debug("Could not globally resolve buttonTexture {} from {}", texturePath, packName, exception)
                 null
@@ -122,21 +126,26 @@ object PackButtonTextureCache {
             if (image == null) {
                 return null
             }
-            registerDynamicTexture(packName, texturePath, image)
+            registerDynamicTexture(packName, texturePath, image, modelTextureAlias)
         } catch (exception: Exception) {
             RealTrainModRenewed.LOGGER.debug("Could not load buttonTexture {} from {}", texturePath, packName, exception)
             null
         }
     }
 
-    private fun registerDynamicTexture(packName: String, texturePath: String, image: NativeImage): ButtonTextureInfo {
+    private fun registerDynamicTexture(
+        packName: String,
+        texturePath: String,
+        image: NativeImage,
+        modelTextureAlias: Boolean = false,
+    ): ButtonTextureInfo {
         val location = Identifier.fromNamespaceAndPath(
             RealTrainModRenewed.MODID,
             "dynamic/button/" + uniquePathSegment(packName) + "/" + uniquePathSegment(texturePath),
         )
         val width = image.width
         val height = image.height
-        val bounds = detectContentBounds(image, texturePath)
+        val bounds = detectContentBounds(image, modelTextureAlias)
         val texture = DynamicTexture({ "realtrainmodrenewed button texture" }, image)
         val textureManager = Minecraft.getInstance().textureManager
         val previous = DYNAMIC_TEXTURES.put(location, texture)
@@ -556,9 +565,12 @@ object PackButtonTextureCache {
         }
     }
 
-    private fun detectContentBounds(image: NativeImage, texturePath: String): IntArray {
+    private fun detectContentBounds(image: NativeImage, modelTextureAlias: Boolean): IntArray {
         val width = image.width
         val height = image.height
+        if (modelTextureAlias && width == height && width >= 256) {
+            return intArrayOf(0, 0, min(160, width), min(32, height))
+        }
         val legacyAtlasBounds = detectLegacyRtmButtonAtlasBounds(image)
         if (legacyAtlasBounds != null) {
             return legacyAtlasBounds
@@ -587,6 +599,20 @@ object PackButtonTextureCache {
             return intArrayOf(0, 0, 160, 32)
         }
         return intArrayOf(0, 0, width, height)
+    }
+
+    private fun isModelTextureAlias(modelId: String?, texturePath: String): Boolean {
+        if (modelId.isNullOrBlank()) return false
+        val buttonCandidates = buttonTexturePathCandidates(texturePath)
+            .mapTo(HashSet()) { it.lowercase(Locale.ROOT) }
+        val modelTextures = sequence {
+            InstalledObjectRegistry.getById(modelId)?.textureOverrides?.values?.let { yieldAll(it) }
+            VehicleRegistry.getById(modelId)?.textureOverrides?.values?.let { yieldAll(it) }
+            RailRegistry.getById(modelId)?.textureOverrides?.values?.let { yieldAll(it) }
+        }
+        return modelTextures.any { modelTexture ->
+            buttonTexturePathCandidates(modelTexture).any { it.lowercase(Locale.ROOT) in buttonCandidates }
+        }
     }
 
     private fun detectLegacyRtmButtonAtlasBounds(image: NativeImage): IntArray? {

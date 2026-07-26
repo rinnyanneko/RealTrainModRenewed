@@ -122,7 +122,8 @@ open class InstalledObjectBlockEntityRenderer(
                 var pushed = false
                 try {
                     val compatibilityHeavy = shouldUseCompatibilityRendering(definition, model)
-                    val customCrossingGateRendering = shouldUseCustomCrossingGateRendering(blockEntity, definition)
+                    val customCrossingGateRendering =
+                        !model.hasRenderScript() && shouldUseCustomCrossingGateRendering(blockEntity, definition)
                     val farThreshold = if (compatibilityHeavy) 56.0 else 80.0
                     val veryFarThreshold = if (compatibilityHeavy) 96.0 else 140.0
                     val translucentThreshold = if (compatibilityHeavy) 44.0 else 72.0
@@ -145,19 +146,22 @@ open class InstalledObjectBlockEntityRenderer(
                                 shouldRenderInstalledObjectGroup(groupName, blockEntity, definition, cameraDistanceSq, compatibilityHeavy))
                     }
                     val ticketGateRendering = blockEntity.category == InstalledObjectCategory.TICKET_GATE
+                    val scriptedInstalledObjectAnimation =
+                        model.hasRenderScript() &&
+                            (blockEntity.category == InstalledObjectCategory.CROSSING || ticketGateRendering)
+                    val fallbackTicketGateRendering = ticketGateRendering && !scriptedInstalledObjectAnimation
                     val transformModel = model
                     val transform: MqoModelLoader.GroupTransform? = if (customCrossingGateRendering) {
                         MqoModelLoader.GroupTransform { stack, groupName -> applyCrossingGateTransform(stack, blockEntity, groupName) }
-                    } else if (ticketGateRendering) {
+                    } else if (fallbackTicketGateRendering) {
                         MqoModelLoader.GroupTransform { stack, groupName -> applyTicketGateTransform(stack, blockEntity, transformModel, groupName) }
                     } else {
                         null
                     }
                     if (!customCrossingGateRendering &&
-                        !ticketGateRendering &&
-                        !veryFar &&
-                        !compatibilityHeavy &&
-                        definition.scriptPath.isNotBlank()
+                        !fallbackTicketGateRendering &&
+                        definition.scriptPath.isNotBlank() &&
+                        (scriptedInstalledObjectAnimation || !veryFar && !compatibilityHeavy)
                     ) {
                         MqoModelLoader.renderModelPreferScript(model, poseStack, buffer, packedLight, blockEntity)
                     } else {
@@ -166,7 +170,13 @@ open class InstalledObjectBlockEntityRenderer(
                             MqoModelLoader.renderModelWithoutScript(model, poseStack, buffer, packedLight, packedOverlay, true, filter, transform, blockEntity)
                         }
                     }
-                    if (!veryFar && shouldRenderSupplementalActiveLights(blockEntity, definition, customCrossingGateRendering)) {
+                    if (!veryFar && shouldRenderSupplementalActiveLights(
+                            blockEntity,
+                            definition,
+                            customCrossingGateRendering,
+                            scriptedInstalledObjectAnimation,
+                        )
+                    ) {
                         renderActiveLights(blockEntity, definition, poseStack, buffer, packedOverlay)
                     }
                     poseStack.popPose()
@@ -961,6 +971,7 @@ open class InstalledObjectBlockEntityRenderer(
             blockEntity: InstalledObjectBlockEntity?,
             definition: InstalledObjectDefinition?,
             customCrossingGateRendering: Boolean,
+            scriptedInstalledObjectAnimation: Boolean,
         ): Boolean {
             if (blockEntity == null || definition == null) {
                 return false
@@ -968,7 +979,7 @@ open class InstalledObjectBlockEntityRenderer(
             if (customCrossingGateRendering) {
                 return true
             }
-            return true
+            return blockEntity.category != InstalledObjectCategory.CROSSING || !scriptedInstalledObjectAnimation
         }
 
         private fun resolveActiveLightGroups(blockEntity: InstalledObjectBlockEntity?, definition: InstalledObjectDefinition?): List<String> {

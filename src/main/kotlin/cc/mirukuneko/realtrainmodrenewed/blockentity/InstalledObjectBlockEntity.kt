@@ -30,6 +30,8 @@ class InstalledObjectBlockEntity(pos: BlockPos, state: BlockState) :
     companion object {
         private const val TICKET_GATE_OPEN_TICKS = 60
         private const val TICKET_GATE_MOVE_TICKS = 12
+        private const val CROSSING_GATE_MOVE_TICKS = 90
+        private const val CROSSING_GATE_LIGHT_INTERVAL = 10
 
         @JvmStatic
         fun tick(level: Level, pos: BlockPos, state: BlockState, be: InstalledObjectBlockEntity) {
@@ -37,6 +39,7 @@ class InstalledObjectBlockEntity(pos: BlockPos, state: BlockState) :
                 val def = be.getDefinition()
                 if (!def?.runningSound.isNullOrBlank()) ClientHooks.tickCrossingGateSound(be)
                 else ClientHooks.stopCrossingGateSound(level, pos)
+                if (be.category == InstalledObjectCategory.CROSSING) be.tickCrossingAnimation()
                 return
             }
             if (be.category == InstalledObjectCategory.TICKET_GATE) {
@@ -51,9 +54,23 @@ class InstalledObjectBlockEntity(pos: BlockPos, state: BlockState) :
                 if (changed) { be.setChanged(); level.sendBlockUpdated(pos, state, state, 3) }
                 return
             }
-            if (!be.shouldHandleCrossingLogic()) return
-            be.powered = level.getBestNeighborSignal(pos) > 0
-            level.sendBlockUpdated(pos, state, state, 3)
+            if (be.category == InstalledObjectCategory.CROSSING) {
+                val wasPowered = be.powered
+                be.powered = level.getBestNeighborSignal(pos) > 0
+                val animationChanged = be.tickCrossingAnimation()
+                if (animationChanged || wasPowered != be.powered) be.setChanged()
+                if (wasPowered != be.powered || animationChanged && be.barMoveCount % CROSSING_GATE_LIGHT_INTERVAL == 0) {
+                    level.sendBlockUpdated(pos, state, state, 3)
+                }
+                return
+            }
+            if (!be.shouldHandleRunningSoundPower()) return
+            val powered = level.getBestNeighborSignal(pos) > 0
+            if (be.powered != powered) {
+                be.powered = powered
+                be.setChanged()
+                level.sendBlockUpdated(pos, state, state, 3)
+            }
         }
 
         // Legacy compat inner classes
@@ -78,7 +95,8 @@ class InstalledObjectBlockEntity(pos: BlockPos, state: BlockState) :
     var wireStart: BlockPos? = null; private set
     var wireEnd: BlockPos? = null; private set
     var powered: Boolean = false; private set
-    var barMoveCount: Int = 0; private set
+    var barMoveCount: Int = 0
+    private var crossingLightCount: Int = -1
     var tickCountOnActive: Int = 0
     var offsetX: Double = 0.0; private set
     var offsetY: Double = 0.0; private set
@@ -105,7 +123,18 @@ class InstalledObjectBlockEntity(pos: BlockPos, state: BlockState) :
     fun setSignalChannel(ch: Int, updateClient: Boolean) { signalChannel = ch; setChanged(); if (updateClient && level != null) level!!.sendBlockUpdated(worldPosition, blockState, blockState, 3) }
     fun setSignalAspect(aspect: SignalAspect?, updateClient: Boolean) { signalAspect = aspect?.id ?: SignalAspect.STOP.id; setChanged(); if (updateClient && level != null) level!!.sendBlockUpdated(worldPosition, blockState, blockState, 3) }
     fun setSpeakerRange(range: Int) { speakerRange = range.coerceIn(1, 256); setChanged(); if (level != null && !level!!.isClientSide) level!!.sendBlockUpdated(blockPos, blockState, blockState, 3) }
-    fun activateTicketGate() { if (category == InstalledObjectCategory.TICKET_GATE) { powered = true; tickCountOnActive = 0; setChanged(); if (level != null && !level!!.isClientSide) level!!.sendBlockUpdated(worldPosition, blockState, blockState, 3) } }
+    fun activateTicketGate() {
+        activateTicketGateAndReport()
+    }
+
+    fun activateTicketGateAndReport(): Boolean {
+        if (category != InstalledObjectCategory.TICKET_GATE) return false
+        powered = true
+        tickCountOnActive = 0
+        setChanged()
+        if (level != null && !level!!.isClientSide) level!!.sendBlockUpdated(worldPosition, blockState, blockState, 3)
+        return true
+    }
 
     fun getDefinition(): InstalledObjectDefinition? = InstalledObjectRegistry.getById(definitionId)
     val modelName: String get() = definitionId.substringAfterLast(':')
@@ -114,7 +143,7 @@ class InstalledObjectBlockEntity(pos: BlockPos, state: BlockState) :
     // Legacy script accessors
     fun getSignal(): Int = max(0, signalAspect.let { SignalAspect.byId(it).legacyValue })
     fun getLegacySignalState(): Int = getSignal()
-    fun getLightCount(): Int = if (powered) 1 else 0
+    fun getLightCount(): Int = if (category == InstalledObjectCategory.CROSSING) crossingLightCount else if (powered) 1 else 0
     fun getResourceState(): ResourceStateCompat = ResourceStateCompat(this)
     fun getModelSet(): ModelSetCompat = ModelSetCompat(this)
     fun getRotation(): Float = 0f
@@ -125,8 +154,28 @@ class InstalledObjectBlockEntity(pos: BlockPos, state: BlockState) :
     fun getAttachedSide(): Int = 1
     fun getRandomScale(): Float = 1f
 
-    private fun shouldHandleCrossingLogic(): Boolean =
-        category == InstalledObjectCategory.CROSSING || category == InstalledObjectCategory.SPEAKER
+    private fun tickCrossingAnimation(): Boolean {
+        val oldBarMoveCount = barMoveCount
+        val oldLightCount = crossingLightCount
+        val oldTickCount = tickCountOnActive
+        if (powered) {
+            if (barMoveCount < CROSSING_GATE_MOVE_TICKS) barMoveCount++
+            tickCountOnActive = (tickCountOnActive + 1) % 360
+            crossingLightCount = when {
+                crossingLightCount < 0 -> 0
+                tickCountOnActive % CROSSING_GATE_LIGHT_INTERVAL == 0 -> (crossingLightCount + 1) % 2
+                else -> crossingLightCount
+            }
+        } else {
+            if (barMoveCount > 0) barMoveCount--
+            tickCountOnActive = 0
+            crossingLightCount = -1
+        }
+        return oldBarMoveCount != barMoveCount || oldLightCount != crossingLightCount
+    }
+
+    private fun shouldHandleRunningSoundPower(): Boolean =
+        category == InstalledObjectCategory.SPEAKER && !getDefinition()?.runningSound.isNullOrBlank()
 
     override fun onLoad() {
         super.onLoad()
@@ -141,7 +190,7 @@ class InstalledObjectBlockEntity(pos: BlockPos, state: BlockState) :
         wireStart?.let { tag.putInt("WireStartX", it.x); tag.putInt("WireStartY", it.y); tag.putInt("WireStartZ", it.z) }
         wireEnd?.let { tag.putInt("WireEndX", it.x); tag.putInt("WireEndY", it.y); tag.putInt("WireEndZ", it.z) }
         tag.putBoolean("Powered", powered); tag.putInt("BarMoveCount", barMoveCount)
-        tag.putInt("LightCount", -1); tag.putInt("TickCountOnActive", tickCountOnActive)
+        tag.putInt("LightCount", crossingLightCount); tag.putInt("TickCountOnActive", tickCountOnActive)
         tag.putDouble("OffsetX", offsetX); tag.putDouble("OffsetY", offsetY); tag.putDouble("OffsetZ", offsetZ)
         tag.putInt("SignalChannel", signalChannel); tag.putInt("SignalAspect", signalAspect)
         tag.putInt("SpeakerRange", speakerRange)
@@ -159,6 +208,7 @@ class InstalledObjectBlockEntity(pos: BlockPos, state: BlockState) :
         wireStart = if (tag.getInt("WireStartX").isPresent) BlockPos(tag.getIntOr("WireStartX", 0), tag.getIntOr("WireStartY", 0), tag.getIntOr("WireStartZ", 0)) else null
         wireEnd = if (tag.getInt("WireEndX").isPresent) BlockPos(tag.getIntOr("WireEndX", 0), tag.getIntOr("WireEndY", 0), tag.getIntOr("WireEndZ", 0)) else null
         powered = tag.getBooleanOr("Powered", false); barMoveCount = tag.getIntOr("BarMoveCount", 0)
+        crossingLightCount = tag.getIntOr("LightCount", -1)
         tickCountOnActive = tag.getIntOr("TickCountOnActive", 0)
         offsetX = tag.getDoubleOr("OffsetX", 0.0); offsetY = tag.getDoubleOr("OffsetY", 0.0); offsetZ = tag.getDoubleOr("OffsetZ", 0.0)
         signalChannel = tag.getIntOr("SignalChannel", -1); signalAspect = tag.getIntOr("SignalAspect", SignalAspect.STOP.id)

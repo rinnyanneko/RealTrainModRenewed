@@ -189,6 +189,9 @@ object InstalledObjectPackLoader {
             val name = firstNonBlank(getString(obj, "name"), getString(obj, "signalName"), file.removeSuffix(".json"))
             val id = "${category.name.lowercase(Locale.ROOT)}:$packName:$name"
             val scriptPath = firstNonBlank(model?.let { getString(it, "rendererPath") }, getString(obj, "rendererPath"))
+            val activationSound = firstNonBlank(
+                model?.let { getString(it, "sound_OnActivate") }, model?.let { getString(it, "soundOnActivate") },
+                getString(obj, "sound_OnActivate"), getString(obj, "soundOnActivate"))
             val runningSound = firstNonBlank(
                 model?.let { getString(it, "sound_Running") }, model?.let { getString(it, "soundRunning") },
                 getString(obj, "sound_Running"), getString(obj, "soundRunning"))
@@ -217,6 +220,7 @@ object InstalledObjectPackLoader {
                 scriptPath ?: "", buttonTexture, textures, offset, scale, smoothing,
                 width, height, depth, signTexture ?: "", emissiveTexture ?: "",
                 runningSound ?: "", signalLights, renderObjects, scriptBodyPos, signFrame, backTexture)
+            def.activationSound = activationSound ?: ""
             def.setWireParams(wireSectionLength, wireDeflection)
             def.setWireAttachPos(wireAttachPos)
             LOADED.add(def)
