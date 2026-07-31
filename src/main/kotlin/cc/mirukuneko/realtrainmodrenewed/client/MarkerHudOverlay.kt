@@ -3,8 +3,9 @@
 package cc.mirukuneko.realtrainmodrenewed.client
 
 import cc.mirukuneko.realtrainmodrenewed.RealTrainModRenewed
-import cc.mirukuneko.realtrainmodrenewed.block.MarkerBlock
+import cc.mirukuneko.realtrainmodrenewed.Config
 import cc.mirukuneko.realtrainmodrenewed.blockentity.MarkerBlockEntity
+import cc.mirukuneko.realtrainmodrenewed.rail.util.MarkerSearch
 import cc.mirukuneko.realtrainmodrenewed.rail.util.RailPosition
 import net.minecraft.client.Minecraft
 import net.minecraft.client.gui.Font
@@ -188,30 +189,30 @@ object MarkerHudOverlay {
 
     private fun collectNearbyMarkers(level: Level, origin: BlockPos, originRp: RailPosition): List<MarkerDistance> {
         val result = ArrayList<MarkerDistance>()
-        val candidates = LinkedHashSet<BlockPos>()
+        val candidateColumns = HashSet<Long>()
         val yawRadians = Math.toRadians(originRp.anchorYaw.toDouble())
         val stepX = kotlin.math.sin(yawRadians)
         val stepZ = kotlin.math.cos(yawRadians)
-        for (meters in 1..MarkerBlock.SEARCH_DISTANCE) {
-            candidates.add(BlockPos(origin.x + (stepX * meters).roundToInt(), origin.y, origin.z + (stepZ * meters).roundToInt()))
+        val searchRange = Config.RAIL_MARKER_SEARCH_RANGE.get()
+        for (meters in 1..searchRange) {
+            candidateColumns.add(horizontalKey(origin.x + (stepX * meters).roundToInt(), origin.z + (stepZ * meters).roundToInt()))
             if (line2Enabled) {
-                candidates.add(BlockPos(origin.x - (stepX * meters).roundToInt(), origin.y, origin.z - (stepZ * meters).roundToInt()))
+                candidateColumns.add(horizontalKey(origin.x - (stepX * meters).roundToInt(), origin.z - (stepZ * meters).roundToInt()))
             }
         }
 
-        for (candidate in candidates) {
-            for (dy in -MarkerBlock.SEARCH_HEIGHT..MarkerBlock.SEARCH_HEIGHT) {
-                val pos = candidate.offset(0, dy, 0)
-                if (pos == origin) continue
-                val marker = level.getBlockEntity(pos) as? MarkerBlockEntity ?: continue
-                val rp = marker.markerRP ?: continue
-                val distance = distance(originRp, rp)
-                result.add(MarkerDistance(pos, pos.x - origin.x, pos.y - origin.y, pos.z - origin.z, distance))
-            }
+        MarkerSearch.forEachInRange(level, origin) { pos, marker ->
+            if (pos == origin || horizontalKey(pos.x, pos.z) !in candidateColumns) return@forEachInRange
+            val rp = marker.markerRP ?: return@forEachInRange
+            val distance = distance(originRp, rp)
+            result.add(MarkerDistance(pos, pos.x - origin.x, pos.y - origin.y, pos.z - origin.z, distance))
         }
         result.sortBy { it.meters }
         return result
     }
+
+    private fun horizontalKey(x: Int, z: Int): Long =
+        (x.toLong() shl 32) xor (z.toLong() and 0xFFFF_FFFFL)
 
     private fun distance(a: RailPosition, b: RailPosition): Double {
         val dx = b.posX - a.posX

@@ -219,8 +219,12 @@ object VehiclePackLoader {
             val doorType = firstNonBlank(getString(trainModel, "doorType"), getString(obj, "doorType")) ?: ""
             val buttonTexture = firstNonBlank(getString(obj, "buttonTexture"), getString(trainModel, "buttonTexture"))
             val tex = parseTextures(trainModel)
-            val offset = parseVec3(trainModel, "offset", 1.0 / 16.0)
-            val scale = parseFloat(trainModel, "scale", 1.0F)
+            val offset = if (trainModel.has("offset")) {
+                parseVec3(trainModel, "offset", 1.0 / 16.0)
+            } else {
+                parseVec3(obj, "offset", 1.0 / 16.0)
+            }
+            val scale = parseFloat(trainModel, "scale", parseFloat(obj, "scale", 1.0F))
 
             val bogies = parseBogies(obj, trainModel)
             val playerPositions = parseVec3List(obj, trainModel, "playerPos", "playerPositions", "PosF")

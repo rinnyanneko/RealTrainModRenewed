@@ -40,6 +40,16 @@ object Config {
         .defineInRange("modelCacheProtectSeconds", 10, 0, 600)
 
     @JvmField
+    val RAIL_MARKER_SEARCH_RANGE: ModConfigSpec.IntValue = BUILDER
+        .comment("Horizontal marker search range used for rail placement and wrench previews.")
+        .defineInRange("railMarkerSearchRange", 80, 10, 1024)
+
+    @JvmField
+    val RAIL_MARKER_SEARCH_HEIGHT: ModConfigSpec.IntValue = BUILDER
+        .comment("Vertical marker search range used for rail placement and wrench previews.")
+        .defineInRange("railMarkerSearchHeight", 10, 4, 256)
+
+    @JvmField
     val SPEC: ModConfigSpec = BUILDER.build()
 
     @JvmStatic

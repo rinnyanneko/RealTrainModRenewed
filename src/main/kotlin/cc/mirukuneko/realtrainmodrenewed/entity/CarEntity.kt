@@ -7,6 +7,9 @@ import cc.mirukuneko.realtrainmodrenewed.client.model.MqoModelLoader
 import cc.mirukuneko.realtrainmodrenewed.network.CarScriptDataPayload
 import cc.mirukuneko.realtrainmodrenewed.network.CarScriptDataSyncPayload
 import cc.mirukuneko.realtrainmodrenewed.script.TrainScriptSystem
+import jp.ngt.mccompat.PlayerCompat
+import jp.ngt.mccompat.WorldCompat
+import jp.ngt.rtm.modelpack.ScriptExecuter
 import cc.mirukuneko.realtrainmodrenewed.RealTrainModRenewedItems
 import cc.mirukuneko.realtrainmodrenewed.item.CrowbarItem
 import cc.mirukuneko.realtrainmodrenewed.vehicle.VehicleDefinition
@@ -122,6 +125,8 @@ class CarEntity(type: EntityType<out CarEntity>, level: Level) : Entity(type, le
     @JvmField var field_70125_A: Float = 0f
     @JvmField var field_70173_aa: Int = 0
     @JvmField val field_70170_p: CarWorldCompat = CarWorldCompat(this)
+    @JvmField var field_70153_n: PlayerCompat? = null
+    @JvmField var field_70154_o: PlayerCompat? = null
     @JvmField var field_70159_w: Double = 0.0
     @JvmField var field_70181_x: Double = 0.0
     @JvmField var field_70179_y: Double = 0.0
@@ -133,6 +138,7 @@ class CarEntity(type: EntityType<out CarEntity>, level: Level) : Entity(type, le
     var speed: Float = 0f
 
     private var serverScriptEngine: ScriptEngine? = null
+    private var serverScriptExecuter: ScriptExecuter? = null
     private var attemptedServerScriptLoad: Boolean = false
     private val scriptData: MutableMap<String, String> = HashMap()
     private val scriptDataFlags: MutableMap<String, Int> = HashMap()
@@ -208,10 +214,11 @@ class CarEntity(type: EntityType<out CarEntity>, level: Level) : Entity(type, le
     fun applyClientScriptData(player: Player, key: String, value: String, flags: Int): Boolean {
         if (!canAcceptScriptDataFrom(player) || key.length > 64 || value.length > MAX_SCRIPT_DATA_LENGTH) return false
         if (flags !in 0..DATA_MAP_ALL_FLAGS || !shouldSyncDataMap(flags)) return false
-        if (!isSuperRailBuilderVehicle()) {
+        if (!isBuilderVehicle()) {
             setScriptDataValue(key, value, flags)
             return true
         }
+        if (isNgtoBuilderVehicle()) { setScriptDataValue(key, value, flags); return true }
         if (key !in SRB_CLIENT_KEYS) return false
         val valid = when (key) {
             in SRB_CLIENT_BOOLEAN_KEYS -> value == "true" || value == "false" || value == "1" || value == "0"
@@ -280,7 +287,7 @@ class CarEntity(type: EntityType<out CarEntity>, level: Level) : Entity(type, le
     }
 
     private fun refreshSrbHostSession() {
-        if (!isSuperRailBuilderVehicle() || scriptHostPlayerUuid == null) return
+        if (!isBuilderVehicle() || scriptHostPlayerUuid == null) return
         val host = scriptHostPlayer()
         val storedEntityId = getScriptDataValue("hostPlayerEntityId").toIntOrNull()
         if (host != null && host.id == storedEntityId) return
@@ -309,19 +316,9 @@ class CarEntity(type: EntityType<out CarEntity>, level: Level) : Entity(type, le
             numberIn("cantEdge", -180.0..180.0)
     }
 
-    // Legacy compat
-    class CarWorldCompat(private val car: CarEntity) {
-        @JvmField var field_72995_K: Boolean = false
-        fun isClientSide(): Boolean { field_72995_K = car.level().isClientSide; return field_72995_K }
-        fun getLevel(): Level = car.level()
+    class CarWorldCompat(private val car: CarEntity) : WorldCompat(car.level()) {
         fun getCar(): CarEntity = car
-        fun func_175625_s(pos: net.minecraft.core.BlockPos) = car.level().getBlockEntity(pos)
-        fun func_175625_s(x: Double, y: Double, z: Double) = car.level().getBlockEntity(net.minecraft.core.BlockPos(x.toInt(), y.toInt(), z.toInt()))
-        fun func_73045_a(id: Any?): Entity? {
-            if (id == null) return null
-            return try { car.level().getEntity((id as? Number)?.toInt() ?: id.toString().toInt()) } catch (_: Throwable) { null }
-        }
-        fun func_180495_p(pos: net.minecraft.core.BlockPos) = car.level().getBlockState(pos)
+        fun isClientSide(): Boolean = car.level().isClientSide
     }
 
     val resourceState: ResourceStateCompat
@@ -381,7 +378,7 @@ class CarEntity(type: EntityType<out CarEntity>, level: Level) : Entity(type, le
     fun func_145782_y(): Int = id
     fun func_70106_y() { discard() }
     fun func_70107_b(x: Double, y: Double, z: Double) {
-        if (!isSuperRailBuilderVehicle()) {
+        if (!isBuilderVehicle()) {
             setPos(x, y, z)
         } else if (!level().isClientSide) {
             followSrbHost(x, y, z)
@@ -442,10 +439,16 @@ class CarEntity(type: EntityType<out CarEntity>, level: Level) : Entity(type, le
     }
 
     private fun isSuperRailBuilderVehicle(): Boolean = vehicleId.contains("superrailbuilder", ignoreCase = true)
+    private fun isNgtoBuilderVehicle(): Boolean =
+        vehicleId.contains("ngto", ignoreCase = true) && (
+            vehicleId.contains("builder", ignoreCase = true) ||
+            vehicleId.contains("ngtobuilder", ignoreCase = true))
+    private fun isBuilderVehicle(): Boolean =
+        isSuperRailBuilderVehicle() || isNgtoBuilderVehicle()
 
     override fun interact(player: Player, hand: InteractionHand, location: Vec3): InteractionResult {
         if (canAddPassenger(player)) {
-            if (level().isClientSide && isSuperRailBuilderVehicle()) {
+            if (level().isClientSide && isBuilderVehicle()) {
                 setScriptDataValue("prevIsClick", "true", 0)
             }
             player.startRiding(this)
@@ -493,17 +496,25 @@ class CarEntity(type: EntityType<out CarEntity>, level: Level) : Entity(type, le
         if (def == null || !def.hasServerScript()) { attemptedServerScriptLoad = true; return }
         attemptedServerScriptLoad = true
         try { serverScriptEngine = MqoModelLoader.loadServerScriptForVehicle(def) } catch (t: Throwable) { RealTrainModRenewed.LOGGER.warn("Failed to load server script for {}: {}", id, t.toString()) }
+        if (serverScriptEngine != null && serverScriptExecuter == null) serverScriptExecuter = ScriptExecuter()
     }
+
+    fun getServerScriptEngine(): ScriptEngine? = serverScriptEngine
 
     override fun tick() {
         super.tick()
-        field_70177_z = yRot; field_70125_A = xRot; field_70173_aa = tickCount; field_70170_p.isClientSide()
+        field_70177_z = yRot
+        field_70125_A = xRot
+        field_70173_aa = tickCount
+        field_70153_n = PlayerCompat.of(controllingPassenger as? Player)?.also(PlayerCompat::refresh)
+        field_70154_o = PlayerCompat.of(vehicle as? Player)?.also(PlayerCompat::refresh)
 
         if (!level().isClientSide) {
             ensureServerScriptLoaded()
             refreshSrbHostSession()
             if (serverScriptEngine != null) {
-                TrainScriptSystem.invokeServerScriptOnUpdate(serverScriptEngine!!, this)
+                val executer = serverScriptExecuter ?: ScriptExecuter().also { serverScriptExecuter = it }
+                TrainScriptSystem.invokeServerScriptOnUpdate(serverScriptEngine!!, this, executer)
                 yRot = field_70177_z; xRot = field_70125_A; yRotO = field_70177_z; xRotO = field_70125_A
             }
             if (scriptDataDirty) {
@@ -532,7 +543,7 @@ class CarEntity(type: EntityType<out CarEntity>, level: Level) : Entity(type, le
             }
         }
 
-        if (isSuperRailBuilderVehicle() && getScriptDataValue("hostPlayerEntityId").isNotEmpty()) {
+        if (isBuilderVehicle() && getScriptDataValue("hostPlayerEntityId").isNotEmpty()) {
             followSrbHost(x, y, z)
             return
         }

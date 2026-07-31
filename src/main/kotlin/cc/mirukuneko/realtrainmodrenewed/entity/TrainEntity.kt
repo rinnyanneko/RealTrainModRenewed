@@ -21,6 +21,7 @@ import cc.mirukuneko.realtrainmodrenewed.network.TrainScriptDataPayload
 import cc.mirukuneko.realtrainmodrenewed.rail.util.RailMap
 import cc.mirukuneko.realtrainmodrenewed.rail.util.RailPosition
 import cc.mirukuneko.realtrainmodrenewed.script.TrainScriptSystem
+import jp.ngt.rtm.modelpack.ScriptExecuter
 import cc.mirukuneko.realtrainmodrenewed.vehicle.VehicleDefinition
 import cc.mirukuneko.realtrainmodrenewed.vehicle.VehicleRegistry.getById
 import cc.mirukuneko.realtrainmodrenewed.vehicle.VehicleRegistry.getSelected
@@ -74,6 +75,7 @@ class TrainEntity(type: EntityType<*>, level: Level) : Entity(type, level) {
     private var attemptedSoundScriptLoad = false
     private var serverScriptEngine: ScriptEngine? = null
     private var attemptedServerScriptLoad = false
+    private var serverScriptExecuter: ScriptExecuter? = null
     @JvmField
     val field_70170_p: WorldCompat = WorldCompat(this)
     @JvmField
@@ -660,10 +662,13 @@ class TrainEntity(type: EntityType<*>, level: Level) : Entity(type, level) {
         attemptedServerScriptLoad = true
         try {
             serverScriptEngine = loadServerScriptForVehicle(def)
+            if (serverScriptEngine != null && serverScriptExecuter == null) serverScriptExecuter = ScriptExecuter()
         } catch (t: Throwable) {
             RealTrainModRenewed.LOGGER.warn("Failed to load train server script for {}: {}", id, t.toString())
         }
     }
+
+    fun getServerScriptEngine(): ScriptEngine? = serverScriptEngine
 
     override fun isPickable(): Boolean {
         return false
@@ -801,8 +806,9 @@ class TrainEntity(type: EntityType<*>, level: Level) : Entity(type, level) {
         // 方向幕(pck_maku) や buildData 等の DataMap を書き換える処理がここで走る。
         ensureServerScriptLoaded()
         if (serverScriptEngine != null) {
+            val executer = serverScriptExecuter ?: ScriptExecuter().also { serverScriptExecuter = it }
             TrainScriptSystem
-                .invokeServerScriptOnUpdate(serverScriptEngine, this)
+                .invokeServerScriptOnUpdate(serverScriptEngine, this, executer)
         }
 
         if (scriptDataDirty && !scriptData.isEmpty()) {
@@ -5905,6 +5911,12 @@ class TrainEntity(type: EntityType<*>, level: Level) : Entity(type, level) {
         val field_72996_f: MutableList<Entity?>
             /** field 風アクセス対応のためのキャッシュ getter (JS の `world.field_72996_f` でも動くように)。  */
             get() = field_72996_f()
+
+        fun func_147439_a(x: Double, y: Double, z: Double) =
+            train?.level()?.let { jp.ngt.mccompat.WorldCompat(it).func_147439_a(x, y, z) }
+
+        fun func_72805_g(x: Double, y: Double, z: Double): Int =
+            train?.level()?.let { jp.ngt.mccompat.WorldCompat(it).func_72805_g(x, y, z) } ?: 0
     }
 
     override fun hasIndirectPassenger(passenger: Entity): Boolean {
@@ -8052,5 +8064,3 @@ class TrainEntity(type: EntityType<*>, level: Level) : Entity(type, level) {
         }
     }
 }
-
-

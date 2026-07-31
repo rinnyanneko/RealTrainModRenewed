@@ -8,6 +8,7 @@ import cc.mirukuneko.realtrainmodrenewed.blockentity.MarkerBlockEntity
 import cc.mirukuneko.realtrainmodrenewed.client.ClientNetworkHelper
 import cc.mirukuneko.realtrainmodrenewed.compat.NbtCompat
 import cc.mirukuneko.realtrainmodrenewed.network.ConfigureMarkerPayload
+import cc.mirukuneko.realtrainmodrenewed.rail.util.MarkerSearch
 import cc.mirukuneko.realtrainmodrenewed.rail.util.RailPosition
 import net.minecraft.core.BlockPos
 import net.minecraft.nbt.CompoundTag
@@ -23,8 +24,6 @@ import net.minecraft.world.level.Level
 
 class WrenchItem : Item {
     companion object {
-        private const val WRENCH_SEARCH_DISTANCE = 64
-        private const val WRENCH_SEARCH_HEIGHT = 32
         private const val OFFSET_STEP = 1.0 / 16.0
         private const val OFFSET_LIMIT = 2.0
 
@@ -78,7 +77,7 @@ class WrenchItem : Item {
             val be = level.getBlockEntity(pos) as? MarkerBlockEntity ?: return
             val rp = be.markerRP ?: return
             editingMarker = pos.immutable()
-            editingPair = null
+            editingPair = findNearestMarkerPos(level, pos)
             followMode = false
             editStartTime = System.currentTimeMillis()
             liveYaw = rp.anchorYaw
@@ -106,16 +105,15 @@ class WrenchItem : Item {
         private fun findNearestMarkerPos(level: Level, origin: BlockPos): BlockPos? {
             var best: BlockPos? = null
             var bestSq = Double.MAX_VALUE
-            for (dx in -WRENCH_SEARCH_DISTANCE..WRENCH_SEARCH_DISTANCE)
-                for (dy in -WRENCH_SEARCH_HEIGHT..WRENCH_SEARCH_HEIGHT)
-                    for (dz in -WRENCH_SEARCH_DISTANCE..WRENCH_SEARCH_DISTANCE) {
-                        if (dx == 0 && dy == 0 && dz == 0) continue
-                        val p = origin.offset(dx, dy, dz)
-                        if (level.getBlockEntity(p) is MarkerBlockEntity) {
-                            val d = origin.distSqr(p)
-                            if (d < bestSq) { bestSq = d; best = p.immutable() }
-                        }
+            MarkerSearch.forEachInRange(level, origin) { pos, _ ->
+                if (pos != origin) {
+                    val distanceSq = origin.distSqr(pos)
+                    if (distanceSq < bestSq) {
+                        bestSq = distanceSq
+                        best = pos.immutable()
                     }
+                }
+            }
             return best
         }
     }
@@ -139,10 +137,12 @@ class WrenchItem : Item {
                 val be = level.getBlockEntity(clickedPos) as? MarkerBlockEntity ?: return InteractionResult.FAIL
                 if (editingMarker == null) {
                     editingMarker = clickedPos.immutable()
-                    editingPair = null
+                    editingPair = findNearestMarkerPos(level, clickedPos)
                     player.sendSystemMessage(Component.translatable("message.realtrainmodrenewed.wrench.first_marker"))
                     return InteractionResult.SUCCESS
-                } else if (editingPair == null) {
+                } else {
+                    // Keep manual second-marker selection as an override for the
+                    // nearest marker chosen for the initial preview.
                     editingPair = clickedPos.immutable()
                     player.sendSystemMessage(Component.translatable("message.realtrainmodrenewed.wrench.second_marker"))
                     return InteractionResult.SUCCESS

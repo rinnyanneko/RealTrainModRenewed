@@ -9,6 +9,7 @@ import cc.mirukuneko.realtrainmodrenewed.installedobject.InstalledObjectCategory
 import cc.mirukuneko.realtrainmodrenewed.installedobject.InstalledObjectRegistry
 import cc.mirukuneko.realtrainmodrenewed.signal.SignalAspect
 import cc.mirukuneko.realtrainmodrenewed.signal.SignalNetworkSavedData
+import jp.ngt.mccompat.WorldCompat
 import net.minecraft.core.BlockPos
 import net.minecraft.core.HolderLookup
 import net.minecraft.nbt.CompoundTag
@@ -105,6 +106,8 @@ class InstalledObjectBlockEntity(pos: BlockPos, state: BlockState) :
     var signalAspect: Int = SignalAspect.STOP.id; private set
     var speakerRange: Int = 32; private set
     val scriptData: MutableMap<String, String> = HashMap()
+    @JvmField
+    var field_145850_b: WorldCompat? = null
     var isPowered: Boolean get() = powered; set(v) { powered = v; setChanged() }
     val isTicketGateOpen: Boolean get() = category == InstalledObjectCategory.TICKET_GATE && powered
     val isSignal: Boolean get() = category == InstalledObjectCategory.SIGNAL
@@ -179,8 +182,11 @@ class InstalledObjectBlockEntity(pos: BlockPos, state: BlockState) :
 
     override fun onLoad() {
         super.onLoad()
+        level?.let { field_145850_b = WorldCompat(it) }
         if (level is ServerLevel && isSignal) SignalNetworkSavedData.get(level as ServerLevel).syncLoadedSignal(level as ServerLevel, this)
     }
+
+    fun getWorldObj(): WorldCompat? = field_145850_b
 
     override fun saveAdditional(tag: ValueOutput) {
         super.saveAdditional(tag)
@@ -220,4 +226,3 @@ class InstalledObjectBlockEntity(pos: BlockPos, state: BlockState) :
     override fun getUpdatePacket(): ClientboundBlockEntityDataPacket = ClientboundBlockEntityDataPacket.create(this)
     override fun getUpdateTag(registries: HolderLookup.Provider): CompoundTag = saveWithoutMetadata(registries)
 }
-

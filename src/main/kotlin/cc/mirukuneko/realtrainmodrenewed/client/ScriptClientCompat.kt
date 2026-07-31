@@ -3,6 +3,7 @@
 package cc.mirukuneko.realtrainmodrenewed.client
 
 import net.minecraft.client.Minecraft
+import net.minecraft.client.gui.screens.ChatScreen
 import net.minecraft.core.BlockPos
 import net.minecraft.util.Mth
 import net.minecraft.world.entity.Entity
@@ -11,6 +12,7 @@ import net.minecraft.world.level.ClipContext
 import net.minecraft.world.phys.BlockHitResult
 import net.minecraft.world.phys.HitResult
 import net.minecraft.world.phys.Vec3
+import jp.ngt.mccompat.PlayerCompat
 import org.lwjgl.glfw.GLFW
 import java.util.Locale
 
@@ -64,9 +66,9 @@ class ScriptClientCompat {
     /** Client local player (null if unavailable). */
     fun getPlayer(): Any? {
         return try {
-            Minecraft.getInstance().player
+            PlayerCompat.of(Minecraft.getInstance().player)?.also(PlayerCompat::refresh) ?: PlayerCompat.EMPTY
         } catch (_: Throwable) {
-            null
+            PlayerCompat.EMPTY
         }
     }
 
@@ -76,6 +78,15 @@ class ScriptClientCompat {
             Minecraft.getInstance().screen
         } catch (_: Throwable) {
             null
+        }
+    }
+
+    /** Legacy GuiNewChat#getChatOpen / func_146241_e equivalent. */
+    fun isChatOpen(): Boolean {
+        return try {
+            Minecraft.getInstance().screen is ChatScreen
+        } catch (_: Throwable) {
+            false
         }
     }
 

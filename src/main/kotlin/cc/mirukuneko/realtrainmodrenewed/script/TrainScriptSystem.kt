@@ -143,7 +143,7 @@ class TrainScriptSystem private constructor() {
         try {
             val bindings = engine!!.createBindings()
             bindings.put("level", level)
-            bindings.put("world", level)
+            bindings.put("world", jp.ngt.mccompat.WorldCompat(level))
             bindings.put("pos", pos.immutable())
             bindings.put("x", pos.getX())
             bindings.put("y", pos.getY())
@@ -153,6 +153,7 @@ class TrainScriptSystem private constructor() {
             bindings.put("train", train)
             bindings.put("currentTrain", train)
             bindings.put("logger", RealTrainModRenewed.LOGGER)
+            engine!!.eval("var Blocks = Java.type('jp.ngt.mccompat.init.Blocks');")
             engine!!.eval(script, bindings)
             return true
         } catch (e: ScriptException) {
@@ -5301,7 +5302,7 @@ class TrainScriptSystem private constructor() {
                 "  normalizeAngle: function(a) { while(a>=180)a-=360; while(a<-180)a+=360; return a; }\n" +
                 "};\n" +  // NGTUtilClient / MCWrapperClient も user script と同じ eval で確実に定義する(別 eval の
                 // 定義は見えないため)。getMinecraft は __RTMU_MC__(クライアント実体)へ橋渡し。
-                "function __rtmuMcShim() { return { field_71462_r: ((typeof __RTMU_MC__ !== 'undefined' && __RTMU_MC__) ? __RTMU_MC__.getCurrentScreen() : null), func_135016_M: function() { return { func_135041_c: function() { return { func_135034_a: function() { return ((typeof __RTMU_MC__ !== 'undefined' && __RTMU_MC__) ? __RTMU_MC__.getLanguageCode() : 'en_us'); } }; } }; } }; }\n" +
+                "function __rtmuMcShim() { return { field_71439_g: ((typeof __RTMU_MC__ !== 'undefined' && __RTMU_MC__) ? __RTMU_MC__.getPlayer() : null), field_71462_r: ((typeof __RTMU_MC__ !== 'undefined' && __RTMU_MC__) ? __RTMU_MC__.getCurrentScreen() : null), field_71456_v: { func_146158_b: function() { return { func_146241_e: function() { try { return (typeof __RTMU_MC__ !== 'undefined' && __RTMU_MC__) ? __RTMU_MC__.isChatOpen() : false; } catch(e) { return false; } } }; } }, func_135016_M: function() { return { func_135041_c: function() { return { func_135034_a: function() { return ((typeof __RTMU_MC__ !== 'undefined' && __RTMU_MC__) ? __RTMU_MC__.getLanguageCode() : 'en_us'); } }; } }; } }; }\n" +
                 "var NGTUtilClient = { getMinecraft: function() { return __rtmuMcShim(); }, getPlayer: function() { try { return (typeof __RTMU_MC__ !== 'undefined' && __RTMU_MC__) ? __RTMU_MC__.getPlayer() : null; } catch (e) { return null; } }, bindTexture: function(t) { try { if (typeof renderer !== 'undefined' && renderer) renderer.bindTexture(t); } catch(e){} } };\n" +
                 "var MCWrapperClient = { getPlayer: function() { try { return (typeof __RTMU_MC__ !== 'undefined' && __RTMU_MC__) ? __RTMU_MC__.getPlayer() : null; } catch (e) { return null; } }, getMinecraft: function() { return __rtmuMcShim(); }, playSound: function(domain, name, volume, pitch) { if (typeof __RTMU_SoundBridge__ !== 'undefined') __RTMU_SoundBridge__.playSound(domain, name, volume == null ? 1.0 : volume, pitch == null ? 1.0 : pitch); }, playSoundAtRange: function(domain, name, volume, pitch, range) { if (typeof __RTMU_SoundBridge__ !== 'undefined') __RTMU_SoundBridge__.playSoundAtRange(domain, name, volume == null ? 1.0 : volume, pitch == null ? 1.0 : pitch, range == null ? 16.0 : range); } };\n" +  // RTM 共通ラッパー/レール系グローバルも user script eval で定義(別 eval の定義は見えないため)。
                 // entity 位置などは null 安全に。レール系は SRB の preview/敷設で参照される。
@@ -5331,9 +5332,12 @@ class TrainScriptSystem private constructor() {
         @Volatile
         private var graalPolyglotUnavailable = false
         private const val SCRIPT_CORE_VERSION = "2.4.24"
-        private val DISABLED_SCRIPT_ENGINES: MutableSet<Int?> = ConcurrentHashMap.newKeySet<Int?>()
-        private val SCRIPT_FAILURE_COUNTS: MutableMap<Int?, Int?> = ConcurrentHashMap<Int?, Int?>()
-        private val REPORTED_SCRIPT_ERRORS: MutableSet<String?> = ConcurrentHashMap.newKeySet<String?>()
+        private val REPORTED_SCRIPT_ERRORS: MutableSet<String> = ConcurrentHashMap.newKeySet<String>()
+        private val SCRIPT_CIRCUIT_BREAKER = LegacyScriptCircuitBreaker()
+        private const val SCRIPT_PHASE_SERVER = "server"
+        private const val SCRIPT_PHASE_TICK = "tick"
+        private const val SCRIPT_PHASE_UPDATE = "update"
+        private const val SCRIPT_PHASE_RENDER = "render"
 
         @Volatile
         private var reportedScriptEngineFactories = false
@@ -5609,6 +5613,9 @@ class TrainScriptSystem private constructor() {
                 scriptEngine.put(SCRIPT_PATH_KEY, if (scriptPath == null) "" else scriptPath)
                 scriptEngine.put(SCRIPT_MODEL_KEY, if (modelName == null) "" else modelName)
                 script = normalizeLegacyScriptReferences(script)
+                if (model is MqoModel) {
+                    model.setBlockDetectionScript(script?.contains("searchBlockAndMeta") == true)
+                }
                 renderer.configureReplaySafety(script)
                 script = LEGACY_API_PREPEND + (if (script == null) "" else script)
                 scriptEngine.eval(script)
@@ -5768,7 +5775,7 @@ class TrainScriptSystem private constructor() {
                 sb.append("  getRidingEntity = function(entity){ try{ return __srbWrap(entity.func_184187_bx()); }catch(e){ return null; } };\n")
                 sb.append("  createRailPosition = function(data) { return __SRB__.createRailPosition(data.blockX|0, data.blockY|0, data.blockZ|0, data.markerDir|0, (data.switchType!=null?Number(data.switchType):0), (data.anchorLength!=null?Number(data.anchorLength):-1), (data.anchorPitch!=null?Number(data.anchorPitch):0), (data.anchorYaw!=null?Number(data.anchorYaw):0), (data.cantCenter!=null?Number(data.cantCenter):0), (data.cantEdge!=null?Number(data.cantEdge):0), (data.height!=null?Number(data.height):0)); };\n")
                 sb.append("  buildNormalRail = function(world, startRP, endRP, railItem) { try { __SRB__.buildNormalRail(world, startRP, endRP, railItem); } catch(e){ try{NGTLog.error('SRB buildNormalRail err: '+e);}catch(e2){} } };\n")
-                sb.append("  buildBranchRail = function(world, rps, railItem) { try { var l=new java.util.ArrayList(); for(var i=0;i<rps.length;i++) l.add(rps[i]); __SRB__.buildBranchRail(world, l, railItem); } catch(e){} };\n")
+                sb.append("  buildBranchRail = function(world, rps, railItem) { try { __SRB__.buildBranchRail(world, rps, railItem); } catch(e){} };\n")
                 sb.append("  deleteRail = function(world, x, y, z) { try { return __SRB__.deleteRail(world, x|0, y|0, z|0); } catch(e){ return false; } };\n")
                 sb.append("  deleteRailRP = function(world, rp) { return deleteRail(world, rp.blockX, rp.blockY, rp.blockZ); };\n")
                 sb.append("  setBlock = function(world, x, y, z, block, meta, flag) { try { return __SRB__.placeSupportBlock(world, x|0, y|0, z|0); } catch(e){ return false; } };\n")
@@ -5939,17 +5946,16 @@ class TrainScriptSystem private constructor() {
                             "var IdentifierCompat = function(domain, path) { if (path === undefined) { var s = String(domain || ''); var i = s.indexOf(':'); this.domain = i >= 0 ? s.substring(0, i) : 'minecraft'; this.path = i >= 0 ? s.substring(i + 1) : s; } else { this.domain = domain || 'minecraft'; this.path = path || ''; } this.namespace = this.domain; this.resourcePath = this.path; this.func_110624_b = function() { return this.domain; }; this.func_110623_a = function() { return this.path; }; this.getNamespace = function() { return this.domain; }; this.getPath = function() { return this.path; }; this.toString = function() { return this.domain + ':' + this.path; }; };\n" +
                             "var Identifier = IdentifierCompat;\n" +  // LWJGL2 Keyboard stub (imported by some RTM packs via importPackage(Packages.org.lwjgl.input))
                             "if (typeof Keyboard === 'undefined') Keyboard = { KEY_ESCAPE: 1, KEY_O: 24, KEY_L: 38, KEY_Q: 16, KEY_I: 23, KEY_P: 25, KEY_U: 22, KEY_J: 36, KEY_K: 37, KEY_F: 33, KEY_G: 34, KEY_H: 35, KEY_C: 46, KEY_V: 47, KEY_B: 48, KEY_N: 49, KEY_M: 50, KEY_RIGHT: 205, KEY_LEFT: 203, KEY_UP: 200, KEY_DOWN: 208, KEY_HOME: 199, KEY_END: 207, KEY_INSERT: 210, KEY_DELETE: 211, KEY_LBRACKET: 26, KEY_RBRACKET: 27, KEY_RETURN: 28, KEY_SPACE: 57, KEY_LSHIFT: 42, KEY_LCONTROL: 29, KEY_RCONTROL: 157, isKeyDown: function(key) { try { return (typeof __RTMU_KEY__ !== 'undefined' && __RTMU_KEY__) ? __RTMU_KEY__.isKeyDown(key) : false; } catch (e) { return false; } } };\n" +
-                            "function __rtmuMcShim() { return { field_71462_r: ((typeof __RTMU_MC__ !== 'undefined' && __RTMU_MC__) ? __RTMU_MC__.getCurrentScreen() : null), func_135016_M: function() { return { func_135041_c: function() { return { func_135034_a: function() { return ((typeof __RTMU_MC__ !== 'undefined' && __RTMU_MC__) ? __RTMU_MC__.getLanguageCode() : 'en_us'); } }; } }; } }; }\n" +
+                            "function __rtmuMcShim() { return { field_71439_g: ((typeof __RTMU_MC__ !== 'undefined' && __RTMU_MC__) ? __RTMU_MC__.getPlayer() : null), field_71462_r: ((typeof __RTMU_MC__ !== 'undefined' && __RTMU_MC__) ? __RTMU_MC__.getCurrentScreen() : null), field_71456_v: { func_146158_b: function() { return { func_146241_e: function() { try { return (typeof __RTMU_MC__ !== 'undefined' && __RTMU_MC__) ? __RTMU_MC__.isChatOpen() : false; } catch(e) { return false; } } }; } }, func_135016_M: function() { return { func_135041_c: function() { return { func_135034_a: function() { return ((typeof __RTMU_MC__ !== 'undefined' && __RTMU_MC__) ? __RTMU_MC__.getLanguageCode() : 'en_us'); } }; } }; } }; }\n" +
                             "if (typeof MCWrapperClient === 'undefined') MCWrapperClient = { getPlayer: function() { try { return (typeof __RTMU_MC__ !== 'undefined' && __RTMU_MC__) ? __RTMU_MC__.getPlayer() : null; } catch (e) { return null; } }, getMinecraft: function() { return __rtmuMcShim(); }, bindTexture: function(texture) { if (typeof renderer !== 'undefined' && renderer) renderer.bindTexture(texture); } };\n" +
                             "if (typeof NGTUtilClient === 'undefined') NGTUtilClient = { getMinecraft: function() { return __rtmuMcShim(); }, getPlayer: function() { try { return (typeof __RTMU_MC__ !== 'undefined' && __RTMU_MC__) ? __RTMU_MC__.getPlayer() : null; } catch (e) { return null; } }, bindTexture: function(texture) { if (typeof renderer !== 'undefined' && renderer) renderer.bindTexture(texture); } };\n" +
                             "if (typeof NGTLog === 'undefined') NGTLog = { debug: function() {}, info: function() {}, warn: function() {}, error: function() {} };\n" +
                             "if (typeof GuiChat === 'undefined') GuiChat = function() {};\n" +
-                            "if (typeof Minecraft === 'undefined') Minecraft = { func_71410_x: function() { return null; }, getMinecraft: function() { return null; } };\n" +  // --- SuperRailBuilder3 等の 1.12.2 RTM スクリプト互換グローバル ---
+                            "if (typeof Minecraft === 'undefined') Minecraft = { func_71410_x: function() { return __rtmuMcShim(); }, getMinecraft: function() { return __rtmuMcShim(); } };\n" +  // --- SuperRailBuilder3 等の 1.12.2 RTM スクリプト互換グローバル ---
                             // 本家 RTM の Java クラスは 1.21.1 に存在しないため、スクリプトが eval 時に
                             // 参照するトップレベルのグローバルを最小限スタブする。
                             "if (typeof RTMCore === 'undefined') RTMCore = { VERSION: 'RTMU-1.21.1', MODID: 'rtm' };\n" +
-                            "if (typeof Blocks === 'undefined') Blocks = {};\n" +
-                            "if (Blocks.field_150325_L === undefined) Blocks.field_150325_L = { __rtmuBlock: 'minecraft:white_wool' };\n" +
+                            "if (typeof Blocks === 'undefined') Blocks = Java.type('jp.ngt.mccompat.init.Blocks');\n" +
                             "if (typeof LoaderCompat === 'undefined') LoaderCompat = { isModLoaded: function(n) { return false; } };\n" +
                             "if (typeof BlockUtil === 'undefined') BlockUtil = { setBlock: function() {} };\n" +
                             "function __ptDummyTextureData() { return { images: [{}], size: 1, rate: 1, width: 1, height: 1 }; }\n" +
@@ -6296,32 +6302,51 @@ class TrainScriptSystem private constructor() {
             }
         }
 
-        private fun isScriptDisabled(scriptEngine: ScriptEngine?): Boolean {
-            return scriptEngine != null && DISABLED_SCRIPT_ENGINES.contains(System.identityHashCode(scriptEngine))
+        private fun isScriptDisabled(scriptEngine: ScriptEngine?, phase: String): Boolean {
+            return scriptEngine != null && SCRIPT_CIRCUIT_BREAKER.isDisabled(scriptEngine, phase)
         }
 
         @JvmStatic
         fun isLegacyScriptDisabled(scriptEngine: ScriptEngine?): Boolean {
-            return isScriptDisabled(scriptEngine)
+            if (scriptEngine == null) return false
+            return isScriptDisabled(scriptEngine, SCRIPT_PHASE_TICK) &&
+                isScriptDisabled(scriptEngine, SCRIPT_PHASE_UPDATE)
         }
 
+        /**
+         * Logs a script runtime error and disables only the failing call family after
+         * five consecutive failures. StackOverflowError and OutOfMemoryError disable
+         * it immediately so a broken pack cannot collapse the game loop.
+         */
         private fun disableBrokenScript(scriptEngine: ScriptEngine?, phase: String?, error: Throwable?) {
-            if (scriptEngine == null) {
-                return
-            }
-            val key = System.identityHashCode(scriptEngine)
-            val failures: Int = SCRIPT_FAILURE_COUNTS.merge(
-                key,
-                1
-            ) { a: kotlin.Int?, b: kotlin.Int? -> java.lang.Integer.sum(a ?: 0, b ?: 0) }!!
-            reportScriptError(scriptEngine, phase + " (" + failures + "/8)", error)
-            if (failures >= 8 && DISABLED_SCRIPT_ENGINES.add(key)) {
+            if (scriptEngine == null || error == null) return
+            val phaseName = phase ?: "unknown"
+            val phaseFamily = scriptPhaseFamily(phaseName)
+            val failure = SCRIPT_CIRCUIT_BREAKER.recordFailure(scriptEngine, phaseFamily, error)
+            reportScriptError(scriptEngine, "$phaseName (${failure.count}/5)", error)
+            if (failure.newlyDisabled) {
+                val rawScriptPath = scriptEngine.get(SCRIPT_PATH_KEY)
                 RealTrainModRenewed.LOGGER.warn(
-                    "Disabling legacy train script after repeated {} failures",
-                    phase,
-                    error
+                    "Stopped legacy script phase {} for {} after {}",
+                    phaseFamily,
+                    rawScriptPath ?: "(unknown script)",
+                    if (failure.fatal) error.javaClass.simpleName else "${failure.count} consecutive failures",
                 )
             }
+        }
+
+        private fun noteScriptSuccess(scriptEngine: ScriptEngine, phase: String) {
+            SCRIPT_CIRCUIT_BREAKER.recordSuccess(scriptEngine, scriptPhaseFamily(phase))
+        }
+
+        private fun scriptPhaseFamily(phase: String): String = when {
+            phase.contains("[server") -> SCRIPT_PHASE_SERVER
+            phase.startsWith("render") -> SCRIPT_PHASE_RENDER
+            phase.startsWith("updateSound") ||
+                phase.startsWith("tick") ||
+                phase.startsWith("onUpdate") -> SCRIPT_PHASE_TICK
+            phase.startsWith("update") -> SCRIPT_PHASE_UPDATE
+            else -> phase
         }
 
         private fun reportScriptError(scriptEngine: ScriptEngine?, phase: String?, error: Throwable?) {
@@ -6345,22 +6370,35 @@ class TrainScriptSystem private constructor() {
         }
 
         /**
-         * SRB3 等のサーバスクリプトを毎tick実行する用。
-         * entity を `onUpdate(entity, scriptExecuter)` の形式で呼び出す。
-         * scriptExecuter はスクリプト側で任意に使われる helper。現状は null を渡す。
+         * Invoke the server-side `onUpdate(entity, scriptExecuter)` each tick.
+         * Matches upstream CarServerScripts: bind caller first, call onUpdate
+         * with the *current* count, increment count only after successful invocation.
+         *
+         * @param scriptEngine サーバスクリプトエンジン
+         * @param entity スクリプトを実行するエンティティ
+         * @param executer per-entity ScriptExecuter (count advances only on success)
          */
         @JvmStatic
-        fun invokeServerScriptOnUpdate(scriptEngine: ScriptEngine?, entity: Any?) {
-            if (scriptEngine == null || isScriptDisabled(scriptEngine)) return
+        fun invokeServerScriptOnUpdate(
+            scriptEngine: ScriptEngine?,
+            entity: Any?,
+            executer: jp.ngt.rtm.modelpack.ScriptExecuter? = null
+        ) {
+            if (scriptEngine == null || isScriptDisabled(scriptEngine, SCRIPT_PHASE_SERVER)) return
+            // Bind caller's world/pos before invocation (upstream beginScript).
+            executer?.beginScript(entity)
             try {
                 scriptEngine.put("entity", entity)
-                scriptEngine.put("executer", null)
-                scriptEngine.put("executor", null)
+                scriptEngine.put("executer", executer)
+                scriptEngine.put("executor", executer)
             } catch (ignored: Throwable) {
             }
             val invocable = scriptEngine as Invocable
+            // onUpdate sees the current (pre-increment) count.
             try {
-                invocable.invokeFunction("onUpdate", entity, null)
+                invocable.invokeFunction("onUpdate", entity, executer)
+                executer?.completeScript()
+                noteScriptSuccess(scriptEngine, "onUpdate(entity, executer) [server]")
                 return
             } catch (ignored: NoSuchMethodException) {
             } catch (e: ScriptException) {
@@ -6370,8 +6408,11 @@ class TrainScriptSystem private constructor() {
                 disableBrokenScript(scriptEngine, "onUpdate(entity, executer) [server-runtime]", t)
                 return
             }
+            // Fallback: onUpdate(entity) without executer.
             try {
                 invocable.invokeFunction("onUpdate", entity)
+                executer?.completeScript()
+                noteScriptSuccess(scriptEngine, "onUpdate(entity) [server]")
             } catch (ignored: NoSuchMethodException) {
             } catch (e: ScriptException) {
                 disableBrokenScript(scriptEngine, "onUpdate(entity) [server]", e)
@@ -6382,7 +6423,7 @@ class TrainScriptSystem private constructor() {
 
         @JvmStatic
         fun invokeScriptTick(scriptEngine: ScriptEngine?, entity: Any?, soundScript: Boolean = false) {
-            if (scriptEngine == null || isScriptDisabled(scriptEngine)) return
+            if (scriptEngine == null || isScriptDisabled(scriptEngine, SCRIPT_PHASE_TICK)) return
             val compat = if (entity is TrainEntity) LegacyScriptExecutor(entity) else null
             val soundBridge = LegacySoundBridge(compat)
             try {
@@ -6415,62 +6456,67 @@ class TrainScriptSystem private constructor() {
                 try {
                     scriptEngine.invokeFunction("updateSoundMaker", soundBridge)
                 } catch (ignored: NoSuchMethodException) {
-                } catch (e: ScriptException) {
-                    disableBrokenScript(scriptEngine, "updateSoundMaker(soundUpdater)", e)
+                } catch (t: Throwable) {
+                    disableBrokenScript(scriptEngine, "updateSoundMaker(soundUpdater)", t)
                     return
                 }
                 try {
                     scriptEngine.invokeFunction("updateSoundEffects", soundBridge)
                 } catch (ignored: NoSuchMethodException) {
-                } catch (e: ScriptException) {
-                    disableBrokenScript(scriptEngine, "updateSoundEffects(soundUpdater)", e)
+                } catch (t: Throwable) {
+                    disableBrokenScript(scriptEngine, "updateSoundEffects(soundUpdater)", t)
                     return
                 }
                 try {
                     scriptEngine.invokeFunction("tick", entity)
+                    noteScriptSuccess(scriptEngine, "tick(entity)")
                     return
                 } catch (ignored: NoSuchMethodException) {
                     // no tick function
-                } catch (e: ScriptException) {
-                    disableBrokenScript(scriptEngine, "tick(entity)", e)
+                } catch (t: Throwable) {
+                    disableBrokenScript(scriptEngine, "tick(entity)", t)
                     return
                 }
                 try {
                     scriptEngine.invokeFunction("tick")
+                    noteScriptSuccess(scriptEngine, "tick()")
                     return
                 } catch (ignored: NoSuchMethodException) {
                     // no zero-arg tick function
-                } catch (e: ScriptException) {
-                    disableBrokenScript(scriptEngine, "tick()", e)
+                } catch (t: Throwable) {
+                    disableBrokenScript(scriptEngine, "tick()", t)
                     return
                 }
                 if (compat != null) {
                     try {
                         scriptEngine.invokeFunction("onUpdate", if (soundScript) soundBridge else compat)
+                        noteScriptSuccess(scriptEngine, "onUpdate(compat)")
                         return
                     } catch (ignored: NoSuchMethodException) {
                         // no one-argument compat onUpdate
-                    } catch (e: ScriptException) {
-                        disableBrokenScript(scriptEngine, "onUpdate(compat)", e)
+                    } catch (t: Throwable) {
+                        disableBrokenScript(scriptEngine, "onUpdate(compat)", t)
                         return
                     }
                     try {
                         scriptEngine.invokeFunction("onUpdate", entity, compat)
+                        noteScriptSuccess(scriptEngine, "onUpdate(entity, compat)")
                         return
                     } catch (ignored: NoSuchMethodException) {
                         // no two-argument onUpdate
-                    } catch (e: ScriptException) {
-                        disableBrokenScript(scriptEngine, "onUpdate(entity, compat)", e)
+                    } catch (t: Throwable) {
+                        disableBrokenScript(scriptEngine, "onUpdate(entity, compat)", t)
                         return
                     }
                 }
                 try {
                     scriptEngine.invokeFunction("onUpdate", entity)
+                    noteScriptSuccess(scriptEngine, "onUpdate(entity)")
                     return
                 } catch (ignored: NoSuchMethodException) {
                     // no one-argument entity onUpdate
-                } catch (e: ScriptException) {
-                    disableBrokenScript(scriptEngine, "onUpdate(entity)", e)
+                } catch (t: Throwable) {
+                    disableBrokenScript(scriptEngine, "onUpdate(entity)", t)
                     return
                 }
             }
@@ -6488,62 +6534,68 @@ class TrainScriptSystem private constructor() {
                             "   } else { onUpdate(__ptTickEntity); }" +
                             " }"
                 )
-            } catch (e: ScriptException) {
-                disableBrokenScript(scriptEngine, "tick/onUpdate fallback", e)
+                noteScriptSuccess(scriptEngine, "tick/onUpdate fallback")
+            } catch (t: Throwable) {
+                disableBrokenScript(scriptEngine, "tick/onUpdate fallback", t)
             }
         }
 
         @JvmStatic
         fun invokeScriptUpdate(scriptEngine: ScriptEngine?, entity: Any?, partialTicks: Float) {
-            if (scriptEngine == null || isScriptDisabled(scriptEngine)) return
+            if (scriptEngine == null || isScriptDisabled(scriptEngine, SCRIPT_PHASE_UPDATE)) return
             if (scriptEngine is Invocable) {
                 try {
                     scriptEngine.invokeFunction("update", entity, partialTicks)
+                    noteScriptSuccess(scriptEngine, "update(entity, partialTicks)")
                     return
                 } catch (ignored: NoSuchMethodException) {
                     // no update function
-                } catch (e: ScriptException) {
-                    disableBrokenScript(scriptEngine, "update(entity, partialTicks)", e)
+                } catch (t: Throwable) {
+                    disableBrokenScript(scriptEngine, "update(entity, partialTicks)", t)
                     return
                 }
                 try {
                     scriptEngine.invokeFunction("update", entity)
+                    noteScriptSuccess(scriptEngine, "update(entity)")
                     return
                 } catch (ignored: NoSuchMethodException) {
                     // no entity-only update function
-                } catch (e: ScriptException) {
-                    disableBrokenScript(scriptEngine, "update(entity)", e)
+                } catch (t: Throwable) {
+                    disableBrokenScript(scriptEngine, "update(entity)", t)
                     return
                 }
                 try {
                     scriptEngine.invokeFunction("update", partialTicks)
+                    noteScriptSuccess(scriptEngine, "update(partialTicks)")
                     return
                 } catch (ignored: NoSuchMethodException) {
                     // no partialTick-only update function
-                } catch (e: ScriptException) {
-                    disableBrokenScript(scriptEngine, "update(partialTicks)", e)
+                } catch (t: Throwable) {
+                    disableBrokenScript(scriptEngine, "update(partialTicks)", t)
                     return
                 }
                 try {
                     scriptEngine.invokeFunction("update")
+                    noteScriptSuccess(scriptEngine, "update()")
                     return
                 } catch (ignored: NoSuchMethodException) {
                     // no zero-arg update function
-                } catch (e: ScriptException) {
-                    disableBrokenScript(scriptEngine, "update()", e)
+                } catch (t: Throwable) {
+                    disableBrokenScript(scriptEngine, "update()", t)
                     return
                 }
             }
             try {
                 scriptEngine.eval("if (typeof update === 'function') update();")
-            } catch (e: ScriptException) {
-                disableBrokenScript(scriptEngine, "update() fallback", e)
+                noteScriptSuccess(scriptEngine, "update() fallback")
+            } catch (t: Throwable) {
+                disableBrokenScript(scriptEngine, "update() fallback", t)
             }
         }
 
         @JvmStatic
         fun invokeScriptRender(scriptEngine: ScriptEngine?, entity: Any?, partialTicks: Float) {
-            if (scriptEngine == null || isScriptDisabled(scriptEngine)) return
+            if (scriptEngine == null || isScriptDisabled(scriptEngine, SCRIPT_PHASE_RENDER)) return
             var pass = 0
             val rendererObj = scriptEngine.get("renderer")
             if (rendererObj is ScriptModelRenderer) {
@@ -6552,56 +6604,61 @@ class TrainScriptSystem private constructor() {
             if (scriptEngine is Invocable) {
                 try {
                     scriptEngine.invokeFunction("render", entity, pass, partialTicks)
+                    noteScriptSuccess(scriptEngine, "render(entity, pass, partialTicks)")
                     return
                 } catch (ignored: NoSuchMethodException) {
                     // no 3-arg render function
-                } catch (e: ScriptException) {
-                    disableBrokenScript(scriptEngine, "render(entity, pass, partialTicks)", e)
+                } catch (t: Throwable) {
+                    disableBrokenScript(scriptEngine, "render(entity, pass, partialTicks)", t)
                     return
                 }
                 try {
                     scriptEngine.invokeFunction("render", entity, partialTicks)
+                    noteScriptSuccess(scriptEngine, "render(entity, partialTicks)")
                     return
                 } catch (ignored: NoSuchMethodException) {
                     // no 2-arg render function
-                } catch (e: ScriptException) {
-                    disableBrokenScript(scriptEngine, "render(entity, partialTicks)", e)
+                } catch (t: Throwable) {
+                    disableBrokenScript(scriptEngine, "render(entity, partialTicks)", t)
                     return
                 }
                 try {
                     scriptEngine.invokeFunction("render", entity)
+                    noteScriptSuccess(scriptEngine, "render(entity)")
                     return
                 } catch (ignored: NoSuchMethodException) {
                     // no entity-only render function
-                } catch (e: ScriptException) {
-                    disableBrokenScript(scriptEngine, "render(entity)", e)
+                } catch (t: Throwable) {
+                    disableBrokenScript(scriptEngine, "render(entity)", t)
                     return
                 }
                 try {
                     scriptEngine.invokeFunction("render", partialTicks)
+                    noteScriptSuccess(scriptEngine, "render(partialTicks)")
                     return
                 } catch (ignored: NoSuchMethodException) {
                     // no partialTick-only render function
-                } catch (e: ScriptException) {
-                    disableBrokenScript(scriptEngine, "render(partialTicks)", e)
+                } catch (t: Throwable) {
+                    disableBrokenScript(scriptEngine, "render(partialTicks)", t)
                     return
                 }
                 try {
                     scriptEngine.invokeFunction("render")
+                    noteScriptSuccess(scriptEngine, "render()")
                     return
                 } catch (ignored: NoSuchMethodException) {
                     // no zero-arg render function
-                } catch (e: ScriptException) {
-                    disableBrokenScript(scriptEngine, "render()", e)
+                } catch (t: Throwable) {
+                    disableBrokenScript(scriptEngine, "render()", t)
                     return
                 }
             }
             try {
                 scriptEngine.eval("if (typeof render === 'function') render();")
-            } catch (e: ScriptException) {
-                disableBrokenScript(scriptEngine, "render() fallback", e)
+                noteScriptSuccess(scriptEngine, "render() fallback")
+            } catch (t: Throwable) {
+                disableBrokenScript(scriptEngine, "render() fallback", t)
             }
         }
     }
 }
-

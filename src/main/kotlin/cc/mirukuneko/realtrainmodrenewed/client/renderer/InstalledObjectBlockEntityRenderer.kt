@@ -149,6 +149,7 @@ open class InstalledObjectBlockEntityRenderer(
                     val scriptedInstalledObjectAnimation =
                         model.hasRenderScript() &&
                             (blockEntity.category == InstalledObjectCategory.CROSSING || ticketGateRendering)
+                    val blockDetectionScript = model.hasBlockDetectionScript()
                     val fallbackTicketGateRendering = ticketGateRendering && !scriptedInstalledObjectAnimation
                     val transformModel = model
                     val transform: MqoModelLoader.GroupTransform? = if (customCrossingGateRendering) {
@@ -161,7 +162,7 @@ open class InstalledObjectBlockEntityRenderer(
                     if (!customCrossingGateRendering &&
                         !fallbackTicketGateRendering &&
                         definition.scriptPath.isNotBlank() &&
-                        (scriptedInstalledObjectAnimation || !veryFar && !compatibilityHeavy)
+                        (blockDetectionScript || scriptedInstalledObjectAnimation || !veryFar && !compatibilityHeavy)
                     ) {
                         MqoModelLoader.renderModelPreferScript(model, poseStack, buffer, packedLight, blockEntity)
                     } else {
@@ -174,7 +175,7 @@ open class InstalledObjectBlockEntityRenderer(
                             blockEntity,
                             definition,
                             customCrossingGateRendering,
-                            scriptedInstalledObjectAnimation,
+                            scriptedInstalledObjectAnimation || blockDetectionScript,
                         )
                     ) {
                         renderActiveLights(blockEntity, definition, poseStack, buffer, packedOverlay)

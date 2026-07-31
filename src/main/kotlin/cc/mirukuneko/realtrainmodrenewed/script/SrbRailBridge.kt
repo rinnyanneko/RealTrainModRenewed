@@ -13,9 +13,11 @@ import cc.mirukuneko.realtrainmodrenewed.compat.LegacyItemStackBridge
 import cc.mirukuneko.realtrainmodrenewed.entity.CarEntity
 import cc.mirukuneko.realtrainmodrenewed.item.RailItem
 import cc.mirukuneko.realtrainmodrenewed.rail.util.RailPosition
+import cc.mirukuneko.realtrainmodrenewed.rail.util.RailPositionContainers
 import net.minecraft.core.BlockPos
 import net.minecraft.network.chat.Component
 import net.minecraft.world.entity.player.Player
+import jp.ngt.mccompat.PlayerCompat
 import net.minecraft.world.level.Level
 import net.minecraft.world.level.block.Block
 import net.minecraft.world.level.block.Blocks
@@ -75,12 +77,13 @@ class SrbRailBridge {
         return ok
     }
 
-    fun buildBranchRail(world: Any?, rpsRaw: List<*>?, modelId: Any?): Boolean {
+    fun buildBranchRail(world: Any?, rpsRaw: Any?, modelId: Any?): Boolean {
         val level = toLevel(world)
-        if (level == null || rpsRaw == null || rpsRaw.size < 2) return false
-        val rps = rpsRaw.filterIsInstance<RailPosition>()
+        if (level == null || rpsRaw == null) return false
+        val rps = RailPositionContainers.collect(rpsRaw)
+        if (rps.size < 2) return false
         val car = toCar(world) ?: return false
-        if (rps.size != rpsRaw.size || !canEditRail(car, rps)) return false
+        if (!canEditRail(car, rps)) return false
         return MarkerBlock.buildRailForScript(level, rps, toModelId(modelId), canEdit = car::canScriptEditAt)
     }
 
@@ -119,7 +122,7 @@ class SrbRailBridge {
     }
 
     fun heldRailModelId(playerObj: Any?): String {
-        val player = playerObj as? Player ?: return ""
+        val player = PlayerCompat.unwrap(playerObj) ?: playerObj as? Player ?: return ""
         val main = player.mainHandItem
         if (main.item is RailItem) {
             return LegacyItemStackBridge.getSelectedModelId(main)
@@ -132,7 +135,7 @@ class SrbRailBridge {
     }
 
     fun chat(playerObj: Any?, msg: String?) {
-        val player = playerObj as? Player ?: return
+        val player = PlayerCompat.unwrap(playerObj) ?: playerObj as? Player ?: return
         if (msg == null) return
         try {
             player.sendSystemMessage(Component.literal(msg))

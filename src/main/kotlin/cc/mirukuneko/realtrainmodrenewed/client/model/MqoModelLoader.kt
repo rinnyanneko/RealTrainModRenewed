@@ -645,6 +645,11 @@ object MqoModelLoader {
                 if (lowerModelFile.endsWith(".obj")) {
                     return bakeObj(readText(modelResource), opener, textureOverrides, smoothing)
                 }
+                if (NgtoModelGeometry.isNgto(lowerModelFile)) {
+                    openResource(modelResource).use { input ->
+                        return input?.let { NgtoModelGeometry.build(it.readAllBytes(), lowerModelFile) }
+                    }
+                }
                 val text = if (lowerModelFile.endsWith(".mqoz"))
                     readCompressedMqo(modelResource)
                 else
@@ -687,6 +692,11 @@ object MqoModelLoader {
                 }
                 if (lowerModelFile.endsWith(".obj")) {
                     return bakeObj(readText(modelResource), opener, textureOverrides, smoothing)
+                }
+                if (NgtoModelGeometry.isNgto(lowerModelFile)) {
+                    openResource(modelResource).use { input ->
+                        return input?.let { NgtoModelGeometry.build(it.readAllBytes(), lowerModelFile) }
+                    }
                 }
                 val text = if (lowerModelFile.endsWith(".mqoz"))
                     readCompressedMqo(modelResource)
@@ -874,7 +884,8 @@ object MqoModelLoader {
 
     private fun looksLikeModelPath(norm: String): Boolean {
         val lower = norm.lowercase()
-        return lower.endsWith(".mqo") || lower.endsWith(".mqoz") || lower.endsWith(".obj") || lower.endsWith(".ngto")
+        return lower.endsWith(".mqo") || lower.endsWith(".mqoz") || lower.endsWith(".obj") ||
+            lower.endsWith(".ngto") || lower.endsWith(".ngtz")
     }
 
     private fun looksLikeScriptPath(norm: String): Boolean {
@@ -3782,6 +3793,7 @@ object MqoModelLoader {
         private var hasLegacyRenderFunction: Boolean? = null
         private var legacyScriptDisabled = false
         private var legacyScriptFailureCount = 0
+        private var blockDetectionScript = false
         private val observedLegacyPassActivity = BooleanArray(LEGACY_SCRIPT_PASS_COUNT)
         private var legacyPassObservationMask = 0
 
@@ -3812,6 +3824,12 @@ object MqoModelLoader {
         fun hasRenderScript(): Boolean {
             return scriptEngine != null && !legacyScriptDisabled
         }
+
+        fun setBlockDetectionScript(value: Boolean) {
+            blockDetectionScript = value
+        }
+
+        fun hasBlockDetectionScript(): Boolean = blockDetectionScript && hasRenderScript()
 
         /** AABB {minX,minY,minZ,maxX,maxY,maxZ} を全頂点から計算。モデルが空なら単位ボックス。  */
         fun computeBounds(): FloatArray {

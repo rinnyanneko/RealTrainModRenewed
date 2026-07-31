@@ -22,6 +22,7 @@ import cc.mirukuneko.realtrainmodrenewed.rail.RailRegistry
 import cc.mirukuneko.realtrainmodrenewed.rail.util.RailMap
 import cc.mirukuneko.realtrainmodrenewed.rail.util.RailMapBasic
 import cc.mirukuneko.realtrainmodrenewed.rail.util.RailMaker
+import cc.mirukuneko.realtrainmodrenewed.rail.util.MarkerSearch
 import cc.mirukuneko.realtrainmodrenewed.rail.util.RailPosition
 import cc.mirukuneko.realtrainmodrenewed.rail.util.RailProperties
 import cc.mirukuneko.realtrainmodrenewed.rail.util.SwitchType
@@ -52,7 +53,6 @@ import net.minecraft.world.phys.BlockHitResult
 import net.minecraft.world.phys.shapes.CollisionContext
 import net.minecraft.world.phys.shapes.Shapes
 import net.minecraft.world.phys.shapes.VoxelShape
-import kotlin.math.abs
 
 class MarkerBlock(val isSwitch: Boolean, properties: BlockBehaviour.Properties) : BaseEntityBlock(properties) {
     companion object {
@@ -64,9 +64,6 @@ class MarkerBlock(val isSwitch: Boolean, properties: BlockBehaviour.Properties) 
         }
         val FACING: IntegerProperty = IntegerProperty.create("facing", 0, 7)
         private val SHAPE: VoxelShape = box(0.0, 0.0, 0.0, 16.0, 2.0, 16.0)
-        const val SEARCH_DISTANCE = 80
-        const val SEARCH_HEIGHT = 10
-
         @JvmStatic fun computeFacing(player: Player): Int = computeFacing(player, false)
         @JvmStatic fun computeFacing(player: Player, diagonal: Boolean): Int {
             val yaw = Mth.positiveModulo(player.yRot + 180f, 360f)
@@ -330,22 +327,16 @@ class MarkerBlock(val isSwitch: Boolean, properties: BlockBehaviour.Properties) 
     }
 
     fun searchAllMarkers(level: Level, pos: BlockPos): List<RailPosition> {
-        val found = LinkedHashSet<RailPosition>()
-        val queue = ArrayDeque<BlockPos>(); queue.add(pos)
-        val visited = HashSet<BlockPos>(); visited.add(pos)
-        while (queue.isNotEmpty()) {
-            val cur = queue.removeFirst()
-            val be = level.getBlockEntity(cur)
-            if (be is MarkerBlockEntity) {
-                val rp = be.markerRP
-                if (rp != null && rp.posX.let { it * it } + rp.posZ.let { it * it } > 0.001) found.add(rp)
-            }
-            for (dx in -SEARCH_DISTANCE..SEARCH_DISTANCE) for (dy in -SEARCH_HEIGHT..SEARCH_HEIGHT) for (dz in -SEARCH_DISTANCE..SEARCH_DISTANCE) {
-                if (abs(dx) > SEARCH_DISTANCE || abs(dz) > SEARCH_DISTANCE) continue
-                val np = cur.offset(dx, dy, dz); if (visited.add(np) && level.getBlockEntity(np) is MarkerBlockEntity) queue.add(np)
-            }
+        val found = ArrayList<RailPosition>()
+        MarkerSearch.forEachInRange(level, pos) { _, marker ->
+            marker.markerRP?.let(found::add)
         }
-        return found.toList()
+        found.sortWith(
+            compareByDescending<RailPosition> { it.switchType }
+                .thenBy { it.blockY }
+                .thenBy { it.hashCode() }
+        )
+        return found
     }
 
     override fun <T : BlockEntity> getTicker(level: Level, state: BlockState, type: BlockEntityType<T>): BlockEntityTicker<T>? = null
