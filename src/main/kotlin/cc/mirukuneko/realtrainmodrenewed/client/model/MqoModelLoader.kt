@@ -163,6 +163,29 @@ object MqoModelLoader {
                     .createRenderSetup()
                 RenderType.create("rtmr_train_entity_translucent_no_depth", state)
             })
+    private val TRAIN_ENTITY_TRANSLUCENT_NO_DEPTH_CULL_PIPELINE =
+        RenderPipeline.builder(RenderPipelines.ENTITY_SNIPPET)
+            .withLocation("pipeline/rtmr_train_entity_translucent_no_depth_cull")
+            .withShaderDefine("ALPHA_CUTOUT", 0.1f)
+            .withShaderDefine("PER_FACE_LIGHTING")
+            .withSampler("Sampler1")
+            .withColorTargetState(ColorTargetState(BlendFunction.TRANSLUCENT))
+            .withCull(true)
+            .withDepthStencilState(DepthStencilState(CompareOp.LESS_THAN_OR_EQUAL, false))
+            .build()
+    private val TRAIN_ENTITY_TRANSLUCENT_NO_DEPTH_CULL: Function<Identifier, RenderType> =
+        Util.memoize(
+            Function<Identifier, RenderType> { texture ->
+                val state = RenderSetup.builder(TRAIN_ENTITY_TRANSLUCENT_NO_DEPTH_CULL_PIPELINE)
+                    .withTexture("Sampler0", texture)
+                    .useLightmap()
+                    .useOverlay()
+                    .affectsCrumbling()
+                    .sortOnUpload()
+                    .setOutline(RenderSetup.OutlineProperty.AFFECTS_OUTLINE)
+                    .createRenderSetup()
+                RenderType.create("rtmr_train_entity_translucent_no_depth_cull", state)
+            })
     private val MODEL_CACHE_LOCK = Any()
     private val MODEL_CACHE = LinkedHashMap<String?, CachedModel?>(64, 0.75f, true)
     private val FAILED_MODEL_KEYS: MutableSet<String> = ConcurrentHashMap.newKeySet<String>()
@@ -170,6 +193,7 @@ object MqoModelLoader {
     private val TEXTURE_INFO_CACHE: MutableMap<String, TextureInfo> = ConcurrentHashMap<String, TextureInfo>()
     private val SCRIPT_TEXTURE_CACHE: MutableMap<String?, ScriptTextureData> =
         ConcurrentHashMap<String?, ScriptTextureData>()
+    private val PARTIAL_ALPHA_SCRIPT_TEXTURES: MutableSet<Identifier> = ConcurrentHashMap.newKeySet()
     private val RESOURCE_SEARCH_CACHE: MutableMap<String?, ResourceSearchResult?> =
         ConcurrentHashMap<String?, ResourceSearchResult?>()
     private val MISSING_SCRIPT_WARNINGS: MutableSet<String> = ConcurrentHashMap.newKeySet<String>()
@@ -265,6 +289,7 @@ object MqoModelLoader {
         SOUND_SCRIPT_SOURCE_CACHE.clear()
         TEXTURE_INFO_CACHE.clear()
         SCRIPT_TEXTURE_CACHE.clear()
+        PARTIAL_ALPHA_SCRIPT_TEXTURES.clear()
         AnimatedGifTextureCache.clear()
         RESOURCE_SEARCH_CACHE.clear()
         MISSING_SCRIPT_WARNINGS.clear()
@@ -2558,7 +2583,7 @@ object MqoModelLoader {
             for (x in 0..<w) {
                 val p = img.getPixel(x, y)
                 val a = (p ushr 24) and 0xFF
-                val na = if (a > 0x00 && a < 0xE0) a else 0x00
+                val na = if (a > 0x00 && a < 0xF0) a else 0x00
                 dst.setPixel(x, y, (p and 0x00FFFFFF) or (na shl 24))
             }
         }
@@ -3108,7 +3133,11 @@ object MqoModelLoader {
         }
         val safe = Integer.toHexString((domain + ":" + path + "#" + frame).hashCode())
         val loc = Identifier.fromNamespaceAndPath(RealTrainModRenewed.MODID, "dynamic/script/" + safe)
+        val partialAlpha = hasPartialAlpha(nativeImage)
         Minecraft.getInstance().getTextureManager().register(loc, newDynamicTexture("script texture", nativeImage))
+        if (partialAlpha) {
+            PARTIAL_ALPHA_SCRIPT_TEXTURES.add(loc)
+        }
         return loc
     }
 
@@ -4322,6 +4351,9 @@ object MqoModelLoader {
                 }
                 val scriptPassNow = legacyLightTextureIndex?.plus(2)
                     ?: if (scriptRenderer != null) scriptRenderer.currentPass else 0
+                val boundScriptTexture = scriptRenderer?.boundTexture
+                val scriptTextureHasPartialAlpha = boundScriptTexture != null &&
+                        PARTIAL_ALPHA_SCRIPT_TEXTURES.contains(boundScriptTexture)
                 if (!translucent && batch.baseAlpha < 0.999f && scriptPassNow < 2) continue
                 if (!translucent && batch.explicitGlassOnly && scriptPassNow < 2) continue
                 if (translucent && !batch.translucent && scriptPassNow < 2) continue
@@ -4383,8 +4415,13 @@ object MqoModelLoader {
                                 || shouldForceShaderSafeCutout(entity, batch, lowerGroupName, false)
                         depthBias = batch.cachedDepthBiasNoScriptTex
                     }
-                    val needsBlend = (translucent && batch.translucent)
-                            || (!forceCutout && (scriptTexture || scriptPassNow >= 2))
+                    // Legacy packs may submit a partially-alpha bound texture only in pass 0. Keep that path
+                    // blended; only a texture proven opaque can safely switch to cutout/depth-write.
+                    val needsBlend = (translucent && batch.translucent) ||
+                            (!forceCutout && (
+                                    (scriptTexture && (scriptPass != 0 || scriptTextureHasPartialAlpha)) ||
+                                            scriptPassNow >= 2
+                                    ))
 
                     val scriptRed = if (scriptRenderer != null) scriptRenderer.colorRed255 else 255
                     val scriptGreen = if (scriptRenderer != null) scriptRenderer.colorGreen255 else 255
@@ -4397,10 +4434,12 @@ object MqoModelLoader {
 
                     // Lightmap-aware path: block entities (rails, installed objects)
                     // メタセコイア同様の片面 (cull) 表示。
-                    val renderType = if (needsBlend)
-                        TRAIN_ENTITY_TRANSLUCENT_NO_DEPTH.apply(texture)
-                    else
-                        (if (useCull) RenderTypes.entityCutout(texture) else RenderTypes.entityCutout(texture))
+                    val renderType = if (needsBlend) {
+                        if (useCull) TRAIN_ENTITY_TRANSLUCENT_NO_DEPTH_CULL.apply(texture)
+                        else TRAIN_ENTITY_TRANSLUCENT_NO_DEPTH.apply(texture)
+                    } else {
+                        if (useCull) RenderTypes.entityCutoutCull(texture) else RenderTypes.entityCutout(texture)
+                    }
                     val consumer = buffer.getBuffer(renderType)
                     val pose = poseStack.last()
                     val mat = pose.pose()
