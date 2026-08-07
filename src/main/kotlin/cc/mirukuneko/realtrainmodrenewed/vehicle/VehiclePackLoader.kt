@@ -238,6 +238,7 @@ object VehiclePackLoader {
             val leftDoors = parseDoorAnimations(obj, trainModel, "door_left")
             val rightDoors = parseDoorAnimations(obj, trainModel, "door_right")
             val notchMaxSpeeds = parseFloatList(obj, trainModel, "maxSpeed")
+            val notchAccelerations = parseFloatList(obj, trainModel, "accelerateions")
             val brakeDecelerations = parseFloatList(obj, trainModel, "deccelerations")
             val rollsignNames = parseStringList(obj, trainModel, "rollsignNames")
             val customButtonNames = parseCustomButtonNames(obj, trainModel)
@@ -257,6 +258,10 @@ object VehiclePackLoader {
             val announcementSounds = parseAnnouncementSounds(obj, trainModel)
             val acceleration = parseFloat(trainModel, "acceleration", parseFloat(trainModel, "accelerateion",
                 parseFloat(obj, "acceleration", parseFloat(obj, "accelerateion", 0.00243F))))
+            val useVariableAcceleration = parseBoolean(trainModel, "useVariableAcceleration",
+                parseBoolean(obj, "useVariableAcceleration", false))
+            val useVariableDeceleration = parseBoolean(trainModel, "useVariableDeceleration",
+                parseBoolean(obj, "useVariableDeceleration", false))
             val smoothing = parseBoolean(trainModel, "smoothing", parseBoolean(obj, "smoothing", false))
             val doCulling = parseBoolean(trainModel, "doCulling", parseBoolean(obj, "doCulling", false))
             val renderLight = headLights.isNotEmpty() || tailLights.isNotEmpty() || interiorLights.isNotEmpty()
@@ -284,6 +289,9 @@ object VehiclePackLoader {
             def.setServerScriptPath(firstNonBlank(getString(trainModel, "serverScriptPath"), getString(obj, "serverScriptPath")))
             def.setAnnouncementNames(parseAnnouncementNames(obj, trainModel))
             def.setTypeSign(typeSignNames, typeSignTexture, typeSigns)
+            def.notchAccelerations = notchAccelerations
+            def.useVariableAcceleration = useVariableAcceleration
+            def.useVariableDeceleration = useVariableDeceleration
 
             LOADED.add(def)
         } catch (e: Exception) { RealTrainModRenewed.LOGGER.warn("Failed to parse vehicle json {}: {}", path, e.message) }

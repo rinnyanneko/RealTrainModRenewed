@@ -124,7 +124,20 @@ class InstalledObjectBlockEntity(pos: BlockPos, state: BlockState) :
     fun setRenderOffset(x: Double, y: Double, z: Double) { offsetX = x; offsetY = y; offsetZ = z; setChanged() }
     fun setWireEndpoints(start: BlockPos?, end: BlockPos?) { wireStart = start; wireEnd = end; setChanged() }
     fun setSignalChannel(ch: Int, updateClient: Boolean) { signalChannel = ch; setChanged(); if (updateClient && level != null) level!!.sendBlockUpdated(worldPosition, blockState, blockState, 3) }
-    fun setSignalAspect(aspect: SignalAspect?, updateClient: Boolean) { signalAspect = aspect?.id ?: SignalAspect.STOP.id; setChanged(); if (updateClient && level != null) level!!.sendBlockUpdated(worldPosition, blockState, blockState, 3) }
+    fun setSignalAspect(aspect: SignalAspect?, updateClient: Boolean) {
+        var resolved = aspect ?: SignalAspect.STOP
+        if (isSignal) {
+            val maxLevel = getDefinition()?.getMaxSignalLevel() ?: 0
+            if (maxLevel > 0 && resolved.legacyValue > maxLevel) {
+                resolved = SignalAspect.byLegacyValue(maxLevel)
+            }
+        }
+        signalAspect = resolved.id
+        setChanged()
+        if (updateClient && level != null) {
+            level!!.sendBlockUpdated(worldPosition, blockState, blockState, 3)
+        }
+    }
     fun setSpeakerRange(range: Int) { speakerRange = range.coerceIn(1, 256); setChanged(); if (level != null && !level!!.isClientSide) level!!.sendBlockUpdated(blockPos, blockState, blockState, 3) }
     fun activateTicketGate() {
         activateTicketGateAndReport()

@@ -179,6 +179,9 @@ class VehicleDefinition(
     @JvmField var typeSignNames: List<String> = emptyList()
     @JvmField var typeSignTexture: String = ""
     @JvmField var typeSigns: List<RollsignDefinition> = emptyList()
+    @JvmField var notchAccelerations: List<Float> = emptyList()
+    @JvmField var useVariableAcceleration: Boolean = false
+    @JvmField var useVariableDeceleration: Boolean = false
 
     fun getId(): String = id
     fun getDisplayName(): String = displayName
@@ -206,6 +209,9 @@ class VehicleDefinition(
     fun getNotchMaxSpeeds(): List<Float> = notchMaxSpeeds
     fun getBrakeDecelerations(): List<Float> = brakeDecelerations
     fun getAcceleration(): Float = acceleration
+    fun getNotchAccelerations(): List<Float> = notchAccelerations
+    fun isUseVariableAcceleration(): Boolean = useVariableAcceleration
+    fun isUseVariableDeceleration(): Boolean = useVariableDeceleration
     fun isSmoothing(): Boolean = smoothing
     fun getRollsignNames(): List<String> = rollsignNames
     fun getCustomButtonNames(): List<String> = customButtonNames

@@ -928,7 +928,7 @@ class TrainEntity(type: EntityType<*>, level: Level) : Entity(type, level) {
         val def = getById(
             this.vehicleId
         )
-        val accelBase = getConfiguredAcceleration(def)
+        val accelBase = getConfiguredAcceleration(def, notch)
 
         if (notch > 0) {
             if (this.reverser == 0) {
@@ -941,7 +941,13 @@ class TrainEntity(type: EntityType<*>, level: Level) : Entity(type, level) {
                 return speed
             }
             // 力行: JSON の acceleration は P5 の基準加速度として扱う。
-            val notchFactor = notch / getMaxPowerNotch(def).toFloat()
+            // accelerateions already contains a per-notch value; applying the generic notch factor again
+            // would make low-notch acceleration too weak compared with the pack definition.
+            val notchFactor = if (def?.getNotchAccelerations()?.isNotEmpty() == true) {
+                1.0f
+            } else {
+                notch / getMaxPowerNotch(def).toFloat()
+            }
             val tractionCurve = 1.0f - speedRatio.toDouble().pow(3.0).toFloat()
             val accelCurve = accelBase * (0.35f + notchFactor * 0.65f) * tractionCurve
             val next = speed + max(0.0f, accelCurve)
@@ -980,7 +986,14 @@ class TrainEntity(type: EntityType<*>, level: Level) : Entity(type, level) {
         return MAX_SPEED
     }
 
-    private fun getConfiguredAcceleration(def: VehicleDefinition?): Float {
+    private fun getConfiguredAcceleration(def: VehicleDefinition?, notch: Int): Float {
+        if (def != null && notch > 0 && def.getNotchAccelerations().isNotEmpty()) {
+            val index = Mth.clamp(notch - 1, 0, def.getNotchAccelerations().size - 1)
+            val configured = abs(def.getNotchAccelerations()[index])
+            if (configured > 0.0f) {
+                return Mth.clamp(configured, 0.0002f, 0.0060f)
+            }
+        }
         if (def != null && def.getAcceleration() > 0.0f) {
             return Mth.clamp(def.getAcceleration(), 0.0002f, 0.0060f)
         }
@@ -5797,17 +5810,26 @@ class TrainEntity(type: EntityType<*>, level: Level) : Entity(type, level) {
 
     class ConfigCompat private constructor(name: String?, definition: VehicleDefinition?) {
         // Legacy cab scripts inspect the array length to know the brake notch count.
-        val deccelerations: FloatArray = floatArrayOf(
-            0.0f, 0.1f, 0.2f, 0.35f, 0.5f, 0.7f, 0.9f, 1.1f, 1.3f
-        )
+        val deccelerations: FloatArray = definition?.getBrakeDecelerations()
+            ?.takeIf { it.isNotEmpty() }
+            ?.toFloatArray()
+            ?: floatArrayOf(0.0f, 0.1f, 0.2f, 0.35f, 0.5f, 0.7f, 0.9f, 1.1f, 1.3f)
 
         // Legacy cab/monitor scripts read maxSpeed as an array of per-notch top speeds
         // (e.g. CustomMonitor_JRE1: config.maxSpeed[config.maxSpeed.length-1]*72). Must be
         // non-null with at least one element or scripts crash on undefined.length.
         // 値は blocks/tick 相当(末尾要素 1.1 ≈ 約79km/h)。実速度はエンジン側で決まるので表示用の上限。
-        val maxSpeed: FloatArray = floatArrayOf(
-            0.0f, 0.22f, 0.44f, 0.66f, 0.88f, 1.1f
-        )
+        val maxSpeed: FloatArray = definition?.getNotchMaxSpeeds()
+            ?.takeIf { it.isNotEmpty() }
+            ?.toFloatArray()
+            ?: floatArrayOf(0.0f, 0.22f, 0.44f, 0.66f, 0.88f, 1.1f)
+        val accelerateion: Float = definition?.getAcceleration()?.takeIf { it > 0.0f } ?: 0.001736f
+        val accelerateions: FloatArray = definition?.getNotchAccelerations()
+            ?.takeIf { it.isNotEmpty() }
+            ?.toFloatArray()
+            ?: FloatArray(maxSpeed.size) { accelerateion }
+        val useVariableAcceleration: Boolean = definition?.isUseVariableAcceleration() ?: false
+        val useVariableDeceleration: Boolean = definition?.isUseVariableDeceleration() ?: false
         val rollsignNames: Array<String?>?
         val customButtons: Array<String?>
         val customButtonNames: Array<String?>

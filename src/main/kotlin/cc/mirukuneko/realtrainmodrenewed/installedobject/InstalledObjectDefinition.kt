@@ -69,6 +69,19 @@ class InstalledObjectDefinition(
     fun getSignFrame(): Int = signFrame
     fun getBackTexture(): Int = backTexture
 
+    private var configuredMaxSignalLevel: Int = -1
+
+    /** Legacy SignalConfig.maxSignalLevel, derived from S(n) light groups when omitted. */
+    fun getMaxSignalLevel(): Int = if (configuredMaxSignalLevel >= 0) {
+        configuredMaxSignalLevel
+    } else {
+        signalLightGroups.keys.maxOrNull()?.coerceAtLeast(0) ?: 0
+    }
+
+    fun setMaxSignalLevel(level: Int) {
+        configuredMaxSignalLevel = level
+    }
+
     var wireAttachPos: Vec3 = Vec3.ZERO
         private set
 

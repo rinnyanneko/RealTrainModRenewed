@@ -203,6 +203,7 @@ object InstalledObjectPackLoader {
             val signTexture = firstNonBlank(getString(obj, "signTexture"), model?.let { getString(it, "signTexture") })
             val emissiveTexture = firstNonBlank(getString(obj, "emissiveTexture"), model?.let { getString(it, "emissiveTexture") })
             val signalLights = parseSignalLights(obj)
+            val maxSignalLevel = getInt(obj, "maxSignalLevel", model?.let { getInt(it, "maxSignalLevel", -1) } ?: -1)
             val renderObjects = parseRenderObjects(obj, model, modelPartsBody)
             val signFrame = getInt(obj, "signFrame", 1)
             val backTexture = getInt(obj, "backTexture", 1)
@@ -221,6 +222,7 @@ object InstalledObjectPackLoader {
                 width, height, depth, signTexture ?: "", emissiveTexture ?: "",
                 runningSound ?: "", signalLights, renderObjects, scriptBodyPos, signFrame, backTexture)
             def.activationSound = activationSound ?: ""
+            def.setMaxSignalLevel(maxSignalLevel)
             def.setWireParams(wireSectionLength, wireDeflection)
             def.setWireAttachPos(wireAttachPos)
             LOADED.add(def)
