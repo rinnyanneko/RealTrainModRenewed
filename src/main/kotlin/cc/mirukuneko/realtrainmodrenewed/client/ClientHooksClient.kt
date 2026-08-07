@@ -10,6 +10,7 @@ import cc.mirukuneko.realtrainmodrenewed.client.screen.SignalReceiverScreen
 import cc.mirukuneko.realtrainmodrenewed.client.screen.SignalValueScreen
 import cc.mirukuneko.realtrainmodrenewed.client.screen.SpeakerScreen
 import cc.mirukuneko.realtrainmodrenewed.client.screen.TrainDetectorScreen
+import cc.mirukuneko.realtrainmodrenewed.client.screen.SignalConverterScreen
 import cc.mirukuneko.realtrainmodrenewed.client.sound.CrossingGateSoundManager
 import cc.mirukuneko.realtrainmodrenewed.installedobject.InstalledObjectCategory
 import cc.mirukuneko.realtrainmodrenewed.item.TrainItem
@@ -69,6 +70,11 @@ object ClientHooksClient {
     @JvmStatic
     fun openTrainDetectorScreen(pos: BlockPos) {
         Minecraft.getInstance().setScreen(TrainDetectorScreen(pos))
+    }
+
+    @JvmStatic
+    fun openSignalConverterScreen(pos: BlockPos) {
+        Minecraft.getInstance().setScreen(SignalConverterScreen(pos))
     }
 
     @JvmStatic

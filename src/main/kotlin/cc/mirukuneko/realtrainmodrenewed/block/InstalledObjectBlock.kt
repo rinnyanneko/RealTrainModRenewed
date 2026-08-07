@@ -13,6 +13,7 @@ import cc.mirukuneko.realtrainmodrenewed.blockentity.InstalledObjectBlockEntity
 import cc.mirukuneko.realtrainmodrenewed.installedobject.InstalledObjectCategory
 import cc.mirukuneko.realtrainmodrenewed.installedobject.InstalledObjectRegistry
 import cc.mirukuneko.realtrainmodrenewed.signal.SignalNetworkSavedData
+import cc.mirukuneko.realtrainmodrenewed.electric.ElectricSignalNetwork
 import net.minecraft.core.BlockPos
 import net.minecraft.server.level.ServerLevel
 import net.minecraft.server.level.ServerPlayer
@@ -59,15 +60,8 @@ class InstalledObjectBlock : BaseEntityBlock {
 
         private fun removeAttachedWires(level: Level, pos: BlockPos) {
             val be = level.getBlockEntity(pos)
-            if (be !is InstalledObjectBlockEntity || be.category != InstalledObjectCategory.WIRE) return
-            for (dx in -64..64) for (dy in -64..64) for (dz in -64..64) {
-                val checkPos = pos.offset(dx, dy, dz)
-                val checkBe = level.getBlockEntity(checkPos)
-                if (checkBe is InstalledObjectBlockEntity) {
-                    val s = checkBe.wireStart; val e = checkBe.wireEnd
-                    if (pos == s || pos == e) level.removeBlock(checkPos, false)
-                }
-            }
+            if (be !is InstalledObjectBlockEntity || be.category == InstalledObjectCategory.WIRE) return
+            ElectricSignalNetwork.removeWiresAtEndpoint(level, pos)
         }
 
         private fun playTicketGateSound(level: ServerLevel, pos: BlockPos, be: InstalledObjectBlockEntity) {

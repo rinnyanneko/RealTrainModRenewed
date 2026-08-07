@@ -30,6 +30,8 @@ object RealTrainModRenewedBlockEntities {
         BLOCK_ENTITY_TYPES.register("train_detector", Supplier { BlockEntityType(::TrainDetectorBlockEntity, RealTrainModRenewedBlocks.TRAIN_DETECTOR.get()) })
     @JvmField val SIGNAL_STATE: DeferredHolder<BlockEntityType<*>, BlockEntityType<SignalStateBlockEntity>> =
         BLOCK_ENTITY_TYPES.register("signal_state", Supplier { BlockEntityType(::SignalStateBlockEntity, RealTrainModRenewedBlocks.SIGNAL_STATE.get()) })
+    @JvmField val SIGNAL_CONVERTER: DeferredHolder<BlockEntityType<*>, BlockEntityType<SignalConverterBlockEntity>> =
+        BLOCK_ENTITY_TYPES.register("signal_converter", Supplier { BlockEntityType(::SignalConverterBlockEntity, RealTrainModRenewedBlocks.SIGNAL_CONVERTER.get()) })
     @JvmField val SCRIPT_BLOCK: DeferredHolder<BlockEntityType<*>, BlockEntityType<ScriptBlockEntity>> =
         BLOCK_ENTITY_TYPES.register("script_block", Supplier { BlockEntityType(::ScriptBlockEntity, RealTrainModRenewedBlocks.SCRIPT_BLOCK.get()) })
 }

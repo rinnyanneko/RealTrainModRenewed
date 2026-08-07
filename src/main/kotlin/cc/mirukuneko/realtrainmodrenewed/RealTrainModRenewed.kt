@@ -110,6 +110,9 @@ open class RealTrainModRenewed(
             event.accept(RealTrainModRenewedItems.CROSSING_GATE_ITEM.get())
             event.accept(RealTrainModRenewedItems.SIGNAL_ITEM.get())
             event.accept(RealTrainModRenewedItems.SPEAKER_ITEM.get())
+            event.accept(RealTrainModRenewedItems.TRAIN_DETECTOR_ITEM.get())
+            event.accept(RealTrainModRenewedItems.SIGNAL_CONVERTER_ITEM.get())
+            event.accept(RealTrainModRenewedItems.SIGNAL_CONVERTER_RS_ITEM.get())
         }
     }
 
@@ -138,6 +141,16 @@ open class RealTrainModRenewed(
                             output.accept(RealTrainModRenewedItems.IC_CARD_ITEM.get())
                             output.accept(RealTrainModRenewedItems.RAIL_ITEM.get())
                             output.accept(RealTrainModRenewedItems.WIRE_ITEM.get())
+                            output.accept(RealTrainModRenewedItems.SIGNAL_CONVERTER_ITEM.get())
+                            output.accept(RealTrainModRenewedItems.SIGNAL_CONVERTER_RS_ITEM.get())
+                            output.accept(RealTrainModRenewedItems.SIGNAL_CONVERTER_INCREMENT_ITEM.get())
+                            output.accept(RealTrainModRenewedItems.SIGNAL_CONVERTER_DECREMENT_ITEM.get())
+                            output.accept(RealTrainModRenewedItems.SIGNAL_CONVERTER_WIRELESS_ITEM.get())
+                            output.accept(RealTrainModRenewedItems.SIGNAL_RECEIVER_ITEM.get())
+                            output.accept(RealTrainModRenewedItems.SIGNAL_CHANGER_ITEM.get())
+                            output.accept(RealTrainModRenewedItems.SIGNAL_VALUE_RECEIVER_ITEM.get())
+                            output.accept(RealTrainModRenewedItems.TRAIN_DETECTOR_ITEM.get())
+                            output.accept(RealTrainModRenewedItems.SIGNAL_STATE_ITEM.get())
                             output.accept(RealTrainModRenewedItems.CROWBAR_ITEM.get())
                             output.accept(RealTrainModRenewedItems.WRENCH_ITEM.get())
                             output.accept(RealTrainModRenewedItems.CROSSING_GATE_ITEM.get())
@@ -151,6 +164,7 @@ open class RealTrainModRenewed(
                             output.accept(RealTrainModRenewedItems.OVERHEAD_LINE_POLE_ITEM.get())
                             output.accept(RealTrainModRenewedItems.TICKET_GATE_ITEM.get())
                             output.accept(RealTrainModRenewedItems.SPEAKER_ITEM.get())
+                            output.accept(RealTrainModRenewedItems.SCRIPT_BLOCK_ITEM.get())
                         }
                         .build()
                 },

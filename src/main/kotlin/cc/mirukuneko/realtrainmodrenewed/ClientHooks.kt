@@ -76,6 +76,11 @@ object ClientHooks {
     }
 
     @JvmStatic
+    fun openSignalConverterScreen(pos: BlockPos) {
+        invokeClient("openSignalConverterScreen", arrayOf(BlockPos::class.java), pos)
+    }
+
+    @JvmStatic
     fun openMarkerConfigScreen(pos: BlockPos) {
         invokeClient("openMarkerConfigScreen", arrayOf(BlockPos::class.java), pos)
     }

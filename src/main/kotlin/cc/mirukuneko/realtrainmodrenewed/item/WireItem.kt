@@ -8,6 +8,7 @@ import cc.mirukuneko.realtrainmodrenewed.RealTrainModRenewedComponents
 import cc.mirukuneko.realtrainmodrenewed.ClientHooks
 import cc.mirukuneko.realtrainmodrenewed.compat.NbtCompat
 import cc.mirukuneko.realtrainmodrenewed.blockentity.InstalledObjectBlockEntity
+import cc.mirukuneko.realtrainmodrenewed.blockentity.SignalConverterBlockEntity
 import cc.mirukuneko.realtrainmodrenewed.installedobject.InstalledObjectCategory
 import cc.mirukuneko.realtrainmodrenewed.installedobject.InstalledObjectDefinition
 import cc.mirukuneko.realtrainmodrenewed.installedobject.InstalledObjectRegistry
@@ -46,9 +47,10 @@ class WireItem : Item, ModelSelectableItem {
 
         val clickedPos = context.clickedPos
         val clicked = level.getBlockEntity(clickedPos)
-        if (clicked !is InstalledObjectBlockEntity
-            || (clicked.category != InstalledObjectCategory.INSULATOR && clicked.category != InstalledObjectCategory.OVERHEAD_LINE_POLE)) {
-            if (!level.isClientSide) player.sendOverlayMessage(Component.translatable("message.realtrainmodrenewed.wire.insulators_only"))
+        val validInstalledEndpoint = clicked is InstalledObjectBlockEntity &&
+            (clicked.category == InstalledObjectCategory.INSULATOR || clicked.category == InstalledObjectCategory.OVERHEAD_LINE_POLE)
+        if (!validInstalledEndpoint && clicked !is SignalConverterBlockEntity) {
+            if (!level.isClientSide) player.sendOverlayMessage(Component.translatable("message.realtrainmodrenewed.wire.endpoints_only"))
             return InteractionResult.FAIL
         }
 

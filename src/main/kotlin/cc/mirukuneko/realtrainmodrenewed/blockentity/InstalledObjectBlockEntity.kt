@@ -9,6 +9,7 @@ import cc.mirukuneko.realtrainmodrenewed.installedobject.InstalledObjectCategory
 import cc.mirukuneko.realtrainmodrenewed.installedobject.InstalledObjectRegistry
 import cc.mirukuneko.realtrainmodrenewed.signal.SignalAspect
 import cc.mirukuneko.realtrainmodrenewed.signal.SignalNetworkSavedData
+import cc.mirukuneko.realtrainmodrenewed.electric.ElectricSignalNetwork
 import jp.ngt.mccompat.WorldCompat
 import net.minecraft.core.BlockPos
 import net.minecraft.core.HolderLookup
@@ -122,7 +123,15 @@ class InstalledObjectBlockEntity(pos: BlockPos, state: BlockState) :
 
     fun setMountPitch(pitch: Float) { mountPitch = pitch; setChanged() }
     fun setRenderOffset(x: Double, y: Double, z: Double) { offsetX = x; offsetY = y; offsetZ = z; setChanged() }
-    fun setWireEndpoints(start: BlockPos?, end: BlockPos?) { wireStart = start; wireEnd = end; setChanged() }
+    fun setWireEndpoints(start: BlockPos?, end: BlockPos?) {
+        ElectricSignalNetwork.unregisterWire(level, worldPosition)
+        wireStart = start
+        wireEnd = end
+        if (category == InstalledObjectCategory.WIRE) {
+            ElectricSignalNetwork.registerWire(level, worldPosition, start, end)
+        }
+        setChanged()
+    }
     fun setSignalChannel(ch: Int, updateClient: Boolean) { signalChannel = ch; setChanged(); if (updateClient && level != null) level!!.sendBlockUpdated(worldPosition, blockState, blockState, 3) }
     fun setSignalAspect(aspect: SignalAspect?, updateClient: Boolean) {
         var resolved = aspect ?: SignalAspect.STOP
@@ -197,6 +206,14 @@ class InstalledObjectBlockEntity(pos: BlockPos, state: BlockState) :
         super.onLoad()
         level?.let { field_145850_b = WorldCompat(it) }
         if (level is ServerLevel && isSignal) SignalNetworkSavedData.get(level as ServerLevel).syncLoadedSignal(level as ServerLevel, this)
+        if (category == InstalledObjectCategory.WIRE) {
+            ElectricSignalNetwork.registerWire(level, worldPosition, wireStart, wireEnd)
+        }
+    }
+
+    override fun setRemoved() {
+        ElectricSignalNetwork.unregisterWire(level, worldPosition)
+        super.setRemoved()
     }
 
     fun getWorldObj(): WorldCompat? = field_145850_b
